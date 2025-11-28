@@ -1,0 +1,769 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Noor Graphics - ID Card Generator</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600&display=swap');
+        
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        :root {
+            --primary: #0052cc;
+            --primary-dark: #003d99;
+            --accent: #ff6b6b;
+            --text: #2c3e50;
+            --text-light: #e4e4e4;
+            --bg-light: linear-gradient(135deg, #f0f4ff, #d9e2ff);
+            --bg-dark: linear-gradient(135deg, #1e1e1e, #121212);
+            --card-light: #ffffff;
+            --card-dark: #1e1e1e;
+            --transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        body {
+            font-family: 'Montserrat', Arial, sans-serif;
+            background: var(--bg-light);
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+            color: var(--text);
+            transition: var(--transition);
+            position: relative;
+            overflow-x: hidden;
+        }
+
+        body.dark {
+            background: var(--bg-dark);
+            color: var(--text-light);
+        }
+
+        /* Animated Background Bubbles */
+        .bg-bubbles {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            overflow: hidden;
+        }
+
+        .bg-bubbles li {
+            position: absolute;
+            list-style: none;
+            display: block;
+            width: 40px;
+            height: 40px;
+            background-color: rgba(0, 82, 204, 0.15);
+            bottom: -160px;
+            border-radius: 50%;
+            animation: square 25s infinite;
+            transition-timing-function: linear;
+        }
+
+        .bg-bubbles li:nth-child(1) { left: 10%; animation-delay: 0s; width: 80px; height: 80px; }
+        .bg-bubbles li:nth-child(2) { left: 20%; animation-delay: 2s; animation-duration: 17s; width: 60px; height: 60px; }
+        .bg-bubbles li:nth-child(3) { left: 25%; animation-delay: 4s; width: 120px; height: 120px; }
+        .bg-bubbles li:nth-child(4) { left: 40%; animation-delay: 0s; animation-duration: 22s; width: 160px; height: 160px; }
+        .bg-bubbles li:nth-child(5) { left: 70%; animation-delay: 3s; width: 100px; height: 100px; }
+        .bg-bubbles li:nth-child(6) { left: 80%; animation-delay: 2s; width: 120px; height: 120px; }
+        .bg-bubbles li:nth-child(7) { left: 32%; animation-delay: 6s; width: 140px; height: 140px; }
+        .bg-bubbles li:nth-child(8) { left: 55%; animation-delay: 8s; animation-duration: 18s; width: 40px; height: 40px; }
+        .bg-bubbles li:nth-child(9) { left: 25%; animation-delay: 10s; animation-duration: 20s; width: 80px; height: 80px; }
+        .bg-bubbles li:nth-child(10) { left: 90%; animation-delay: 5s; width: 100px; height: 100px; }
+
+        body.dark .bg-bubbles li { 
+            background-color: rgba(51, 153, 255, 0.1); 
+        }
+
+        /* Enhanced Navigation */
+        .nav-custom {
+            background: rgba(255, 255, 255, 0.95) !important;
+            backdrop-filter: blur(12px);
+            box-shadow: 0 8px 32px rgba(0, 82, 204, 0.15);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+            transition: var(--transition);
+            padding: 15px 0;
+        }
+
+        body.dark .nav-custom {
+            background: rgba(30, 30, 30, 0.95) !important;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .navbar-brand {
+            font-weight: 700;
+            color: var(--primary) !important;
+            font-size: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            transition: var(--transition);
+        }
+
+        .navbar-brand:hover {
+            transform: translateY(-2px);
+        }
+
+        .nav-link {
+            color: var(--text) !important;
+            font-weight: 600;
+            margin: 0 10px;
+            border-radius: 25px;
+            padding: 8px 20px !important;
+            transition: var(--transition);
+        }
+
+        body.dark .nav-link {
+            color: var(--text-light) !important;
+        }
+
+        .nav-link:hover {
+            background: rgba(0, 82, 204, 0.1);
+            transform: translateY(-2px);
+        }
+
+        .dropdown-menu {
+            border: none;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+            backdrop-filter: blur(10px);
+            background: rgba(255, 255, 255, 0.95);
+        }
+
+        body.dark .dropdown-menu {
+            background: rgba(30, 30, 30, 0.95);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+
+        .dropdown-item {
+            padding: 10px 20px;
+            transition: var(--transition);
+            border-radius: 10px;
+            margin: 5px;
+        }
+
+        .dropdown-item:hover {
+            background: rgba(0, 82, 204, 0.1);
+            transform: translateX(5px);
+        }
+
+        /* Enhanced Hero Section */
+        .hero-section {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            color: white;
+            padding: 150px 0 100px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+            animation: fadeIn 1s ease-out;
+        }
+
+        .hero-section::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000"><polygon fill="rgba(255,255,255,0.05)" points="0,1000 1000,0 1000,1000"/></svg>');
+            animation: float 6s ease-in-out infinite;
+        }
+
+        .hero-section h1 {
+            font-weight: 700;
+            margin-bottom: 25px;
+            animation: fadeInUp 0.8s ease-out 0.2s both;
+            text-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+        }
+
+        .hero-section .lead {
+            font-size: 1.3rem;
+            margin-bottom: 35px;
+            animation: fadeInUp 0.8s ease-out 0.4s both;
+            opacity: 0.9;
+        }
+
+        /* Enhanced Buttons */
+        .btn-custom {
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            border: none;
+            color: white;
+            padding: 15px 35px;
+            border-radius: 30px;
+            font-weight: 600;
+            font-size: 1.1rem;
+            transition: var(--transition);
+            box-shadow: 0 8px 25px rgba(0, 82, 204, 0.3);
+            position: relative;
+            overflow: hidden;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            border: 2px solid white;
+        }
+
+        .btn-custom::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+            transition: 0.5s;
+            transform: translateX(-100%);
+        }
+
+        .btn-custom:hover::before {
+            border: 2px solid white;
+            transform: translateX(100%);
+        }
+
+        .btn-custom:hover {
+            border: 2px solid black;
+            transform: translateY(-3px);
+            box-shadow: 0 12px 30px rgba(0, 82, 204, 0.4);
+        }
+
+        .btn-outline-custom {
+            border: 2px solid white;
+            color: white;
+            background: transparent;
+            padding: 15px 35px;
+            border-radius: 30px;
+            font-weight: 600;
+            font-size: 1.1rem;
+            transition: var(--transition);
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .btn-outline-custom:hover {
+            background: white;
+            color: var(--primary);
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(255, 255, 255, 0.3);
+        }
+
+        /* Enhanced Team Section */
+        .team-section {
+            padding: 100px 0;
+            background: var(--bg-light);
+            position: relative;
+        }
+
+        body.dark .team-section {
+            background: var(--bg-dark);
+        }
+
+        .team-section h2 {
+            font-weight: 700;
+            margin-bottom: 15px;
+            animation: fadeInUp 0.8s ease-out;
+            color: var(--text);
+        }
+
+        body.dark .team-section h2 {
+            color: var(--text-light);
+        }
+
+        .team-section .lead {
+            animation: fadeInUp 0.8s ease-out 0.2s both;
+        }
+
+        .team-member {
+            text-align: center;
+            padding: 40px 30px;
+            background: var(--card-light);
+            border-radius: 20px;
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.1);
+            margin-bottom: 30px;
+            transition: var(--transition);
+            border: 1px solid rgba(0, 0, 0, 0.05);
+            animation: fadeInUp 0.8s ease-out;
+            position: relative;
+            overflow: hidden;
+        }
+
+        body.dark .team-member {
+            background: var(--card-dark);
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .team-member::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 5px;
+            background: linear-gradient(90deg, var(--primary), var(--accent));
+        }
+
+        .team-member:hover {
+            transform: translateY(-15px);
+            box-shadow: 0 25px 60px rgba(0, 0, 0, 0.15);
+        }
+
+        body.dark .team-member:hover {
+            box-shadow: 0 25px 60px rgba(0, 0, 0, 0.4);
+        }
+
+        .member-photo {
+            width: 180px;
+            height: 180px;
+            border-radius: 50%;
+            object-fit: cover;
+            margin-bottom: 25px;
+            border: 5px solid var(--primary);
+            box-shadow: 0 10px 25px rgba(0, 82, 204, 0.3);
+            transition: var(--transition);
+        }
+
+        .team-member:hover .member-photo {
+            transform: scale(1.1) rotate(5deg);
+            border-color: var(--accent);
+        }
+
+        .team-member h3 {
+            font-weight: 700;
+            margin-bottom: 8px;
+            color: var(--text);
+        }
+
+        body.dark .team-member h3 {
+            color: var(--text-light);
+        }
+
+        .team-member .text-muted {
+            color: #6c757d !important;
+            font-weight: 600;
+            margin-bottom: 20px;
+        }
+
+        body.dark .team-member .text-muted {
+            color: #adb5bd !important;
+        }
+
+        .team-member p {
+            line-height: 1.7;
+            margin-bottom: 25px;
+            color: var(--text);
+        }
+
+        body.dark .team-member p {
+            color: var(--text-light);
+        }
+
+        .social-links a {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 45px;
+            height: 45px;
+            border-radius: 50%;
+            background: rgba(0, 82, 204, 0.1);
+            color: var(--primary);
+            text-decoration: none;
+            transition: var(--transition);
+            margin: 0 8px;
+        }
+
+        .social-links a:hover {
+            background: var(--primary);
+            color: white;
+            transform: translateY(-3px);
+            box-shadow: 0 8px 20px rgba(0, 82, 204, 0.3);
+        }
+
+        /* Enhanced Contact Section */
+        .contact-section {
+            background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+            color: white;
+            padding: 80px 0;
+            text-align: center;
+            position: relative;
+        }
+
+        .contact-section h2 {
+            font-weight: 700;
+            margin-bottom: 20px;
+            animation: fadeInUp 0.8s ease-out;
+        }
+
+        .contact-section .lead {
+            animation: fadeInUp 0.8s ease-out 0.2s both;
+            margin-bottom: 40px;
+            opacity: 0.9;
+        }
+
+        .contact-btn {
+            background: rgba(255, 255, 255, 0.1);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            padding: 15px 30px;
+            border-radius: 30px;
+            font-weight: 600;
+            font-size: 1.1rem;
+            transition: var(--transition);
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            backdrop-filter: blur(10px);
+        }
+
+        .contact-btn:hover {
+            background: white;
+            color: var(--primary);
+            transform: translateY(-3px);
+            box-shadow: 0 12px 30px rgba(255, 255, 255, 0.2);
+        }
+
+        .contact-btn.whatsapp:hover {
+            background: #25D366;
+            color: white;
+        }
+
+        /* Enhanced Footer */
+        footer {
+            background: #1a1a1a;
+            color: white;
+            padding: 40px 0;
+            text-align: center;
+        }
+
+        /* Theme Toggle Button */
+        .theme-toggle {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            box-shadow: 0 8px 25px rgba(0, 82, 204, 0.3);
+            transition: var(--transition);
+            z-index: 1000;
+            cursor: pointer;
+        }
+
+        .theme-toggle:hover {
+            transform: translateY(-3px) rotate(15deg);
+            box-shadow: 0 12px 30px rgba(0, 82, 204, 0.4);
+        }
+
+        /* Animations */
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes fadeInUp {
+            from { 
+                opacity: 0; 
+                transform: translateY(30px); 
+            }
+            to { 
+                opacity: 1; 
+                transform: translateY(0); 
+            }
+        }
+
+        @keyframes square {
+            0% { 
+                transform: translateY(0) rotate(0deg); 
+                opacity: 0.7; 
+                border-radius: 50%; 
+            }
+            100% { 
+                transform: translateY(-1000px) rotate(720deg); 
+                opacity: 0; 
+                border-radius: 20%; 
+            }
+        }
+
+        @keyframes float {
+            0% { transform: translateY(0) rotate(0deg); }
+            50% { transform: translateY(-20px) rotate(5deg); }
+            100% { transform: translateY(0) rotate(0deg); }
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .hero-section {
+                padding: 120px 0 80px;
+            }
+            
+            .hero-section h1 {
+                font-size: 2.5rem;
+            }
+            
+            .team-member {
+                padding: 30px 20px;
+            }
+            
+            .member-photo {
+                width: 150px;
+                height: 150px;
+            }
+            
+            .contact-btn {
+                padding: 12px 25px;
+                font-size: 1rem;
+            }
+            
+            .theme-toggle {
+                bottom: 20px;
+                right: 20px;
+                width: 50px;
+                height: 50px;
+                font-size: 1.3rem;
+            }
+        }
+
+        @media (max-width: 576px) {
+            .hero-section h1 {
+                font-size: 2rem;
+            }
+            
+            .hero-section .lead {
+                font-size: 1.1rem;
+            }
+            
+            .btn-custom, .btn-outline-custom {
+                padding: 12px 25px;
+                font-size: 1rem;
+            }
+            
+            .team-section {
+                padding: 60px 0;
+            }
+            
+            .contact-section {
+                padding: 60px 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Animated Background -->
+    <ul class="bg-bubbles">
+        <li></li><li></li><li></li><li></li><li></li><li></li><li></li><li></li><li></li><li></li>
+    </ul>
+
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-light nav-custom fixed-top">
+        <div class="container">
+            <a class="navbar-brand" href="#home">
+                <i class="fas fa-id-card"></i> Noor Graphics
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="#home">Home</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('documentation') }}">Documentation</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#team">Our Team</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#contact">Contact</a>
+                    </li>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown">
+                            <i class="fas fa-user"></i> Account
+                        </a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="{{ url_for('student_login') }}"><i class="fas fa-sign-in-alt"></i> Login</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('register') }}"><i class="fas fa-user-plus"></i> Register</a></li>
+                        </ul>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="hero-section" id="home">
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-8 mx-auto">
+                    <h1 class="display-3 fw-bold mb-4">Welcome to Noor Graphics ID Card Generator</h1>
+                    <p class="lead mb-4">Create professional, customizable ID cards with ease. Our platform offers seamless generation, management, and printing of identity cards for educational institutions and organizations.</p>
+                    <div class="d-flex gap-3 justify-content-center flex-wrap">
+                        <a href="{{ url_for('student_login') }}" class="btn btn-custom">
+                            <i class="fas fa-play-circle"></i> Get Started
+                        </a>
+                        <a href="{{ url_for('documentation') }}" class="btn btn-custom">
+                            <i class="fas fa-book"></i> Learn More
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Team Section -->
+    <section class="team-section" id="team">
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-12 text-center mb-5">
+                    <h2 class="display-4 fw-bold">Meet Our Team</h2>
+                    <p class="lead">The creative minds behind Noor Graphics</p>
+                </div>
+            </div>
+            <div class="row justify-content-center">
+                <!-- Team Member 1 -->
+                <div class="col-lg-5 col-md-6">
+                    <div class="team-member">
+                        <img src="{{ url_for('static', filename='images/atique_rana.jpg') }}" alt="Atique Rana" class="member-photo" onerror="this.src='https://via.placeholder.com/200x200/667eea/ffffff?text=Atique+Rana'">
+                        <h3 class="h4">Atique Rana</h3>
+                        <p class="text-muted">Graphics Designer & Founder</p>
+                        <p class="mb-3">With over 8 years of experience in graphic design, Atique specializes in creating visually stunning and professional identity designs. His expertise in Adobe Creative Suite and keen eye for detail ensures every ID card is both functional and aesthetically pleasing.</p>
+                        <div class="social-links">
+                            <a href="#" class="text-primary mx-2"><i class="fab fa-facebook fa-lg"></i></a>
+                            <a href="#" class="text-info mx-2"><i class="fab fa-twitter fa-lg"></i></a>
+                            <a href="#" class="text-danger mx-2"><i class="fab fa-instagram fa-lg"></i></a>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Team Member 2 -->
+                <div class="col-lg-5 col-md-6">
+                    <div class="team-member">
+                        <img src="{{ url_for('static', filename='images/zishan_rajput.jpg') }}" alt="Mohd Zishan Rajput" class="member-photo" onerror="this.src='https://via.placeholder.com/200x200/764ba2/ffffff?text=Zishan+Rajput'">
+                        <h3 class="h4">Mohd Zishan Rajput</h3>
+                        <p class="text-muted">Full Stack Web Developer & CS Engineer <br>Co-Founder</p>
+                        <p class="mb-3">Zishan is a versatile developer with expertise in full-stack web development, artificial intelligence, and graphic design. He brings technical innovation to the platform, ensuring seamless user experience and cutting-edge functionality for ID card generation and management.</p>
+                        <div class="social-links">
+                            <a href="#" class="text-primary mx-2"><i class="fab fa-facebook fa-lg"></i></a>
+                            <a href="#" class="text-info mx-2"><i class="fab fa-twitter fa-lg"></i></a>
+                            <a href="#" class="text-danger mx-2"><i class="fab fa-instagram fa-lg"></i></a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Contact Section -->
+    <section class="contact-section" id="contact">
+        <div class="container">
+            <h2 class="mb-4">Any Questions? Contact Us</h2>
+            <p class="lead mb-4">We're here to help you create the perfect ID cards for your organization</p>
+            <div class="d-flex justify-content-center gap-4 flex-wrap">
+                <a href="tel:+918279496435" class="contact-btn">
+                    <i class="fas fa-phone"></i> Call Us: +91 98765 43210
+                </a>
+                <a href="https://wa.me/918279496435" class="contact-btn whatsapp" target="_blank">
+                    <i class="fab fa-whatsapp"></i> WhatsApp
+                </a>
+                <a href="mailto:robertpiyyra@gmail.com" class="contact-btn">
+                    <i class="fas fa-envelope"></i> Email Us
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="bg-dark text-white py-4">
+        <div class="container text-center">
+            <p>&copy; 2024 Noor Graphics ID Card Generator. All rights reserved.</p>
+            <p>Designed with ❤️ by Team Noor Graphics</p>
+        </div>
+    </footer>
+
+    <!-- Theme Toggle Button -->
+    <button class="theme-toggle" id="themeToggle">
+        <i class="fas fa-moon"></i>
+    </button>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Smooth scrolling
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'start'
+                    });
+                }
+            });
+        });
+
+        // Navbar background on scroll
+        window.addEventListener('scroll', function() {
+            const navbar = document.querySelector('.navbar');
+            if (window.scrollY > 100) {
+                navbar.style.background = 'rgba(255, 255, 255, 0.98)';
+            } else {
+                navbar.style.background = 'rgba(255, 255, 255, 0.95)';
+            }
+        });
+
+        // Theme Toggle
+        const themeToggle = document.getElementById('themeToggle');
+        const themeIcon = themeToggle.querySelector('i');
+        
+        // Check for saved theme preference or default to light
+        const currentTheme = localStorage.getItem('theme') || 'light';
+        if (currentTheme === 'dark') {
+            document.body.classList.add('dark');
+            themeIcon.className = 'fas fa-sun';
+        }
+
+        themeToggle.addEventListener('click', () => {
+            document.body.classList.toggle('dark');
+            const isDark = document.body.classList.contains('dark');
+            themeIcon.className = isDark ? 'fas fa-sun' : 'fas fa-moon';
+            localStorage.setItem('theme', isDark ? 'dark' : 'light');
+        });
+
+        // Add hover animations to buttons and cards
+        const buttons = document.querySelectorAll('.btn-custom, .btn-outline-custom, .contact-btn');
+        buttons.forEach(button => {
+            button.addEventListener('mouseenter', function() {
+                this.style.transform = 'translateY(-3px)';
+            });
+            button.addEventListener('mouseleave', function() {
+                this.style.transform = 'translateY(0)';
+            });
+        });
+
+        // Add loading animation
+        window.addEventListener('load', function() {
+            document.body.style.opacity = '0';
+            document.body.style.transition = 'opacity 0.5s ease';
+            
+            setTimeout(() => {
+                document.body.style.opacity = '1';
+            }, 100);
+        });
+    </script>
+</body>
+</html>

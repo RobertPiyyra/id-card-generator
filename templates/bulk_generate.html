@@ -1,0 +1,131 @@
+{% extends "base.html" %}  <!-- or your main layout -->
+{% block title %}Bulk ID Card Generator{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2 class="mb-4"><i class="fas fa-file-excel"></i> Bulk ID Card Generator</h2>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+          </div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <form id="bulkForm" enctype="multipart/form-data" class="card p-4 shadow-sm">
+        <div class="row g-3">
+            <div class="col-md-6">
+                <label class="form-label"><i class="fas fa-clipboard-list"></i> Select Template</label>
+                <select name="template_id" class="form-select" required>
+                    <option value="">— Choose Template —</option>
+                    {% for t in templates %}
+                    <option value="{{ t.id }}">{{ t.school_name }} ({{ t.card_orientation|capitalize }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="col-md-6">
+                <label class="form-label"><i class="fas fa-file-excel"></i> Upload Excel File</label>
+                <input type="file" name="excel_file" class="form-control" accept=".xlsx,.xls" required>
+                <div class="form-text">
+                    Required columns: <code>name, father_name, class_name, dob, address, phone, blood_group, student_id_number, photo_filename</code>
+                </div>
+            </div>
+        </div>
+
+        <div class="mt-4">
+            <button type="submit" class="btn btn-success btn-lg" id="submitBtn">
+                <i class="fas fa-cogs"></i> Generate & Download ZIP
+            </button>
+        </div>
+
+        <!-- Progress -->
+        <div id="progressContainer" class="mt-4" style="display:none;">
+            <div class="progress" style="height: 20px;">
+                <div id="progressBar" class="progress-bar progress-bar-striped progress-bar-animated"
+                     role="progressbar" style="width: 0%">0%</div>
+            </div>
+            <p class="mt-2 text-center" id="progressText">Preparing...</p>
+        </div>
+
+        <!-- Download Link -->
+        <div id="downloadArea" class="mt-4 text-center" style="display:none;">
+            <a id="downloadLink" href="#" class="btn btn-primary btn-lg">
+                <i class="fas fa-download"></i> Download All ID Cards (ZIP)
+            </a>
+        </div>
+    </form>
+</div>
+
+<style>
+    .progress { border-radius: 10px; overflow: hidden; }
+    .progress-bar { background: linear-gradient(90deg, #0052cc, #00d4aa); }
+</style>
+
+<script>
+document.getElementById('bulkForm').onsubmit = async function(e) {
+    e.preventDefault();
+    const form = e.target;
+    const submitBtn = document.getElementById('submitBtn');
+    const progressContainer = document.getElementById('progressContainer');
+    const progressBar = document.getElementById('progressBar');
+    const progressText = document.getElementById('progressText');
+    const downloadArea = document.getElementById('downloadArea');
+    const downloadLink = document.getElementById('downloadLink');
+
+    // UI: Disable button
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Processing...';
+    progressContainer.style.display = 'block';
+    downloadArea.style.display = 'none';
+
+    const formData = new FormData(form);
+
+    try {
+        const response = await fetch('{{ url_for("bulk_generate") }}', {
+            method: 'POST',
+            body: formData
+        });
+
+        if (!response.ok) throw new Error('Server error: ' + response.status);
+
+        const total = response.headers.get('content-length');
+        let loaded = 0;
+        const reader = response.body.getReader();
+        const chunks = [];
+
+        while (true) {
+            const {done, value} = await reader.read();
+            if (done) break;
+            chunks.push(value);
+            loaded += value.length;
+            if (total) {
+                const percent = Math.round((loaded / total) * 100);
+                progressBar.style.width = percent + '%';
+                progressBar.textContent = percent + '%';
+                progressText.textContent = `Downloading... ${percent}%`;
+            }
+        }
+
+        const blob = new Blob(chunks, { type: 'application/zip' });
+        const url = URL.createObjectURL(blob);
+        downloadLink.href = url;
+        downloadLink.download = `ID_Cards_${new Date().toISOString().slice(0,19).replace(/:/g,'-')}.zip`;
+
+        progressText.textContent = 'Complete! Ready to download.';
+        downloadArea.style.display = 'block';
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<i class="fas fa-cogs"></i> Generate & Download ZIP';
+
+    } catch (err) {
+        alert('Error: ' + err.message);
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<i class="fas fa-cogs"></i> Try Again';
+    }
+};
+</script>
+{% endblock %}

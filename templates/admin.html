@@ -1,0 +1,2522 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel - ID Card Generator</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap');
+
+        :root {
+            --bg-color: #f0f4ff;
+            --text-color: #2c3e50;
+            --section-bg: #ffffff;
+            --section-hover: #edf2f7;
+            --primary-color: #0052cc;
+            --primary-dark: #003d99;
+            --accent-color: #ff6b6b;
+            --success-bg: #d4edda;
+            --success-text: #155724;
+            --error-bg: #f8d7da;
+            --error-text: #721c24;
+            --warning-bg: #fff3cd;
+            --warning-text: #856404;
+            --info-bg: #d1ecf1;
+            --info-text: #0c5460;
+            --purple-gradient: linear-gradient(135deg, #8b5cf6, #7c3aed);
+            --purple-dark: #6d28d9;
+            --border-radius: 16px;
+            --border-radius-sm: 10px;
+            --shadow: 0 10px 25px -3px rgba(0,0,0,0.1), 0 4px 10px -2px rgba(0,0,0,0.05);
+            --shadow-md: 0 6px 15px -1px rgba(0,0,0,0.1), 0 2px 8px -1px rgba(0,0,0,0.06);
+            --transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        body.dark {
+            --bg-color: #121826;
+            --text-color: #e4e4e4;
+            --section-bg: #1e293b;
+            --section-hover: #2d3748;
+            --primary-light: #4a5568;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Montserrat', Arial, sans-serif;
+            background: var(--bg-color);
+            margin: 0;
+            padding: 24px;
+            color: var(--text-color);
+            transition: var(--transition);
+            line-height: 1.6;
+            position: relative;
+            overflow-x: hidden;
+            min-height: 100vh;
+        }
+
+        .bg-bubbles {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            overflow: hidden;
+        }
+
+        .bg-bubbles li {
+            position: absolute;
+            list-style: none;
+            display: block;
+            width: 40px;
+            height: 40px;
+            background-color: rgba(0, 82, 204, 0.15);
+            bottom: -160px;
+            border-radius: 50%;
+            animation: square 25s infinite;
+            transition-timing-function: linear;
+            will-change: transform, opacity;
+        }
+
+        .bg-bubbles li:nth-child(1) { left: 10%; animation-delay: 0s; width: 80px; height: 80px; }
+        .bg-bubbles li:nth-child(2) { left: 20%; animation-delay: 2s; animation-duration: 17s; width: 60px; height: 60px; }
+        .bg-bubbles li:nth-child(3) { left: 25%; animation-delay: 4s; width: 120px; height: 120px; }
+        .bg-bubbles li:nth-child(4) { left: 40%; animation-delay: 0s; animation-duration: 22s; width: 160px; height: 160px; }
+        .bg-bubbles li:nth-child(5) { left: 70%; animation-delay: 3s; width: 100px; height: 100px; }
+        .bg-bubbles li:nth-child(6) { left: 80%; animation-delay: 2s; width: 120px; height: 120px; }
+        .bg-bubbles li:nth-child(7) { left: 32%; animation-delay: 6s; width: 140px; height: 140px; }
+        .bg-bubbles li:nth-child(8) { left: 55%; animation-delay: 8s; animation-duration: 18s; width: 40px; height: 40px; }
+        .bg-bubbles li:nth-child(9) { left: 25%; animation-delay: 10s; animation-duration: 20s; width: 80px; height: 80px; }
+        .bg-bubbles li:nth-child(10) { left: 90%; animation-delay: 5s; width: 100px; height: 100px; }
+
+        body.dark .bg-bubbles li {
+            background-color: rgba(51, 153, 255, 0.1);
+        }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes scaleIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+        @keyframes rowHighlight { from { background: rgba(0, 82, 204, 0.1); } to { background: transparent; } }
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.02); } 100% { transform: scale(1); } }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        @keyframes square {
+            0% { transform: translateY(0) rotate(0deg); opacity: 0.7; border-radius: 50%; }
+            100% { transform: translateY(-1000px) rotate(720deg); opacity: 0; border-radius: 20%; }
+        }
+        @keyframes float { 0% { transform: translateY(0) rotate(0deg); } 50% { transform: translateY(-10px) rotate(5deg); } 100% { transform: translateY(0) rotate(0deg); } }
+        @keyframes glow { 0% { box-shadow: 0 0 5px rgba(139, 92, 246, 0.5); } 50% { box-shadow: 0 0 20px rgba(139, 92, 246, 0.8); } 100% { box-shadow: 0 0 5px rgba(139, 92, 246, 0.5); } }
+
+        .floating { animation: float 6s ease-in-out infinite; }
+        .glow { animation: glow 2s ease-in-out infinite; }
+
+        h1 {
+            text-align: center;
+            font-size: clamp(1.8rem, 5vw, 2.5rem);
+            font-weight: 700;
+            color: var(--primary-color);
+            margin-bottom: 2rem;
+            animation: fadeIn 0.8s ease-out;
+            letter-spacing: -0.025em;
+            position: relative;
+            padding-bottom: 15px;
+        }
+
+        h1::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 100px;
+            height: 4px;
+            background: linear-gradient(90deg, var(--primary-color), var(--accent-color));
+            border-radius: 2px;
+        }
+
+        h3 {
+            font-size: clamp(1.2rem, 4vw, 1.5rem);
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            color: var(--text-color);
+            animation: fadeIn 0.8s ease-out;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        h3 i { color: var(--primary-color); font-size: 1.3rem; }
+
+        .theme-toggle, .home-button {
+            position: fixed;
+            top: 24px;
+            right: 24px;
+            background: var(--primary-color);
+            color: #fff;
+            border: none;
+            padding: 12px;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: var(--transition);
+            z-index: 1000;
+            font-size: 1.2rem;
+            animation: scaleIn 0.5s ease-out;
+            box-shadow: var(--shadow);
+            width: 50px;
+            height: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .home-button {
+            right: 84px;
+            background: linear-gradient(135deg, #10b981, #059669);
+        }
+
+        .theme-toggle:hover, .home-button:hover {
+            background: var(--primary-dark);
+            transform: translateY(-2px) rotate(15deg);
+            box-shadow: var(--shadow);
+        }
+
+        .home-button:hover {
+            background: linear-gradient(135deg, #059669, #047857);
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: auto;
+            animation: slideUp 1s ease-out;
+        }
+
+        .grid-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+            gap: 24px;
+            margin-top: 24px;
+        }
+
+        .section {
+            background: var(--section-bg);
+            padding: 24px;
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow);
+            transition: var(--transition);
+            animation: fadeIn 0.8s ease-out;
+            height: fit-content;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .section::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 5px;
+            background: linear-gradient(90deg, var(--primary-color), var(--accent-color));
+            transform: translateX(-100%);
+            animation: slideIn 1s forwards 0.5s;
+        }
+
+        .section:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04);
+        }
+
+        @keyframes slideIn { from { transform: translateX(-100%); } to { transform: translateX(0); } }
+
+        .card {
+            background: var(--section-bg);
+            border-radius: var(--border-radius);
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: var(--shadow-md);
+            transition: var(--transition);
+        }
+
+        .card:hover { transform: translateY(-2px); box-shadow: var(--shadow); }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid rgba(0,0,0,0.1);
+        }
+
+        .card-title { font-size: 1.2rem; font-weight: 600; color: var(--primary-color); }
+
+        .btn {
+            padding: 12px 20px;
+            text-decoration: none;
+            color: white;
+            border-radius: var(--border-radius-sm);
+            cursor: pointer;
+            border: none;
+            font-size: 0.9rem;
+            font-weight: 600;
+            transition: var(--transition);
+            position: relative;
+            overflow: hidden;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
+        }
+
+        .btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+            transition: 0.5s;
+        }
+
+        .btn:hover::before { left: 100%; }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            background: linear-gradient(135deg, var(--primary-dark), #002966);
+            box-shadow: var(--shadow);
+        }
+
+        .btn-upload { background: linear-gradient(135deg, #10b981, #059669); }
+        .btn-upload:hover { background: linear-gradient(135deg, #059669, #047857); }
+        .btn-delete { background: linear-gradient(135deg, #ef4444, #dc2626); }
+        .btn-delete:hover { background: linear-gradient(135deg, #dc2626, #b91c1c); }
+        .btn-download { background: linear-gradient(135deg, #f59e0b, #d97706); }
+        .btn-download:hover { background: linear-gradient(135deg, #d97706, #b45309); }
+        .btn-primary { background: linear-gradient(135deg, var(--primary-color), var(--primary-dark)); }
+        .btn-primary:hover { background: linear-gradient(135deg, var(--primary-dark), #002966); }
+        .btn-credentials { background: var(--purple-gradient); }
+        .btn-credentials:hover { background: linear-gradient(135deg, #7c3aed, #6d28d9); box-shadow: 0 8px 25px rgba(139, 92, 246, 0.3); }
+        .btn-sm { padding: 8px 12px; font-size: 0.8rem; }
+
+        input, select, textarea {
+            padding: 12px 16px;
+            margin: 8px 0;
+            border-radius: var(--border-radius-sm);
+            border: 2px solid #ced6e0;
+            background: var(--section-bg);
+            color: var(--text-color);
+            transition: var(--transition);
+            font-size: 0.9rem;
+            width: 100%;
+            font-family: 'Montserrat', sans-serif;
+        }
+
+        input:focus, select:focus, textarea:focus {
+            border-color: var(--primary-color);
+            outline: none;
+            box-shadow: 0 0 0 4px rgba(0, 82, 204, 0.2);
+            transform: translateY(-3px);
+        }
+
+        .form-group { margin-bottom: 15px; animation: fadeInUp 0.6s ease-out; animation-fill-mode: both; }
+
+        .form-row { display: flex; gap: 15px; flex-wrap: wrap; }
+
+        .form-row .form-group { flex: 1 1 200px; }
+
+        label { display: block; font-size: 0.9rem; font-weight: 600; color: var(--text-color); margin-bottom: 5px; display: flex; align-items: center; gap: 8px; }
+
+        label i { color: var(--primary-color); }
+
+        #searchContainer {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+            padding: 20px;
+            background: var(--section-bg);
+            border-radius: var(--border-radius);
+            animation: fadeIn 0.8s ease-out;
+            margin-bottom: 24px;
+        }
+
+        #searchInput {
+            flex: 1;
+            min-width: 200px;
+            max-width: 500px;
+            padding-left: 40px;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='8'%3E%3C/circle%3E%3Cline x1='21' y1='21' x2='16.65' y2='16.65'%3E%3C/line%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: 16px center;
+        }
+
+        #resultCount {
+            font-size: 0.85rem;
+            color: var(--primary-color);
+            font-weight: 600;
+            background: rgba(0, 82, 204, 0.1);
+            padding: 6px 12px;
+            border-radius: 20px;
+        }
+
+        .table-wrapper {
+            overflow-x: auto;
+            border-radius: var(--border-radius);
+            margin-top: 16px;
+            box-shadow: var(--shadow-md);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            background: var(--section-bg);
+            border-radius: var(--border-radius);
+            overflow: hidden;
+        }
+
+        th, td {
+            padding: 16px;
+            border-bottom: 1px solid #e5e7eb;
+            text-align: center;
+        }
+
+        th {
+            background: var(--primary-color);
+            color: white;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            font-size: 0.85rem;
+            position: sticky;
+            top: 0;
+        }
+
+        td { font-size: 0.9rem; }
+
+        tr.new-row { animation: rowHighlight 2s ease-out forwards; }
+
+        tr:hover { background: rgba(0, 82, 204, 0.05); transition: background 0.3s ease; }
+
+        .status-badge { display: inline-block; padding: 4px 8px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; }
+
+        .status-active { background: var(--success-bg); color: var(--success-text); }
+        .status-pending { background: #fef3c7; color: #d97706; }
+
+        img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 8px;
+            box-shadow: var(--shadow);
+            transition: transform 0.3s ease;
+        }
+
+        img:hover { transform: scale(1.1); }
+
+        ul { list-style: none; padding: 0; margin: 0; }
+
+        ul li {
+            margin: 8px 0;
+            animation: fadeIn 0.8s ease-out;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            background: var(--section-bg);
+            border-radius: var(--border-radius-sm);
+            transition: var(--transition);
+        }
+
+        ul li:hover { background: var(--section-hover); }
+
+        .action-buttons { display: flex; gap: 10px; margin-top: 20px; flex-wrap: wrap; }
+
+        .settings-panel { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; }
+
+        .stat-card {
+            background: var(--section-bg);
+            border-radius: var(--border-radius);
+            padding: 20px;
+            text-align: center;
+            box-shadow: var(--shadow-md);
+            transition: var(--transition);
+        }
+
+        .stat-card:hover { transform: translateY(-5px); box-shadow: var(--shadow); }
+
+        .stat-value { font-size: 2rem; font-weight: 700; color: var(--primary-color); margin: 10px 0; }
+
+        .stat-label { font-size: 0.9rem; color: var(--text-color); text-transform: uppercase; letter-spacing: 0.05em; }
+
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 15px 20px;
+            border-radius: var(--border-radius);
+            background: var(--success-bg);
+            color: var(--success-text);
+            box-shadow: var(--shadow);
+            transform: translateX(100%);
+            opacity: 0;
+            transition: var(--transition);
+            z-index: 1001;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .notification.show { transform: translateX(0); opacity: 1; }
+
+        .notification.error { background: var(--error-bg); color: var(--error-text); }
+        .notification.warning { background: var(--warning-bg); color: var(--warning-text); }
+        .notification.info { background: var(--info-bg); color: var(--info-text); }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top-color: #fff;
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        .alert {
+            padding: 15px;
+            border-radius: var(--border-radius-sm);
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .alert-success { background-color: var(--success-bg); color: var(--success-text); border: 1px solid #a7f3d0; }
+        .alert-error { background-color: var(--error-bg); color: var(--error-text); border: 1px solid #fecaca; }
+
+        .template-selector {
+            background: var(--section-bg);
+            padding: 15px;
+            border-radius: var(--border-radius-sm);
+            margin-bottom: 20px;
+            border: 2px solid var(--primary-color);
+        }
+
+        .template-selector select {
+            font-weight: 600;
+            border: 2px solid var(--primary-color);
+        }
+
+        .settings-section {
+            border: 2px solid #e5e7eb;
+            border-radius: var(--border-radius);
+            padding: 20px;
+            margin-bottom: 20px;
+            transition: var(--transition);
+        }
+
+        .settings-section:hover {
+            border-color: var(--primary-color);
+            box-shadow: var(--shadow-md);
+        }
+
+        .settings-section h4 {
+            color: var(--primary-color);
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .credentials-section {
+            border: 2px solid #8b5cf6;
+            border-radius: var(--border-radius);
+            padding: 20px;
+            margin-bottom: 20px;
+            background: linear-gradient(135deg, rgba(139, 92, 246, 0.05), rgba(124, 58, 237, 0.05));
+            transition: var(--transition);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .credentials-section::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 4px;
+            background: var(--purple-gradient);
+        }
+
+        .credentials-section:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 15px 30px rgba(139, 92, 246, 0.15);
+        }
+
+        .credentials-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .credential-item {
+            background: var(--section-bg);
+            padding: 15px;
+            border-radius: var(--border-radius-sm);
+            border-left: 4px solid #8b5cf6;
+            box-shadow: var(--shadow-md);
+            transition: var(--transition);
+        }
+
+        .credential-item:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow);
+        }
+
+        .credential-label {
+            font-size: 0.8rem;
+            color: #6b7280;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 5px;
+        }
+
+        .credential-value {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--text-color);
+            font-family: 'Courier New', monospace;
+            background: rgba(0, 0, 0, 0.05);
+            padding: 8px 12px;
+            border-radius: 6px;
+            border: 1px solid #e5e7eb;
+        }
+
+        .password-field {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .password-toggle {
+            background: none;
+            border: none;
+            color: #6b7280;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .password-toggle:hover {
+            color: var(--primary-color);
+        }
+
+        /* Dynamic Form Fields Styling */
+        .dynamic-fields-section {
+            border: 2px solid #10b981;
+            border-radius: var(--border-radius);
+            padding: 20px;
+            margin-bottom: 20px;
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.05), rgba(5, 150, 105, 0.05));
+            transition: var(--transition);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .dynamic-fields-section::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 4px;
+            background: linear-gradient(90deg, #10b981, #059669);
+        }
+
+        .dynamic-fields-section:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 15px 30px rgba(16, 185, 129, 0.15);
+        }
+
+        .form-field-item {
+            background: var(--section-bg);
+            padding: 15px;
+            border-radius: var(--border-radius-sm);
+            border-left: 4px solid #10b981;
+            box-shadow: var(--shadow-md);
+            transition: var(--transition);
+            margin-bottom: 15px;
+        }
+
+        .form-field-item:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow);
+        }
+
+        .field-type-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            background: rgba(16, 185, 129, 0.1);
+            color: #065f46;
+        }
+
+        .field-options-list {
+            margin-top: 10px;
+            padding: 10px;
+            background: rgba(0, 0, 0, 0.02);
+            border-radius: 8px;
+            font-size: 0.85rem;
+        }
+
+        .field-options-list ul {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 5px;
+        }
+
+        .field-options-list li {
+            background: rgba(16, 185, 129, 0.1);
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+        }
+
+        .field-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        /* Enhanced Form Styling */
+        .enhanced-form {
+            background: var(--section-bg);
+            padding: 25px;
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow-md);
+            margin-bottom: 25px;
+        }
+
+        .enhanced-form .form-group {
+            margin-bottom: 20px;
+        }
+
+        .enhanced-form label {
+            font-weight: 600;
+            color: var(--primary-color);
+            margin-bottom: 8px;
+        }
+
+        .enhanced-form input, .enhanced-form select, .enhanced-form textarea {
+            border-radius: 10px;
+            padding: 14px 16px;
+            font-size: 1rem;
+            border: 2px solid #e2e8f0;
+            transition: var(--transition);
+        }
+
+        .enhanced-form input:focus, .enhanced-form select:focus, .enhanced-form textarea:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 4px rgba(0, 82, 204, 0.15);
+            transform: translateY(-2px);
+        }
+
+        .form-actions {
+            display: flex;
+            gap: 15px;
+            margin-top: 25px;
+        }
+
+        @media (max-width: 1024px) {
+            .grid-container {
+                grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            }
+            .stat-card {
+                padding: 15px;
+            }
+            .stat-value {
+                font-size: 1.8rem;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .grid-container { grid-template-columns: 1fr; }
+            .form-row { flex-direction: column; gap: 0; }
+            #searchContainer { flex-direction: column; align-items: stretch; }
+            #searchInput { max-width: 100%; }
+            .theme-toggle, .home-button { top: 10px; right: 10px; width: 40px; height: 40px; }
+            .home-button { right: 60px; }
+            .container { padding: 10px; }
+            body { padding: 15px; }
+            h1 { font-size: 2rem; }
+            .section { padding: 15px; }
+            .credentials-grid { grid-template-columns: 1fr; }
+            .btn {
+                width: 100%;
+                margin-bottom: 10px;
+            }
+            .action-buttons {
+                flex-direction: column;
+                gap: 5px;
+            }
+            .table-wrapper {
+                margin-top: 10px;
+            }
+            th, td {
+                padding: 12px;
+                font-size: 0.8rem;
+            }
+            img {
+                max-width: 60px;
+            }
+            .bg-bubbles li {
+                width: 30px;
+                height: 30px;
+            }
+            [class*="animation"] {
+                animation-duration: 0.3s !important;
+            }
+            .transition {
+                transition-duration: 0.2s !important;
+            }
+            .bg-bubbles {
+                display: none;
+            }
+        }
+
+        @media (max-width: 480px) {
+            body {
+                padding: 10px;
+            }
+            h1 {
+                font-size: 1.5rem;
+            }
+            h3 {
+                font-size: 1.2rem;
+            }
+            .stat-value {
+                font-size: 1.5rem;
+            }
+            .btn {
+                padding: 10px 15px;
+                font-size: 0.8rem;
+            }
+            input, select, textarea {
+                padding: 10px 12px;
+                font-size: 0.8rem;
+            }
+            .notification {
+                top: 10px;
+                right: 10px;
+                left: 10px;
+                width: calc(100% - 20px);
+                font-size: 0.9rem;
+            }
+            .theme-toggle, .home-button {
+                width: 35px;
+                height: 35px;
+                font-size: 1rem;
+            }
+            .home-button {
+                right: 55px;
+            }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            * {
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.01ms !important;
+                scroll-behavior: auto !important;
+            }
+        }
+
+        .tabs { display: flex; margin-bottom: 20px; border-bottom: 1px solid #e5e7eb; flex-wrap: wrap; }
+
+        .tab {
+            padding: 12px 20px;
+            cursor: pointer;
+            border-bottom: 3px solid transparent;
+            transition: var(--transition);
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex: 1 0 auto;
+            text-align: center;
+        }
+
+        .tab.active { border-bottom: 3px solid var(--primary-color); color: var(--primary-color); }
+
+        .tab-content { display: none; }
+
+        .tab-content.active { display: block; animation: fadeIn 0.5s ease; }
+
+        .checkbox-container { display: flex; align-items: center; gap: 10px; margin: 10px 0; }
+
+        .checkbox {
+            appearance: none;
+            -webkit-appearance: none;
+            width: 18px;
+            height: 18px;
+            border: 2px solid #ced6e0;
+            border-radius: 4px;
+            background: var(--section-bg);
+            position: relative;
+            cursor: pointer;
+        }
+
+        .checkbox:checked { background: var(--primary-color); border-color: var(--primary-color); }
+
+        .checkbox:checked::after {
+            content: '✓';
+            position: absolute;
+            color: white;
+            font-size: 12px;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        .color-picker {
+            -webkit-appearance: none;
+            padding: 0;
+            border: none;
+            border-radius: var(--border-radius-sm);
+            width: 40px;
+            height: 40px;
+            cursor: pointer;
+            background: transparent;
+        }
+
+        .color-picker::-webkit-color-swatch { border-radius: var(--border-radius-sm); border: none; }
+        .color-picker::-moz-color-swatch { border-radius: var(--border-radius-sm); border: none; }
+
+        .range-slider {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 6px;
+            border-radius: 3px;
+            background: #ced6e0;
+            outline: none;
+        }
+
+        .range-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: var(--primary-color);
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .range-slider::-webkit-slider-thumb:hover { transform: scale(1.2); }
+
+        .range-slider::-moz-range-thumb {
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: var(--primary-color);
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .range-slider::-moz-range-thumb:hover { transform: scale(1.2); }
+
+        .full-width { grid-column: 1 / -1; margin-top: 20px; }
+
+        .form-group:nth-child(1) { animation-delay: 0.1s; }
+        .form-group:nth-child(2) { animation-delay: 0.2s; }
+        .form-group:nth-child(3) { animation-delay: 0.3s; }
+        .form-group:nth-child(4) { animation-delay: 0.4s; }
+        .form-group:nth-child(5) { animation-delay: 0.5s; }
+        .form-group:nth-child(6) { animation-delay: 0.6s; }
+        .form-group:nth-child(7) { animation-delay: 0.7s; }
+    </style>
+</head>
+<body>
+    <ul class="bg-bubbles">
+        <li></li><li></li><li></li><li></li><li></li><li></li><li></li><li></li><li></li><li></li>
+    </ul>
+    
+    <a href="/index" class="home-button" title="Back to Home"><i class="fas fa-home"></i></a>
+    <button class="theme-toggle" onclick="toggleTheme()"><i class="fas fa-moon"></i></button>
+
+    <div class="notification" id="notification">
+        <i class="fas fa-check-circle"></i>
+        <span id="notification-text">Operation completed successfully</span>
+    </div>
+
+    <div class="container">
+        <h1 class="floating"><i class="fas fa-id-card"></i> {{ 'Admin' if is_admin else 'User' }} Panel - ID Card Generator</h1>
+
+        {% if success %}
+        <div class="alert alert-success">
+            <i class="fas fa-check-circle"></i> {{ success }}
+        </div>
+        {% endif %}
+
+        {% if error %}
+        <div class="alert alert-error">
+            <i class="fas fa-exclamation-circle"></i> {{ error }}
+        </div>
+        {% endif %}
+
+        <div class="grid-container" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
+            <div class="stat-card">
+                <div class="stat-label">Total Users</div>
+                <div class="stat-value">{{ rows|length|default(0) }}</div>
+                <i class="fas fa-users fa-2x" style="color: var(--primary-color);"></i>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">PDF Sheets</div>
+                <div class="stat-value">{{ pdf_sheets|length|default(0) }}</div>
+                <i class="fas fa-file-pdf fa-2x" style="color: var(--accent-color);"></i>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Templates</div>
+                <div class="stat-value">{{ templates|length|default(0) }}</div>
+                <i class="fas fa-image fa-2x" style="color: var(--primary-color);"></i>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Fonts Uploaded</div>
+                <div class="stat-value">{{ available_fonts|length|default(0) }}</div>
+                <i class="fas fa-font fa-2x" style="color: var(--accent-color);"></i>
+            </div>
+        </div>
+
+        <div class="section" id="searchContainer">
+            <input type="text" id="searchInput" onkeyup="searchTable()" placeholder="Search by name, class, phone...">
+            <span id="resultCount">{{ rows|length|default(0) }} results</span>
+            <button class="btn btn-primary" onclick="clearSearch()"><i class="fas fa-times"></i> Clear</button>
+        </div>
+
+        <div class="tabs">
+            <div class="tab active" onclick="switchTab('settings')"><i class="fas fa-cog"></i> Settings</div>
+            <div class="tab" onclick="switchTab('data')"><i class="fas fa-database"></i> Data Management</div>
+            <div class="tab" onclick="switchTab('preview')"><i class="fas fa-eye"></i> Preview</div>
+            <div class="tab" onclick="switchTab('formFields')"><i class="fas fa-list-alt"></i> Form Fields</div>
+        </div>
+
+        <div id="settings-tab" class="tab-content active">
+            <div class="grid-container">
+                <div class="section">
+                    <h3><i class="fas fa-file-upload"></i> Upload ID Card Template</h3>
+                    <form action="{{ url_for('upload_template') }}" method="post" enctype="multipart/form-data" id="templateForm" class="enhanced-form">
+                        <div class="form-group">
+                            <label><i class="fas fa-school"></i> School Name</label>
+                            <input type="text" name="school_name" required pattern="[A-Za-z0-9\s]{2,50}" title="School name must be 2-50 characters">
+                        </div>
+                        <div class="form-group">
+                            <label><i class="fas fa-file"></i> Select Template File (PDF, JPG, PNG)</label>
+                            <input type="file" name="template" accept=".pdf,.jpg,.jpeg,.png" required>
+                        </div>
+                        <div class="form-group">
+                            <label><i class="fas fa-arrows-alt"></i> Card Orientation</label>
+                            <select name="card_orientation" required>
+                                <option value="landscape" selected>Landscape (86mm x 56mm)</option>
+                                <option value="portrait">Portrait (56mm x 86mm)</option>
+                            </select>
+                        </div>
+                        <button type="submit" class="btn btn-upload"><i class="fas fa-upload"></i> Upload Template</button>
+                    </form>
+                    <div class="card" style="margin-top: 20px;">
+                        <div class="card-header">
+                            <span class="card-title">Available Templates</span>
+                        </div>
+                        {% if templates %}
+                            <ul>
+                                {% for template in templates %}
+                                    <li>
+                                        <span>
+                                            <i class="fas fa-file" style="color: var(--primary-color);"></i>
+                                            {{ template.school_name }} ({{ template.filename }})
+                                            <span style="font-size:0.9em; color:var(--primary-dark);">
+                                                [{{ template.card_orientation|capitalize if template.card_orientation else 'Landscape' }}]
+                                            </span>
+                                        </span>
+                                        <div class="action-buttons">
+                                            <a href="{{ url_for('download_template', template_id=template.id) }}" class="btn btn-download btn-sm"><i class="fas fa-download"></i> Download</a>
+                                            <form action="{{ url_for('remove_template', template_id=template.id) }}" method="post" style="display: inline;">
+                                                <button type="submit" class="btn btn-delete btn-sm" onclick="return confirm('Are you sure you want to delete this template? This action cannot be undone.');"><i class="fas fa-trash"></i> Delete</button>
+                                            </form>
+                                        </div>
+                                    </li>
+                                {% endfor %}
+                            </ul>
+                        {% else %}
+                            <p>No templates uploaded yet.</p>
+                        {% endif %}
+                    </div>
+
+                    <h3>Bulk Generate from Excel</h3>
+                    <form method="post" action="/bulk_generate" enctype="multipart/form-data" class="enhanced-form">
+                        <div class="form-group">
+                            <label>Excel File (.xlsx or .csv):</label>
+                            <input type="file" name="excel_file" accept=".xlsx,.csv" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Template:</label>
+                            <select name="template_id" required>
+                                {% for t in templates %}
+                                <option value="{{ t.id }}">{{ t.school_name }} ({{ t.card_orientation }})</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Generate All ID Cards</button>
+                    </form>
+                </div>
+
+                <div class="section">
+                    <h3><i class="fas fa-text-height"></i> Template-Specific Settings</h3>
+                    <div class="template-selector">
+                        <label><i class="fas fa-clipboard-list"></i> Select Template to Configure</label>
+                        <select id="templateSelector" onchange="loadTemplateSettings()">
+                            <option value="">Select a template...</option>
+                            {% for template in templates %}
+                                <option value="{{ template.id }}" 
+                                        data-font-settings="{{ template.font_settings|tojson|forceescape }}" 
+                                        data-photo-settings="{{ template.photo_settings|tojson|forceescape }}"
+                                        data-card-orientation="{{ template.card_orientation|default('landscape') }}">
+                                    {{ template.school_name }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                        <label><i class="fas fa-arrows-alt"></i> Card Orientation</label>
+                        <select id="cardOrientation" name="card_orientation">
+                            <option value="landscape">Landscape (86mm x 56mm)</option>
+                            <option value="portrait">Portrait (56mm x 86mm)</option>
+                        </select>
+                    </div>
+
+                    <div style="text-align:center; margin:20px 0;">
+                        <img id="adminPreviewImage" src="{{ url_for('static', filename='placeholder.jpg') }}" alt="Template Preview" style="max-width:320px; border:3px solid var(--primary-color); border-radius:var(--border-radius); box-shadow:var(--shadow);">
+                        <div id="adminPreviewLoading" style="display:none;"><span class="loading"></span> Generating preview...</div>
+                    </div>
+
+                    <form action="{{ url_for('update_template_settings_route') }}" method="post" id="templateSettingsForm" class="enhanced-form">
+                        <input type="hidden" name="template_id" id="templateId" value="">
+                        
+                        <div class="settings-section">
+                            <h4><i class="fas fa-font"></i> Font Settings</h4>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label><i class="fas fa-bold"></i> Bold Font</label>
+                                    <select name="font_bold" id="fontBold">
+                                        {% if available_fonts %}
+                                            {% for font in available_fonts %}
+                                                <option value="{{ font }}">{{ font }}</option>
+                                            {% endfor %}
+                                        {% else %}
+                                            <option value="" disabled>No fonts available</option>
+                                        {% endif %}
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label><i class="fas fa-font"></i> Regular Font</label>
+                                    <select name="font_regular" id="fontRegular">
+                                        {% if available_fonts %}
+                                            {% for font in available_fonts %}
+                                                <option value="{{ font }}">{{ font }}</option>
+                                            {% endfor %}
+                                        {% else %}
+                                            <option value="" disabled>No fonts available</option>
+                                        {% endif %}
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label><i class="fas fa-palette"></i> Label Font Color (RGB)</label>
+                                    <input type="text" name="label_font_color" id="labelFontColor" placeholder="0,0,0">
+                                </div>
+                                <div class="form-group">
+                                    <label><i class="fas fa-palette"></i> Value Font Color (RGB)</label>
+                                    <input type="text" name="value_font_color" id="valueFontColor" placeholder="0,0,0">
+                                </div>
+                            </div>
+
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label><i class="fas fa-text-height"></i> Label Font Size</label>
+                                    <input type="number" name="label_font_size" id="labelFontSize" min="8" max="100">
+                                </div>
+                                <div class="form-group">
+                                    <label><i class="fas fa-text-height"></i> Value Font Size</label>
+                                    <input type="number" name="value_font_size" id="valueFontSize" min="8" max="100">
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label><i class="fas fa-text-height"></i> Text Case Transformation</label>
+                                <select name="text_case" id="textCase">
+                                    <option value="normal">Normal (As Entered)</option>
+                                    <option value="uppercase">UPPERCASE</option>
+                                    <option value="lowercase">lowercase</option>
+                                    <option value="capitalize">Capitalize First Letters</option>
+                                </select>
+                                <small style="color: #666; font-size: 0.8rem;">
+                                    <i class="fas fa-info-circle"></i> This will transform all text fields on the ID card
+                                </small>
+                            </div>
+                        </div>
+
+                        <div class="settings-section">
+                            <h4><i class="fas fa-arrows-alt"></i> Text Position Settings</h4>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label><i class="fas fa-arrows-alt-h"></i> Label X Position</label>
+                                    <input type="number" name="label_x" id="labelX" min="0" max="1000">
+                                </div>
+                                <div class="form-group">
+                                    <label><i class="fas fa-arrows-alt-h"></i> Value X Position</label>
+                                    <input type="number" name="value_x" id="valueX" min="0" max="1000">
+                                </div>
+                            </div>
+
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label><i class="fas fa-arrows-alt-v"></i> Start Y Position</label>
+                                    <input type="number" name="start_y" id="startY" min="0" max="1000">
+                                </div>
+                                <div class="form-group">
+                                    <label><i class="fas fa-arrows-alt-v"></i> Line Height</label>
+                                    <input type="number" name="line_height" id="lineHeight" min="0" max="100">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="settings-section">
+                            <h4><i class="fas fa-image"></i> Photo Position & Size</h4>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label><i class="fas fa-arrows-alt-h"></i> Photo X Position</label>
+                                    <input type="number" name="photo_x" id="photoX" min="0" max="1000">
+                                </div>
+                                <div class="form-group">
+                                    <label><i class="fas fa-arrows-alt-v"></i> Photo Y Position</label>
+                                    <input type="number" name="photo_y" id="photoY" min="0" max="1000">
+                                </div>
+                            </div>
+
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label><i class="fas fa-arrows-alt-h"></i> Photo Width</label>
+                                    <input type="number" name="photo_width" id="photoWidth" min="50" max="500">
+                                </div>
+                                <div class="form-group">
+                                    <label><i class="fas fa-arrows-alt-v"></i> Photo Height</label>
+                                    <input type="number" name="photo_height" id="photoHeight" min="50" max="500">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="settings-section">
+                            <h4><i class="fas fa-crop-alt"></i> Photo Border Radius Settings</h4>
+                            <div class="form-group">
+                                <label><i class="fas fa-border-all"></i> All Corners (pixels)</label>
+                                <input type="number" id="photoBorderAll" min="0" max="100" value="0" oninput="setAllBorders(this.value)">
+                                <small style="color: #666; font-size: 0.8rem;">
+                                    <i class="fas fa-info-circle"></i> Set all corners to the same value
+                                </small>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label><i class="fas fa-arrow-up-left"></i> Top Left (pixels)</label>
+                                    <input type="number" name="photo_border_top_left" id="photoBorderTL" min="0" max="100" value="0" oninput="updateBorderPreview()">
+                                </div>
+                                <div class="form-group">
+                                    <label><i class="fas fa-arrow-up-right"></i> Top Right (pixels)</label>
+                                    <input type="number" name="photo_border_top_right" id="photoBorderTR" min="0" max="100" value="0" oninput="updateBorderPreview()">
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label><i class="fas fa-arrow-down-right"></i> Bottom Right (pixels)</label>
+                                    <input type="number" name="photo_border_bottom_right" id="photoBorderBR" min="0" max="100" value="0" oninput="updateBorderPreview()">
+                                </div>
+                                <div class="form-group">
+                                    <label><i class="fas fa-arrow-down-left"></i> Bottom Left (pixels)</label>
+                                    <input type="number" name="photo_border_bottom_left" id="photoBorderBL" min="0" max="100" value="0" oninput="updateBorderPreview()">
+                                </div>
+                            </div>
+                            
+                            <!-- Border Preview -->
+                            <div class="form-group">
+                                <label><i class="fas fa-eye"></i> Border Preview</label>
+                                <div id="borderPreview" style="width: 100px; height: 100px; background: var(--primary-color); margin: 10px auto; border-radius: 0px; transition: var(--transition);"></div>
+                                <small style="color: #666; font-size: 0.8rem; text-align: center; display: block;">
+                                    Preview of border radius settings
+                                </small>
+                            </div>
+                        </div>
+
+                        <button type="submit" class="btn btn-upload" id="saveSettingsBtn" disabled><i class="fas fa-save"></i> Save Template Settings</button>
+                    </form>
+                </div>
+
+                <div class="section">
+                    <h3><i class="fas fa-exclamation-triangle"></i> Duplicate Check Settings</h3>
+                    <form action="{{ url_for('update_duplicate_settings') }}" method="post" class="enhanced-form">
+                        <div class="checkbox-container">
+                            <input type="checkbox" id="check_phone" name="check_phone" class="checkbox" {{ 'checked' if duplicate_settings.check_phone else '' }}>
+                            <label for="check_phone">Check for duplicate phone numbers</label>
+                        </div>
+                        <div class="checkbox-container">
+                            <input type="checkbox" id="check_name_class" name="check_name_class" class="checkbox" {{ 'checked' if duplicate_settings.check_name_class else '' }}>
+                            <label for="check_name_class">Check for duplicate name and class combinations</label>
+                        </div>
+                        <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Save Settings</button>
+                    </form>
+                </div>
+
+                <div class="section full-width">
+                    <h3><i class="fas fa-font"></i> Upload Font</h3>
+                    <form action="{{ url_for('upload_font') }}" method="post" enctype="multipart/form-data" id="fontForm" class="enhanced-form">
+                        <div class="form-group">
+                            <label><i class="fas fa-file-upload"></i> Select Font File (TTF, OTF)</label>
+                            <input type="file" name="font" accept=".ttf,.otf" required>
+                        </div>
+                        <button type="submit" class="btn btn-upload"><i class="fas fa-upload"></i> Upload Font</button>
+                    </form>
+                    <div class="card" style="margin-top: 20px;">
+                        <div class="card-header">
+                            <span class="card-title">Available Fonts</span>
+                        </div>
+                        <ul>
+                            {% if available_fonts %}
+                                {% for font in available_fonts %}
+                                    <li>{{ font }}</li>
+                                {% endfor %}
+                            {% else %}
+                                <li>No fonts uploaded yet</li>
+                            {% endif %}
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="data-tab" class="tab-content">
+            <div class="grid-container">
+                <!-- STUDENT CREDENTIALS SECTION -->
+                <div class="section">
+                    <h3><i class="fas fa-key"></i> Student Credentials Management</h3>
+                    <div class="credentials-section">
+                        <div class="card-header">
+                            <span class="card-title" style="color: #8b5cf6;"><i class="fas fa-user-lock"></i> Student Login Credentials</span>
+                            <i class="fas fa-shield-alt glow" style="color: #8b5cf6;"></i>
+                        </div>
+                        <p>Manage student login credentials for the portal. View usernames and reset passwords as needed.</p>
+                        <div class="action-buttons">
+                         <a href="{{ url_for('admin_student_credentials') }}" class="btn btn-credentials">
+                            <i class="fas fa-list"></i> View All Credentials
+                         </a>
+                        </div>
+                    </div>
+                </div>
+
+                {% if is_admin %}
+                <div class="section full-width">
+                    <h3><i class="fas fa-file-pdf"></i> PDF Sheets by Template</h3>
+                    {% if templates %}
+                        {% for template in templates %}
+                            <div class="card">
+                                <div class="card-header">
+                                    <span class="card-title">{{ template.school_name }}</span>
+                                    <i class="fas fa-file-pdf" style="color: var(--accent-color);"></i>
+                                </div>
+                                <ul>
+                                    {% set pdf_list = pdf_sheets_by_template.get(template.id, []) %}
+                                    {% if pdf_list %}
+                                        {% for file in pdf_list %}
+                                            <li>
+                                                <span><i class="fas fa-file-pdf" style="color: var(--accent-color);"></i> {{ file }}</span>
+                                                <a href="{{ url_for('static', filename='generated/' + file) }}" class="btn btn-download btn-sm" download>
+                                                    <i class="fas fa-download"></i>
+                                                </a>
+                                                <form action="{{ url_for('delete_pdf', filename=file) }}" method="post" style="display:inline;">
+                                                    <button type="submit" class="btn btn-delete btn-sm"
+                                                        onclick="return confirm('Are you sure you want to delete this PDF?');">
+                                                        <i class="fas fa-trash"></i>
+                                                    </button>
+                                                </form>
+                                            </li>
+                                        {% endfor %}
+                                    {% else %}
+                                        <li>No PDF sheets for this template</li>
+                                    {% endif %}
+                                </ul>
+                            </div>
+                        {% endfor %}
+                    {% else %}
+                        <p>No templates or PDF sheets available.</p>
+                    {% endif %}
+                </div>
+                {% endif %}
+
+                {% if not is_admin %}
+                <div class="section">
+                    <h3><i class="fas fa-user-edit"></i> Update Email</h3>
+                    <div class="card">
+                        <div class="card-header">
+                            <span class="card-title">Student Email Update</span>
+                            <i class="fas fa-envelope" style="color: var(--primary-color);"></i>
+                        </div>
+                        <form action="{{ url_for('student.update_email') }}" method="post" id="emailUpdateForm" onsubmit="return confirm('Are you sure you want to update your email?');" class="enhanced-form">
+                            <div class="form-group">
+                                <label><i class="fas fa-envelope"></i> New Email</label>
+                                <input type="email" name="email" required pattern="[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$" title="Enter a valid email address">
+                            </div>
+                            <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Update Email</button>
+                        </form>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h3><i class="fas fa-lock"></i> Update Password</h3>
+                    <div class="card">
+                        <div class="card-header">
+                            <span class="card-title">Student Password Update</span>
+                            <i class="fas fa-lock" style="color: var(--primary-color);"></i>
+                        </div>
+                        <form action="{{ url_for('student.update_password') }}" method="post" id="passwordUpdateForm" onsubmit="return confirm('Are you sure you want to update your password?');" class="enhanced-form">
+                            <div class="form-group">
+                                <label><i class="fas fa-key"></i> Current Password</label>
+                                <input type="password" name="current_password" required minlength="6" title="Enter your current password">
+                            </div>
+                            <div class="form-group">
+                                <label><i class="fas fa-key"></i> New Password</label>
+                                <input type="password" name="new_password" required minlength="6" title="New password must be at least 6 characters">
+                            </div>
+                            <div class="form-group">
+                                <label><i class="fas fa-key"></i> Confirm New Password</label>
+                                <input type="password" name="confirm_password" required minlength="6" title="Confirm your new password">
+                            </div>
+                            <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Update Password</button>
+                        </form>
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if is_admin %}
+                <div class="section">
+                    <h3><i class="fas fa-trash"></i> Data Management</h3>
+                    <div class="card">
+                        <div class="card-header">
+                            <span class="card-title">Danger Zone</span>
+                            <i class="fas fa-exclamation-triangle" style="color: var(--accent-color);"></i>
+                        </div>
+                        <p>This will permanently delete all data and files. This action cannot be undone.</p>
+                        <form action="{{ url_for('delete_all') }}" method="post" onsubmit="return confirmDelete()" class="enhanced-form">
+                            <button type="submit" class="btn btn-delete"><i class="fas fa-trash"></i> Delete All Data & Files</button>
+                        </form>
+                    </div>
+
+                    <div class="card" style="margin-top: 20px;">
+                        <div class="card-header">
+                            <span class="card-title">Export Data</span>
+                            <i class="fas fa-database" style="color: var(--primary-color);"></i>
+                        </div>
+                        <p>Export all user data as a CSV file</p>
+                        <a href="{{ url_for('export_csv') }}" class="btn btn-download"><i class="fas fa-file-export"></i> Export CSV</a>
+                    </div>
+                </div>
+                {% endif %}
+
+                <div class="section full-width">
+                    <h3><i class="fas fa-school"></i> ID Cards by School</h3>
+                    {% if templates %}
+                        {% for template in templates %}
+                            <div class="card">
+                                <div class="card-header">
+                                    <span class="card-title">{{ template.school_name }}</span>
+                                    <i class="fas fa-school" style="color: var(--primary-color);"></i>
+                                </div>
+                                <div class="table-wrapper">
+                                    <table class="school-table" data-school-id="{{ template.id }}">
+                                        <thead>
+                                            <tr>
+                                                <th>ID</th>
+                                                <th>Preview</th>
+                                                <th>Name</th>
+                                                <th>Father</th>
+                                                <th>Class</th>
+                                                <th>DOB</th>
+                                                <th>Address</th>
+                                                <th>Phone</th>
+                                                <th>Generated File</th>
+                                                <th>Created At</th>
+                                                <th>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% if template_rows[template.id] %}
+                                                {% for row in template_rows[template.id] %}
+                                                    <tr>
+                                                        <td>{{ row[0] }}</td>
+                                                        <td>
+                                                            {% if row[8] %}
+                                                                <img src="{{ url_for('static', filename='generated/' + row[8].replace('.pdf','.jpg')) }}" alt="Preview" onerror="this.src='{{ url_for('static', filename='placeholder.jpg') }}'; this.alt='No preview available';">
+                                                            {% else %}
+                                                                <img src="{{ url_for('static', filename='placeholder.jpg') }}" alt="No preview available">
+                                                            {% endif %}
+                                                        </td>
+                                                        <td>{{ row[1] }}</td>
+                                                        <td>{{ row[2] }}</td>
+                                                        <td>{{ row[3] }}</td>
+                                                        <td>{{ row[4] }}</td>
+                                                        <td>{{ row[5] }}</td>
+                                                        <td>{{ row[6] }}</td>
+                                                        <td>
+                                                            {% if row[8] %}
+                                                                <a href="{{ url_for('static', filename='generated/' + row[8]) }}" class="btn btn-download btn-sm" download>
+                                                                    {{ row[8] }}
+                                                                </a>
+                                                            {% else %}
+                                                                No file
+                                                            {% endif %}
+                                                        </td>
+                                                        <td>{{ row[9] }}</td>
+                                                        <td>
+                                                            <div class="action-buttons" style="justify-content: center; gap: 5px;">
+                                                                <button class="btn btn-primary btn-sm" onclick="editUser({{ row[0] }})" title="Edit Student">
+                                                                    <i class="fas fa-edit"></i>
+                                                                </button>
+                                                                <button class="btn btn-credentials btn-sm" onclick="manageCredentials({{ row[0] }}, '{{ row[1] }}')" title="Manage Credentials">
+                                                                    <i class="fas fa-key"></i>
+                                                                </button>
+                                                                <form action="{{ url_for('delete_student', student_id=row[0]) }}" method="post" style="display: inline;" onsubmit="return confirm('Are you sure you want to delete this user?');">
+                                                                    <button type="submit" class="btn btn-delete btn-sm" title="Delete Student">
+                                                                        <i class="fas fa-trash"></i>
+                                                                    </button>
+                                                                </form>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                {% endfor %}
+                                            {% else %}
+                                                <tr>
+                                                    <td colspan="11">No student data for this template.</td>
+                                                </tr>
+                                            {% endif %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    {% else %}
+                        <p>No templates or student data available.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div id="preview-tab" class="tab-content">
+            <div class="section">
+                <h3><i class="fas fa-eye"></i> ID Card Preview</h3>
+                
+                <!-- Template Selection for Preview -->
+                <div class="form-row">
+                    <div class="form-group">
+                        <label><i class="fas fa-clipboard-list"></i> Select Template</label>
+                        <select id="previewTemplate" onchange="updateStudentDropdown()">
+                            <option value="">Select a template...</option>
+                            {% for template in templates %}
+                                <option value="{{ template.id }}">{{ template.school_name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label><i class="fas fa-user-graduate"></i> Select Student</label>
+                        <select id="previewStudent" onchange="enablePreviewButtons()">
+                            <option value="">Select a student...</option>
+                            {% for template in templates %}
+                                <optgroup label="{{ template.school_name }}" data-template="{{ template.id }}" style="display: none;">
+                                    {% if template_rows[template.id] %}
+                                        {% for row in template_rows[template.id] %}
+                                            <option value="{{ row[0] }}" data-template="{{ template.id }}">
+                                                {{ row[1] }} - {{ row[3] }}
+                                            </option>
+                                        {% endfor %}
+                                    {% endif %}
+                                </optgroup>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Preview Display -->
+                <div style="text-align: center; margin: 20px 0;">
+                    <div id="previewLoading" style="display: none;">
+                        <div class="loading" style="margin: 20px auto;"></div>
+                        <p>Generating preview...</p>
+                    </div>
+                    <img id="previewImage" src="{{ url_for('static', filename='placeholder.jpg') }}" 
+                         alt="ID Card Preview" 
+                         style="max-width: 400px; height: auto; border: 3px solid var(--primary-color); 
+                                border-radius: var(--border-radius); box-shadow: var(--shadow); 
+                                display: none;">
+                    <div id="previewError" style="display: none; color: var(--error-text); 
+                             background: var(--error-bg); padding: 20px; border-radius: var(--border-radius); 
+                             margin: 20px 0;">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <span>No preview available for selected student</span>
+                    </div>
+                </div>
+
+                <!-- Preview Controls -->
+                <div class="form-row">
+                    <div class="form-group">
+                        <label><i class="fas fa-sync"></i> Refresh Preview</label>
+                        <button class="btn btn-primary" style="width: 100%;" onclick="generatePreview()" id="generatePreviewBtn" disabled>
+                            <i class="fas fa-sync"></i> Generate Preview
+                        </button>
+                    </div>
+                    <div class="form-group">
+                        <label><i class="fas fa-download"></i> Actions</label>
+                        <button class="btn btn-download" style="width: 100%;" onclick="downloadPreview()" id="downloadPreviewBtn" disabled>
+                            <i class="fas fa-download"></i> Download Preview
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Sample Preview Data -->
+                <div class="card" style="margin-top: 20px;">
+                    <div class="card-header">
+                        <span class="card-title">Quick Preview Samples</span>
+                        <i class="fas fa-rocket" style="color: var(--accent-color);"></i>
+                    </div>
+                    <div class="action-buttons">
+                        {% for template in templates %}
+                            <button class="btn btn-sm" onclick="loadSamplePreview({{ template.id }})">
+                                <i class="fas fa-image"></i> {{ template.school_name }} Sample
+                            </button>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Dynamic Form Fields Management Tab -->
+        <div id="formFields-tab" class="tab-content">
+            <div class="section">
+                <h3><i class="fas fa-list-alt"></i> Dynamic Form Fields Management</h3>
+                
+                <div class="dynamic-fields-section">
+                    <div class="template-selector">
+                        <label><i class="fas fa-clipboard-list"></i> Select Template to Manage Form Fields</label>
+                        <select id="formFieldsTemplateSelector" onchange="loadTemplateFormFields()">
+                            <option value="">Select a template...</option>
+                            {% for template in templates %}
+                                <option value="{{ template.id }}">{{ template.school_name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Add New Field Form -->
+                <div class="card" style="margin-top: 20px;">
+                    <div class="card-header">
+                        <span class="card-title">Add New Form Field</span>
+                        <i class="fas fa-plus-circle" style="color: var(--primary-color);"></i>
+                    </div>
+                    
+                    <form id="addFieldForm" class="enhanced-form">
+                        <input type="hidden" id="fieldTemplateId" name="template_id">
+                        
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label><i class="fas fa-tag"></i> Field Name (Internal)</label>
+                                <input type="text" id="fieldName" name="field_name" required 
+                                       pattern="[a-zA-Z0-9_]+" title="Only letters, numbers, and underscores allowed">
+                                <small style="color: #666; font-size: 0.8rem;">
+                                    Internal identifier (no spaces, e.g., "blood_group", "emergency_contact")
+                                </small>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label><i class="fas fa-heading"></i> Field Label (Display)</label>
+                                <input type="text" id="fieldLabel" name="field_label" required>
+                                <small style="color: #666; font-size: 0.8rem;">
+                                    What users will see (e.g., "Blood Group", "Emergency Contact")
+                                </small>
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label><i class="fas fa-list"></i> Field Type</label>
+                                <select id="fieldType" name="field_type" required onchange="toggleFieldOptions()">
+                                    <option value="text">Text Input</option>
+                                    <option value="number">Number</option>
+                                    <option value="date">Date</option>
+                                    <option value="textarea">Text Area</option>
+                                    <option value="select">Dropdown Select</option>
+                                    <option value="email">Email</option>
+                                    <option value="tel">Phone</option>
+                                </select>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label><i class="fas fa-sort-numeric-up"></i> Display Order</label>
+                                <input type="number" id="displayOrder" name="display_order" value="0" min="0">
+                            </div>
+                        </div>
+
+                        <!-- Field Options (for select type) -->
+                        <div class="form-group" id="fieldOptionsGroup" style="display: none;">
+                            <label><i class="fas fa-cog"></i> Dropdown Options</label>
+                            <textarea id="fieldOptions" name="field_options" 
+                                     placeholder="Enter each option on a new line&#10;Example:&#10;A+&#10;A-&#10;B+&#10;B-&#10;O+&#10;O-"></textarea>
+                            <small style="color: #666; font-size: 0.8rem;">
+                                Enter each option on a separate line
+                            </small>
+                        </div>
+
+                        <div class="checkbox-container">
+                            <input type="checkbox" id="isRequired" name="is_required" class="checkbox">
+                            <label for="isRequired">This field is required</label>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary" id="addFieldBtn" disabled>
+                            <i class="fas fa-plus"></i> Add Field
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Existing Fields List -->
+                <div class="card" style="margin-top: 20px;">
+                    <div class="card-header">
+                        <span class="card-title">Current Form Fields</span>
+                        <i class="fas fa-list" style="color: var(--primary-color);"></i>
+                    </div>
+                    
+                    <div id="formFieldsList">
+                        <p style="text-align: center; padding: 20px; color: #666;">
+                            Select a template to view and manage its form fields
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentTemplateSettings = null;
+        let isPasswordVisible = false;
+        let currentFormFields = [];
+
+        // Border Radius Functions
+        function setAllBorders(value) {
+            if (value || value === 0) {
+                document.getElementById('photoBorderTL').value = value;
+                document.getElementById('photoBorderTR').value = value;
+                document.getElementById('photoBorderBR').value = value;
+                document.getElementById('photoBorderBL').value = value;
+                updateBorderPreview();
+            }
+        }
+
+        function updateBorderPreview() {
+            const tl = document.getElementById('photoBorderTL').value || 0;
+            const tr = document.getElementById('photoBorderTR').value || 0;
+            const br = document.getElementById('photoBorderBR').value || 0;
+            const bl = document.getElementById('photoBorderBL').value || 0;
+            
+            const preview = document.getElementById('borderPreview');
+            preview.style.borderRadius = `${tl}px ${tr}px ${br}px ${bl}px`;
+        }
+
+        // Template Settings Functions
+        function loadTemplateSettings() {
+            const selector = document.getElementById('templateSelector');
+            const selectedOption = selector.options[selector.selectedIndex];
+            const saveBtn = document.getElementById('saveSettingsBtn');
+            
+            if (selectedOption && selectedOption.value) {
+                const templateId = selectedOption.value;
+                const fontSettings = JSON.parse(selectedOption.getAttribute('data-font-settings') || '{}');
+                const photoSettings = JSON.parse(selectedOption.getAttribute('data-photo-settings') || '{}');
+                
+                currentTemplateSettings = {
+                    id: templateId,
+                    font: fontSettings,
+                    photo: photoSettings
+                };
+                
+                document.getElementById('templateId').value = templateId;
+                
+                // Set font values
+                document.getElementById('fontBold').value = fontSettings.font_bold || 'arialbd.ttf';
+                document.getElementById('fontRegular').value = fontSettings.font_regular || 'arial.ttf';
+                
+                // Handle font colors - convert arrays to strings
+                const labelColor = Array.isArray(fontSettings.label_font_color) ? 
+                    fontSettings.label_font_color.join(',') : 
+                    (fontSettings.label_font_color || '0,0,0');
+                const valueColor = Array.isArray(fontSettings.value_font_color) ? 
+                    fontSettings.value_font_color.join(',') : 
+                    (fontSettings.value_font_color || '0,0,0');
+                
+                document.getElementById('labelFontColor').value = labelColor;
+                document.getElementById('valueFontColor').value = valueColor;
+                
+                // Set numeric values
+                document.getElementById('labelFontSize').value = fontSettings.label_font_size || 40;
+                document.getElementById('valueFontSize').value = fontSettings.value_font_size || 36;
+                document.getElementById('labelX').value = fontSettings.label_x || 50;
+                document.getElementById('valueX').value = fontSettings.value_x || 280;
+                document.getElementById('startY').value = fontSettings.start_y || 275;
+                document.getElementById('lineHeight').value = fontSettings.line_height || 50;
+                document.getElementById('textCase').value = fontSettings.text_case || 'normal';
+                
+                // Set photo values
+                document.getElementById('photoX').value = photoSettings.photo_x || 725;
+                document.getElementById('photoY').value = photoSettings.photo_y || 200;
+                document.getElementById('photoWidth').value = photoSettings.photo_width || 260;
+                document.getElementById('photoHeight').value = photoSettings.photo_height || 313;
+
+                // Load border radius settings
+                document.getElementById('photoBorderTL').value = photoSettings.photo_border_top_left || 0;
+                document.getElementById('photoBorderTR').value = photoSettings.photo_border_top_right || 0;
+                document.getElementById('photoBorderBR').value = photoSettings.photo_border_bottom_right || 0;
+                document.getElementById('photoBorderBL').value = photoSettings.photo_border_bottom_left || 0;
+                document.getElementById('photoBorderAll').value = photoSettings.photo_border_all || 0;
+                
+                document.getElementById('cardOrientation').value = selectedOption.getAttribute('data-card-orientation') || 'landscape';
+                
+                saveBtn.disabled = false;
+                saveBtn.innerHTML = '<i class="fas fa-save"></i> Save Settings for ' + selectedOption.text;
+                
+                // Update border preview
+                updateBorderPreview();
+                
+                // Generate initial preview
+                updateAdminPreview();
+                
+                showNotification('Loaded settings for ' + selectedOption.text, 'success');
+            } else {
+                document.getElementById('templateId').value = '';
+                saveBtn.disabled = true;
+                saveBtn.innerHTML = '<i class="fas fa-save"></i> Save Template Settings';
+                currentTemplateSettings = null;
+                
+                // Reset preview to placeholder
+                const previewImg = document.getElementById('adminPreviewImage');
+                previewImg.src = "{{ url_for('static', filename='placeholder.jpg') }}";
+            }
+        }
+
+        // Update admin preview when settings change
+        function updateAdminPreview() {
+            const selector = document.getElementById('templateSelector');
+            const selectedOption = selector.options[selector.selectedIndex];
+            const previewImg = document.getElementById('adminPreviewImage');
+            const loadingDiv = document.getElementById('adminPreviewLoading');
+            
+            if (!selectedOption || !selectedOption.value) {
+                previewImg.src = "{{ url_for('static', filename='placeholder.jpg') }}";
+                return;
+            }
+            
+            loadingDiv.style.display = "block";
+            previewImg.style.opacity = "0.5";
+
+            // Collect all current form values
+            const font_settings = {
+                font_bold: document.getElementById('fontBold').value || 'arialbd.ttf',
+                font_regular: document.getElementById('fontRegular').value || 'arial.ttf',
+                label_font_color: document.getElementById('labelFontColor').value.split(',').map(Number),
+                value_font_color: document.getElementById('valueFontColor').value.split(',').map(Number),
+                label_font_size: parseInt(document.getElementById('labelFontSize').value) || 40,
+                value_font_size: parseInt(document.getElementById('valueFontSize').value) || 36,
+                label_x: parseInt(document.getElementById('labelX').value) || 50,
+                value_x: parseInt(document.getElementById('valueX').value) || 280,
+                start_y: parseInt(document.getElementById('startY').value) || 275,
+                line_height: parseInt(document.getElementById('lineHeight').value) || 50,
+                text_case: document.getElementById('textCase').value || 'normal'
+            };
+
+            const photo_settings = {
+                photo_x: parseInt(document.getElementById('photoX').value) || 725,
+                photo_y: parseInt(document.getElementById('photoY').value) || 200,
+                photo_width: parseInt(document.getElementById('photoWidth').value) || 260,
+                photo_height: parseInt(document.getElementById('photoHeight').value) || 313,
+                photo_border_top_left: parseInt(document.getElementById('photoBorderTL').value) || 0,
+                photo_border_top_right: parseInt(document.getElementById('photoBorderTR').value) || 0,
+                photo_border_bottom_right: parseInt(document.getElementById('photoBorderBR').value) || 0,
+                photo_border_bottom_left: parseInt(document.getElementById('photoBorderBL').value) || 0
+            };
+
+            const card_orientation = document.getElementById('cardOrientation').value || 'landscape';
+
+            console.log('Sending preview request with:', {
+                template_id: selectedOption.value,
+                font_settings: font_settings,
+                photo_settings: photo_settings,
+                card_orientation: card_orientation
+            });
+
+            // Use the admin_preview_card endpoint
+            fetch("{{ url_for('admin_preview_card') }}", {
+                method: "POST",
+                headers: { 
+                    "Content-Type": "application/json",
+                    "Accept": "application/json"
+                },
+                body: JSON.stringify({
+                    template_id: parseInt(selectedOption.value),
+                    font_settings: font_settings,
+                    photo_settings: photo_settings,
+                    card_orientation: card_orientation
+                })
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log('Preview response:', data);
+                if (data.success) {
+                    previewImg.src = data.preview_url + "?t=" + new Date().getTime();
+                    showNotification('Preview updated successfully!', 'success');
+                } else {
+                    previewImg.src = "{{ url_for('static', filename='placeholder.jpg') }}";
+                    showNotification(data.error || "Preview generation failed", "error");
+                }
+            })
+            .catch(error => {
+                console.error('Preview error:', error);
+                previewImg.src = "{{ url_for('static', filename='placeholder.jpg') }}";
+                showNotification("Preview error: " + error.message, "error");
+            })
+            .finally(() => {
+                loadingDiv.style.display = "none";
+                previewImg.style.opacity = "1";
+            });
+        }
+
+        // Add event listeners to all form inputs
+        function initializePreviewListeners() {
+            const inputs = document.querySelectorAll('#templateSettingsForm input, #templateSettingsForm select');
+            inputs.forEach(input => {
+                input.addEventListener('change', function() {
+                    console.log('Setting changed:', this.name, this.value);
+                    updateAdminPreview();
+                });
+                
+                // For numeric inputs, also listen to input events for real-time updates
+                if (input.type === 'number') {
+                    input.addEventListener('input', debounce(function() {
+                        console.log('Real-time update:', this.name, this.value);
+                        updateAdminPreview();
+                    }, 500));
+                }
+            });
+        }
+
+        // Debounce function to prevent too many requests
+        function debounce(func, wait) {
+            let timeout;
+            return function executedFunction(...args) {
+                const later = () => {
+                    clearTimeout(timeout);
+                    func(...args);
+                };
+                clearTimeout(timeout);
+                timeout = setTimeout(later, wait);
+            };
+        }
+
+        // Form Fields Management
+        function loadTemplateFormFields() {
+            const templateId = document.getElementById('formFieldsTemplateSelector').value;
+            const addFieldBtn = document.getElementById('addFieldBtn');
+            const fieldTemplateId = document.getElementById('fieldTemplateId');
+            
+            if (templateId) {
+                fieldTemplateId.value = templateId;
+                addFieldBtn.disabled = false;
+                
+                // Load existing fields
+                fetch(`/admin/template/${templateId}/form-fields`)
+                    .then(response => response.json())
+                    .then(fields => {
+                        currentFormFields = fields;
+                        displayFormFields(fields);
+                    })
+                    .catch(error => {
+                        console.error('Error loading form fields:', error);
+                        showNotification('Error loading form fields', 'error');
+                    });
+            } else {
+                addFieldBtn.disabled = true;
+                document.getElementById('formFieldsList').innerHTML = 
+                    '<p style="text-align: center; padding: 20px; color: #666;">Select a template to view and manage its form fields</p>';
+            }
+        }
+
+        function displayFormFields(fields) {
+            const container = document.getElementById('formFieldsList');
+            
+            if (fields.length === 0) {
+                container.innerHTML = '<p style="text-align: center; padding: 20px; color: #666;">No custom fields defined for this template</p>';
+                return;
+            }
+            
+            let html = '<div class="table-wrapper"><table><thead><tr>' +
+                       '<th>Field Label</th><th>Type</th><th>Required</th><th>Order</th><th>Actions</th></tr></thead><tbody>';
+            
+            fields.forEach(field => {
+                html += `
+                    <tr data-field-id="${field.id}">
+                        <td>${field.field_label}</td>
+                        <td><span class="field-type-badge">${field.field_type}</span></td>
+                        <td>${field.is_required ? '<span class="status-badge status-active">Yes</span>' : '<span class="status-badge status-pending">No</span>'}</td>
+                        <td>${field.display_order}</td>
+                        <td>
+                            <div class="action-buttons" style="justify-content: center;">
+                                <button class="btn btn-primary btn-sm" onclick="editField(${field.id})" title="Edit Field">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button class="btn btn-delete btn-sm" onclick="deleteField(${field.id})" title="Delete Field">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            });
+            
+            html += '</tbody></table></div>';
+            container.innerHTML = html;
+        }
+
+        function toggleFieldOptions() {
+            const fieldType = document.getElementById('fieldType').value;
+            const optionsGroup = document.getElementById('fieldOptionsGroup');
+            
+            if (fieldType === 'select') {
+                optionsGroup.style.display = 'block';
+            } else {
+                optionsGroup.style.display = 'none';
+            }
+        }
+
+        // Add new field
+        document.getElementById('addFieldForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const templateId = document.getElementById('formFieldsTemplateSelector').value;
+            const formData = new FormData(this);
+            const data = {
+                field_name: formData.get('field_name'),
+                field_label: formData.get('field_label'),
+                field_type: formData.get('field_type'),
+                is_required: document.getElementById('isRequired').checked ? 1 : 0,
+                display_order: parseInt(formData.get('display_order')) || 0
+            };
+            
+            // Handle field options for select type
+            if (formData.get('field_type') === 'select' && formData.get('field_options')) {
+                const options = formData.get('field_options').split('\n')
+                    .filter(opt => opt.trim() !== '')
+                    .map(opt => opt.trim());
+                data.field_options = options;
+            }
+            
+            fetch(`/admin/template/${templateId}/form-fields`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(data)
+            })
+            .then(response => response.json())
+            .then(result => {
+                if (result.success) {
+                    showNotification('Field added successfully', 'success');
+                    this.reset();
+                    loadTemplateFormFields(); // Reload the list
+                } else {
+                    showNotification('Error adding field: ' + result.message, 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error adding field:', error);
+                showNotification('Error adding field', 'error');
+            });
+        });
+
+        function deleteField(fieldId) {
+            if (!confirm('Are you sure you want to delete this field? This will remove it from all forms using this template.')) {
+                return;
+            }
+            
+            fetch(`/admin/template/form-fields/${fieldId}`, {
+                method: 'DELETE'
+            })
+            .then(response => response.json())
+            .then(result => {
+                if (result.success) {
+                    showNotification('Field deleted successfully', 'success');
+                    loadTemplateFormFields(); // Reload the list
+                } else {
+                    showNotification('Error deleting field: ' + result.message, 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error deleting field:', error);
+                showNotification('Error deleting field', 'error');
+            });
+        }
+
+        function editField(fieldId) {
+            const field = currentFormFields.find(f => f.id === fieldId);
+            if (!field) return;
+            
+            // Create edit modal or use existing form
+            document.getElementById('fieldName').value = field.field_name;
+            document.getElementById('fieldLabel').value = field.field_label;
+            document.getElementById('fieldType').value = field.field_type;
+            document.getElementById('displayOrder').value = field.display_order;
+            document.getElementById('isRequired').checked = field.is_required;
+            
+            if (field.field_options && field.field_type === 'select') {
+                document.getElementById('fieldOptions').value = field.field_options.join('\n');
+            }
+            
+            toggleFieldOptions();
+            
+            // Change form to update mode
+            const addBtn = document.getElementById('addFieldBtn');
+            addBtn.innerHTML = '<i class="fas fa-save"></i> Update Field';
+            addBtn.onclick = function(e) {
+                e.preventDefault();
+                updateField(fieldId);
+            };
+            
+            showNotification('Editing field: ' + field.field_label, 'info');
+        }
+
+        function updateField(fieldId) {
+            const formData = new FormData(document.getElementById('addFieldForm'));
+            const data = {
+                field_label: formData.get('field_label'),
+                field_type: formData.get('field_type'),
+                is_required: document.getElementById('isRequired').checked ? 1 : 0,
+                display_order: parseInt(formData.get('display_order')) || 0
+            };
+            
+            if (formData.get('field_type') === 'select' && formData.get('field_options')) {
+                const options = formData.get('field_options').split('\n')
+                    .filter(opt => opt.trim() !== '')
+                    .map(opt => opt.trim());
+                data.field_options = options;
+            }
+            
+            fetch(`/admin/template/form-fields/${fieldId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(data)
+            })
+            .then(response => response.json())
+            .then(result => {
+                if (result.success) {
+                    showNotification('Field updated successfully', 'success');
+                    document.getElementById('addFieldForm').reset();
+                    
+                    // Reset form to add mode
+                    const addBtn = document.getElementById('addFieldBtn');
+                    addBtn.innerHTML = '<i class="fas fa-plus"></i> Add Field';
+                    addBtn.onclick = null;
+                    
+                    loadTemplateFormFields();
+                } else {
+                    showNotification('Error updating field: ' + result.message, 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error updating field:', error);
+                showNotification('Error updating field', 'error');
+            });
+        }
+
+        // Student Credentials Functions
+        function showAllCredentials() {
+            showNotification('Opening credentials management panel...', 'info');
+        }
+
+        function generateBulkCredentials() {
+            showNotification('Generating bulk credentials for all students...', 'info');
+            setTimeout(() => {
+                showNotification('Bulk credentials generated successfully!', 'success');
+            }, 2000);
+        }
+
+        function exportCredentials() {
+            showNotification('Preparing credentials export file...', 'info');
+            setTimeout(() => {
+                showNotification('Credentials exported successfully as CSV', 'success');
+            }, 1500);
+        }
+
+        function togglePasswordVisibility() {
+            const passwordElement = document.getElementById('samplePassword');
+            const iconElement = document.getElementById('passwordToggleIcon');
+            
+            if (isPasswordVisible) {
+                passwordElement.textContent = '••••••••';
+                iconElement.className = 'fas fa-eye';
+                isPasswordVisible = false;
+            } else {
+                passwordElement.textContent = 'TempPass123!';
+                iconElement.className = 'fas fa-eye-slash';
+                isPasswordVisible = true;
+            }
+        }
+
+        function resetSamplePassword() {
+            showNotification('Generating new temporary password...', 'info');
+            setTimeout(() => {
+                showNotification('Password reset successfully! New password: TempPass456!', 'success');
+            }, 1500);
+        }
+
+        function sendCredentials() {
+            showNotification('Sending credentials to student email...', 'info');
+            setTimeout(() => {
+                showNotification('Credentials sent successfully to student email', 'success');
+            }, 2000);
+        }
+
+        function manageCredentials(studentId, studentName) {
+            showNotification(`Managing credentials for ${studentName} (ID: ${studentId})`, 'info');
+            setTimeout(() => {
+                showNotification(`Credentials management interface for ${studentName}`, 'success');
+            }, 1000);
+        }
+
+        // Preview Tab Functions
+        function updateStudentDropdown() {
+            const templateSelect = document.getElementById('previewTemplate');
+            const studentSelect = document.getElementById('previewStudent');
+            const selectedTemplate = templateSelect.value;
+            
+            // Reset student dropdown
+            studentSelect.value = '';
+            enablePreviewButtons();
+            
+            // Hide all optgroups
+            document.querySelectorAll('#previewStudent optgroup').forEach(optgroup => {
+                optgroup.style.display = 'none';
+            });
+            
+            // Show only the selected template's students
+            if (selectedTemplate) {
+                const targetOptgroup = document.querySelector(`#previewStudent optgroup[data-template="${selectedTemplate}"]`);
+                if (targetOptgroup) {
+                    targetOptgroup.style.display = 'block';
+                }
+            }
+        }
+
+        function enablePreviewButtons() {
+            const templateId = document.getElementById('previewTemplate').value;
+            const studentId = document.getElementById('previewStudent').value;
+            const generateBtn = document.getElementById('generatePreviewBtn');
+            const downloadBtn = document.getElementById('downloadPreviewBtn');
+            
+            if (templateId && studentId) {
+                generateBtn.disabled = false;
+            } else {
+                generateBtn.disabled = true;
+                downloadBtn.disabled = true;
+            }
+        }
+
+        function generatePreview() {
+            const templateId = document.getElementById('previewTemplate').value;
+            const studentId = document.getElementById('previewStudent').value;
+            const previewImage = document.getElementById('previewImage');
+            const previewLoading = document.getElementById('previewLoading');
+            const previewError = document.getElementById('previewError');
+            const downloadBtn = document.getElementById('downloadPreviewBtn');
+            
+            if (!templateId || !studentId) {
+                showNotification('Please select both a template and a student', 'error');
+                return;
+            }
+            
+            // Show loading, hide image and error
+            previewLoading.style.display = 'block';
+            previewImage.style.display = 'none';
+            previewError.style.display = 'none';
+            downloadBtn.disabled = true;
+            
+            let previewSrc = '{{ url_for("static", filename="placeholder.jpg") }}';
+            let found = false;
+            
+            const table = document.querySelector(`.school-table[data-school-id="${templateId}"]`);
+            if (table) {
+                const rows = table.querySelectorAll('tbody tr');
+                for (let row of rows) {
+                    const idCell = row.querySelector('td:first-child');
+                    if (idCell && idCell.textContent.trim() === studentId) {
+                        const img = row.querySelector('td:nth-child(2) img');
+                        if (img && img.src && !img.src.includes('placeholder.jpg')) {
+                            previewSrc = img.src;
+                            found = true;
+                        }
+                        break;
+                    }
+                }
+            }
+            
+            previewImage.src = previewSrc;
+            
+            previewLoading.style.display = 'none';
+            if (found) {
+                previewImage.style.display = 'block';
+                downloadBtn.disabled = false;
+                showNotification('Preview loaded successfully!', 'success');
+            } else {
+                previewError.style.display = 'block';
+                showNotification('No preview available. Generate ID card first.', 'warning');
+            }
+        }
+
+        function downloadPreview() {
+            const previewImage = document.getElementById('previewImage');
+            const studentSelect = document.getElementById('previewStudent');
+            const selectedOption = studentSelect.options[studentSelect.selectedIndex];
+            
+            if (!previewImage.src.includes('placeholder.jpg')) {
+                const link = document.createElement('a');
+                link.href = previewImage.src;
+                link.download = `id_card_${selectedOption.text.replace(/[^a-zA-Z0-9]/g, '_')}.jpg`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                showNotification('Preview downloaded successfully!', 'success');
+            } else {
+                showNotification('No preview available to download', 'error');
+            }
+        }
+
+        function loadSamplePreview(templateId) {
+            document.getElementById('previewTemplate').value = templateId;
+            updateStudentDropdown();
+            
+            const studentSelect = document.getElementById('previewStudent');
+            const availableStudents = studentSelect.querySelectorAll(`option[data-template="${templateId}"]`);
+            
+            if (availableStudents.length > 0) {
+                studentSelect.value = availableStudents[0].value;
+                generatePreview();
+            } else {
+                showNotification('No students available for this template', 'warning');
+            }
+        }
+
+        function switchTab(tabName) {
+            console.log('Switching to tab:', tabName);
+            const tabContent = document.getElementById(tabName + '-tab');
+            if (!tabContent) {
+                console.error('Tab content not found for:', tabName);
+                showNotification('Tab not found: ' + tabName, 'error');
+                return;
+            }
+
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+
+            tabContent.classList.add('active');
+            const tabElement = document.querySelector(`.tab[onclick="switchTab('${tabName}')"]`);
+            if (tabElement) {
+                tabElement.classList.add('active');
+            } else {
+                console.error('Tab element not found for:', tabName);
+            }
+        }
+
+        function searchTable() {
+            let input = document.getElementById("searchInput").value.toLowerCase();
+            let tables = document.querySelectorAll(".school-table");
+            let totalCount = 0;
+
+            tables.forEach(table => {
+                let rows = table.querySelectorAll("tbody tr");
+                let tableCount = 0;
+
+                rows.forEach(row => {
+                    let text = row.innerText.toLowerCase();
+                    if (text.includes(input)) {
+                        row.style.display = "";
+                        tableCount++;
+                    } else {
+                        row.style.display = "none";
+                    }
+                });
+
+                if (tableCount > 0) {
+                    table.closest('.card').style.display = 'block';
+                } else {
+                    table.closest('.card').style.display = 'none';
+                }
+
+                totalCount += tableCount;
+            });
+
+            document.getElementById("resultCount").innerText = totalCount + " results found";
+        }
+
+        function toggleTheme() {
+            document.body.classList.toggle("dark");
+            const themeToggle = document.querySelector('.theme-toggle');
+            if (document.body.classList.contains('dark')) {
+                themeToggle.innerHTML = '<i class="fas fa-sun"></i>';
+            } else {
+                themeToggle.innerHTML = '<i class="fas fa-moon"></i>';
+            }
+        }
+
+        function confirmDelete() {
+            return confirm('Are you absolutely sure you want to delete ALL data and files? This action cannot be undone.');
+        }
+
+        function clearSearch() {
+            document.getElementById("searchInput").value = "";
+            searchTable();
+            document.querySelectorAll('.school-table').forEach(table => {
+                table.closest('.card').style.display = 'block';
+                table.querySelectorAll("tbody tr").forEach(row => {
+                    row.style.display = "";
+                });
+            });
+            document.getElementById("resultCount").innerText = "{{ rows|length|default(0) }} results";
+        }
+
+        function showNotification(message, type = 'success') {
+            const notification = document.getElementById('notification');
+            const notificationText = document.getElementById('notification-text');
+            const icon = notification.querySelector('i');
+
+            notificationText.textContent = message;
+            notification.className = 'notification ' + type;
+            
+            // Update icon based on type
+            if (type === 'error') {
+                icon.className = 'fas fa-exclamation-circle';
+            } else if (type === 'warning') {
+                icon.className = 'fas fa-exclamation-triangle';
+            } else if (type === 'info') {
+                icon.className = 'fas fa-info-circle';
+            } else {
+                icon.className = 'fas fa-check-circle';
+            }
+            
+            notification.classList.add('show');
+
+            setTimeout(() => {
+                notification.classList.remove('show');
+            }, 3000);
+        }
+
+        function editUser(userId) {
+            console.log('Editing user:', userId);
+            window.location.href = '/edit/' + userId;
+        }
+
+        // Initialize when DOM is loaded
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOM loaded, initializing tabs and event listeners');
+            
+            {% if success %}
+            showNotification('{{ success }}', 'success');
+            {% endif %}
+
+            {% if error %}
+            showNotification('{{ error }}', 'error');
+            {% endif %}
+
+            // Initialize border preview
+            updateBorderPreview();
+
+            // Initialize preview listeners
+            initializePreviewListeners();
+
+            {% if templates and templates|length > 0 %}
+            // Auto-select first template if none selected
+            const templateSelector = document.getElementById('templateSelector');
+            if (templateSelector && templateSelector.value === '') {
+                templateSelector.selectedIndex = 1;
+                loadTemplateSettings();
+            }
+            {% endif %}
+
+            // Add hover effects to buttons
+            const buttons = document.querySelectorAll('button, .btn');
+            buttons.forEach(button => {
+                button.addEventListener('mouseenter', function() {
+                    this.style.transform = 'translateY(-3px)';
+                });
+                button.addEventListener('mouseleave', function() {
+                    this.style.transform = 'translateY(0)';
+                });
+            });
+
+            // Add focus effects to inputs
+            const inputs = document.querySelectorAll('input, select, textarea');
+            inputs.forEach(input => {
+                input.addEventListener('focus', function() {
+                    this.parentElement.style.transform = 'translateY(-5px)';
+                });
+                input.addEventListener('blur', function() {
+                    this.parentElement.style.transform = 'translateY(0)';
+                });
+            });
+
+            // Form submission handling
+            document.querySelectorAll('form').forEach(form => {
+                form.addEventListener('submit', function(e) {
+                    const submitBtn = this.querySelector('button[type="submit"]');
+                    if (submitBtn) {
+                        const originalText = submitBtn.innerHTML;
+                        submitBtn.innerHTML = '<span class="loading"></span> Processing...';
+                        submitBtn.disabled = true;
+
+                        setTimeout(() => {
+                            submitBtn.innerHTML = originalText;
+                            submitBtn.disabled = false;
+                        }, 2000);
+                    }
+                });
+            });
+        });
+    </script>
+</body>
+</html>

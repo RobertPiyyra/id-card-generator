@@ -1,0 +1,1109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Animated ID Card Generator</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600&display=swap');
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    :root {
+      --primary: #0052cc;
+      --primary-dark: #003d99;
+      --accent: #ff6b6b;
+      --text: #2c3e50;
+      --text-light: #e4e4e4;
+      --bg-light: linear-gradient(135deg, #f0f4ff, #d9e2ff);
+      --bg-dark: linear-gradient(135deg, #1e1e1e, #121212);
+      --card-light: #ffffff;
+      --card-dark: #1e1e1e;
+      --success-bg: #d4edda;
+      --success-text: #155724;
+      --error-bg: #f8d7da;
+      --error-text: #721c24;
+      --transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+    body {
+      font-family: 'Montserrat', Arial, sans-serif;
+      background: var(--bg-light);
+      margin: 0;
+      padding: 0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      color: var(--text);
+      transition: var(--transition);
+      position: relative;
+      overflow-x: hidden;
+    }
+    .bg-bubbles {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: -1;
+      overflow: hidden;
+    }
+    .bg-bubbles li {
+      position: absolute;
+      list-style: none;
+      display: block;
+      width: 40px;
+      height: 40px;
+      background-color: rgba(0, 82, 204, 0.15);
+      bottom: -160px;
+      border-radius: 50%;
+      animation: square 25s infinite;
+      transition-timing-function: linear;
+      will-change: transform, opacity;
+    }
+    .bg-bubbles li:nth-child(1) { left: 10%; animation-delay: 0s; width: 80px; height: 80px; }
+    .bg-bubbles li:nth-child(2) { left: 20%; animation-delay: 2s; animation-duration: 17s; width: 60px; height: 60px; }
+    .bg-bubbles li:nth-child(3) { left: 25%; animation-delay: 4s; width: 120px; height: 120px; }
+    .bg-bubbles li:nth-child(4) { left: 40%; animation-delay: 0s; animation-duration: 22s; width: 160px; height: 160px; }
+    .bg-bubbles li:nth-child(5) { left: 70%; animation-delay: 3s; width: 100px; height: 100px; }
+    .bg-bubbles li:nth-child(6) { left: 80%; animation-delay: 2s; width: 120px; height: 120px; }
+    .bg-bubbles li:nth-child(7) { left: 32%; animation-delay: 6s; width: 140px; height: 140px; }
+    .bg-bubbles li:nth-child(8) { left: 55%; animation-delay: 8s; animation-duration: 18s; width: 40px; height: 40px; }
+    .bg-bubbles li:nth-child(9) { left: 25%; animation-delay: 10s; animation-duration: 20s; width: 80px; height: 80px; }
+    .bg-bubbles li:nth-child(10) { left: 90%; animation-delay: 5s; width: 100px; height: 100px; }
+    body.dark {
+      background: var(--bg-dark);
+      color: var(--text-light);
+    }
+    body.dark .bg-bubbles li { background-color: rgba(51, 153, 255, 0.1); }
+    body.dark .container { background: var(--card-dark); box-shadow: 0 20px 60px rgba(255, 255, 255, 0.05); }
+    body.dark input, body.dark textarea, body.dark select {
+      background: #2b2b2b;
+      border-color: #444;
+      color: var(--text-light);
+    }
+    body.dark input:focus, body.dark textarea:focus, body.dark select:focus {
+      border-color: #3399ff;
+      box-shadow: 0 0 12px rgba(51, 153, 255, 0.6);
+    }
+    body.dark h1, body.dark h2 { color: #fff; }
+
+    /* Enhanced Navigation Bar Styles */
+    .main-navbar {
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(12px);
+      border-radius: 15px;
+      margin: 20px auto 0;
+      padding: 15px 25px;
+      max-width: 900px;
+      width: 90%;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 8px 32px rgba(0, 82, 204, 0.15);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      animation: slideDown 0.5s ease-out;
+      position: relative;
+      z-index: 1000;
+    }
+    body.dark .main-navbar {
+      background: rgba(30, 30, 30, 0.95);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    }
+    .nav-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 700;
+      color: var(--primary);
+      text-decoration: none;
+      font-size: 1.1rem;
+      transition: var(--transition);
+      padding: 8px 16px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, rgba(0, 82, 204, 0.1), rgba(255, 107, 107, 0.1));
+    }
+    .nav-brand:hover {
+      transform: translateX(-5px);
+      background: linear-gradient(135deg, rgba(0, 82, 204, 0.2), rgba(255, 107, 107, 0.2));
+    }
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+    }
+    .nav-text {
+      font-weight: 600;
+      color: var(--text);
+      font-size: 0.95rem;
+    }
+    body.dark .nav-text {
+      color: var(--text-light);
+    }
+    .logout-btn {
+      background: linear-gradient(135deg, #ff6b6b, #ff5252);
+      color: white;
+      padding: 10px 20px;
+      border-radius: 25px;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 0.9rem;
+      transition: var(--transition);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      box-shadow: 0 4px 15px rgba(255, 107, 107, 0.3);
+    }
+    .logout-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(255, 107, 107, 0.4);
+      background: linear-gradient(135deg, #ff5252, #ff0000);
+    }
+
+    /* Enhanced existing nav-links styles */
+    .nav-links-old {
+      margin: 20px 0 0;
+      width: 100%;
+      max-width: 900px;
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      padding-right: 20px;
+      animation: slideDown 0.5s ease-out;
+    }
+    .nav-links-old a, .toggle-btn {
+      background: var(--primary);
+      color: white;
+      padding: 10px 20px;
+      border-radius: 30px;
+      font-weight: 600;
+      text-decoration: none;
+      box-shadow: 0 4px 12px rgba(0, 82, 204, 0.3);
+      transition: var(--transition);
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .nav-links-old a:hover, .toggle-btn:hover {
+      background: var(--primary-dark);
+      box-shadow: 0 6px 16px rgba(0, 61, 153, 0.5);
+      transform: translateY(-3px);
+    }
+    .nav-links-old a:active, .toggle-btn:active { transform: translateY(0); }
+
+    .container {
+      background: var(--card-light);
+      margin: 30px auto 50px;
+      border-radius: 20px;
+      max-width: 900px;
+      width: 90%;
+      padding: 40px 50px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.1);
+      transition: var(--transition);
+      animation: fadeInUp 0.8s ease-out;
+      position: relative;
+      overflow: hidden;
+    }
+    .container::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 5px;
+      background: linear-gradient(90deg, var(--primary), var(--accent));
+      transform: translateX(-100%);
+      animation: slideIn 1s forwards 0.5s;
+    }
+    h1 {
+      text-align: center;
+      color: var(--text);
+      font-weight: 700;
+      margin-bottom: 30px;
+      letter-spacing: 1.2px;
+      font-size: clamp(1.8rem, 5vw, 2.6rem);
+      animation: fadeInUp 0.8s ease-out;
+      position: relative;
+      padding-bottom: 15px;
+    }
+    h1::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 100px;
+      height: 4px;
+      background: linear-gradient(90deg, var(--primary), var(--accent));
+      border-radius: 2px;
+    }
+    h2 {
+      color: var(--text);
+      font-weight: 600;
+      margin-bottom: 20px;
+      animation: fadeInUp 0.6s ease-out;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: clamp(1.2rem, 4vw, 1.8rem);
+    }
+    form {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 25px 40px;
+    }
+    label {
+      display: block;
+      font-weight: 600;
+      margin-bottom: 8px;
+      animation: fadeIn 0.6s ease-out;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: clamp(0.9rem, 3vw, 1rem);
+    }
+    label i { color: var(--primary); }
+    .form-group {
+      animation: fadeInUp 0.6s ease-out;
+      animation-fill-mode: both;
+    }
+    .form-group:nth-child(1) { animation-delay: 0.1s; }
+    .form-group:nth-child(2) { animation-delay: 0.2s; }
+    .form-group:nth-child(3) { animation-delay: 0.3s; }
+    .form-group:nth-child(4) { animation-delay: 0.4s; }
+    .form-group:nth-child(5) { animation-delay: 0.5s; }
+    .form-group:nth-child(6) { animation-delay: 0.6s; }
+    .form-group:nth-child(7) { animation-delay: 0.7s; }
+    .form-group:nth-child(8) { animation-delay: 0.8s; }
+    .form-group:nth-child(9) { animation-delay: 0.9s; }
+    input[type="text"], input[type="date"], input[type="file"], input[type="tel"], textarea, select {
+      width: 100%;
+      padding: 14px 18px;
+      border-radius: 10px;
+      border: 2px solid #ced6e0;
+      font-size: clamp(0.9rem, 3vw, 1rem);
+      transition: var(--transition);
+      font-family: 'Montserrat', sans-serif;
+    }
+    input[type="text"]:focus, input[type="date"]:focus, input[type="file"]:focus, input[type="tel"]:focus, textarea:focus, select:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 4px rgba(0, 82, 204, 0.2);
+      transform: translateY(-3px);
+    }
+    input[type="text"]:hover, input[type="date"]:hover, input[type="file"]:hover, input[type="tel"]:hover, textarea:hover, select:hover {
+      border-color: #a0bcf8;
+    }
+    .form-actions {
+      grid-column: 1 / -1;
+      text-align: center;
+      margin-top: 15px;
+      animation: fadeInUp 0.8s ease-out;
+      animation-delay: 0.8s;
+      animation-fill-mode: both;
+      display: flex;
+      gap: 20px;
+      justify-content: center;
+    }
+    button {
+      background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+      border: none;
+      border-radius: 30px;
+      color: white;
+      cursor: pointer;
+      font-weight: 700;
+      font-size: clamp(1rem, 3.5vw, 1.2rem);
+      padding: 16px 60px;
+      box-shadow: 0 8px 20px rgba(198, 190, 163, 0.3);
+      transition: var(--transition);
+      position: relative;
+      overflow: hidden;
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+    }
+    button::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+      transition: 0.5s;
+      transform: translateX(-100%);
+    }
+    button:hover::before { transform: translateX(100%); }
+    button:hover {
+      background: linear-gradient(135deg, var(--primary-dark), #002966);
+      box-shadow: 0 10px 25px rgba(0, 61, 153, 0.5);
+      transform: translateY(-3px);
+    }
+    button:active { transform: translateY(0); }
+    .preview-section {
+      text-align: center;
+      margin-top: 40px;
+      animation: fadeIn 1s ease-out;
+    }
+    .preview-section h2 {
+      animation: fadeInUp 0.6s ease-out;
+      margin-bottom: 20px;
+      font-size: clamp(1.2rem, 4vw, 1.8rem);
+    }
+    .preview-section img {
+      max-width: 320px;
+      width: 100%;
+      border-radius: 14px;
+      border: 3px solid var(--primary);
+      box-shadow: 0 10px 25px rgba(0, 82, 204, 0.25);
+      transition: var(--transition);
+      animation: fadeIn 0.8s ease-out, pulse 2s infinite ease-in-out;
+    }
+    .preview-section img:hover {
+      transform: scale(1.05) rotate(1deg);
+      box-shadow: 0 15px 35px rgba(0, 82, 204, 0.4);
+    }
+    .notification {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      padding: 15px 20px;
+      border-radius: 10px;
+      color: white;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+      transform: translateX(100%);
+      opacity: 0;
+      transition: var(--transition);
+      z-index: 1001;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .notification.show { transform: translateX(0); opacity: 1; }
+    .notification.success { background: var(--success-bg); color: var(--success-text); }
+    .notification.error { background: var(--error-bg); color: var(--error-text); }
+    #securityOverlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(255,255,255,0.95);
+      backdrop-filter: blur(12px);
+      z-index: 9999;
+      display: none;
+      justify-content: center;
+      align-items: center;
+      font-size: 26px;
+      font-weight: 700;
+      color: #d32f2f;
+      animation: shake 0.5s ease-in-out;
+    }
+    #securityOverlay i { margin-right: 15px; font-size: 32px; }
+    .download-btn {
+      display: inline-block;
+      margin-top: 20px;
+      background: linear-gradient(135deg, var(--accent), #ff5252);
+      padding: 12px 30px;
+      border-radius: 30px;
+      color: white;
+      text-decoration: none;
+      font-weight: 600;
+      box-shadow: 0 6px 16px rgba(255, 107, 107, 0.4);
+      transition: var(--transition);
+    }
+    .download-btn:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 8px 20px rgba(255, 107, 107, 0.5);
+    }
+    .checkbox-container {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 10px 0;
+    }
+    .checkbox {
+      appearance: none;
+      -webkit-appearance: none;
+      width: 18px;
+      height: 18px;
+      border: 2px solid #ced6e0;
+      border-radius: 4px;
+      background: var(--card-light);
+      position: relative;
+      cursor: pointer;
+    }
+    .checkbox:checked {
+      background: var(--primary);
+      border-color: var(--primary);
+    }
+    .checkbox:checked::after {
+      content: '✓';
+      position: absolute;
+      color: white;
+      font-size: 12px;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+    }
+    body.dark .checkbox {
+      background: #2b2b2b;
+      border-color: #444;
+    }
+    body.dark .checkbox:checked {
+      background: #3399ff;
+      border-color: #3399ff;
+    }
+
+    /* New styles for photo upload options */
+    .photo-upload-options {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 10px;
+      flex-wrap: wrap;
+    }
+    .upload-option {
+      flex: 1;
+      min-width: 120px;
+      text-align: center;
+      padding: 12px;
+      border: 2px solid #ced6e0;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: var(--transition);
+      background: var(--card-light);
+    }
+    .upload-option:hover {
+      border-color: var(--primary);
+      transform: translateY(-2px);
+    }
+    .upload-option.active {
+      border-color: var(--primary);
+      background: rgba(0, 82, 204, 0.1);
+    }
+    .upload-option i {
+      font-size: 24px;
+      margin-bottom: 5px;
+      color: var(--primary);
+    }
+    .file-info {
+      margin-top: 10px;
+      font-size: 0.8rem;
+      color: #666;
+    }
+    .file-info.error {
+      color: var(--error-text);
+    }
+    #cameraPreview {
+      display: none;
+      margin-top: 15px;
+      text-align: center;
+    }
+    #cameraVideo, #cameraCanvas {
+      max-width: 100%;
+      border-radius: 10px;
+      border: 2px solid var(--primary);
+    }
+    .camera-controls {
+      margin-top: 10px;
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes fadeInUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes slideDown { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes slideIn { from { transform: translateX(-100%); } to { transform: translateX(0); } }
+    @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.02); } 100% { transform: scale(1); } }
+    @keyframes shake { 0%, 100% { transform: translateX(0); } 10%, 30%, 50%, 70%, 90% { transform: translateX(-10px); } 20%, 40%, 60%, 80% { transform: translateX(10px); } }
+    @keyframes square { 0% { transform: translateY(0) rotate(0deg); opacity: 0.7; border-radius: 50%; } 100% { transform: translateY(-1000px) rotate(720deg); opacity: 0; border-radius: 20%; } }
+    @keyframes float { 0% { transform: translateY(0) rotate(0deg); } 50% { transform: translateY(-10px) rotate(5deg); } 100% { transform: translateY(0) rotate(0deg); } }
+    .floating { animation: float 6s ease-in-out infinite; }
+    @media (max-width: 1024px) {
+      .container {
+        padding: 35px 40px;
+      }
+      h1 {
+        font-size: 2.2rem;
+      }
+      .preview-section img {
+        max-width: 280px;
+      }
+    }
+    @media (max-width: 768px) {
+      .container { padding: 30px; width: 95%; }
+      h1 { font-size: 2rem; }
+      form { grid-template-columns: 1fr; gap: 20px; }
+      button { width: 100%; justify-content: center; padding: 14px; font-size: 1.1rem; }
+      .form-actions { flex-direction: column; gap: 15px; }
+      .photo-upload-options { flex-direction: column; }
+      .notification {
+        top: 10px;
+        right: 10px;
+        left: 10px;
+        width: calc(100% - 20px);
+        font-size: 0.9rem;
+      }
+      .preview-section {
+        margin-top: 30px;
+      }
+      .preview-section img {
+        max-width: 100%;
+      }
+      .main-navbar {
+        flex-direction: column;
+        gap: 15px;
+        padding: 15px;
+        text-align: center;
+      }
+      .nav-links {
+        flex-direction: column;
+        gap: 10px;
+      }
+      .nav-links-old {
+        justify-content: center;
+        flex-wrap: wrap;
+        padding: 0 10px;
+        gap: 8px;
+      }
+      .nav-links-old a, .toggle-btn {
+        flex: 1;
+        max-width: calc(50% - 4px);
+        font-size: 0.9rem;
+        padding: 8px 15px;
+      }
+      .bg-bubbles li {
+        width: 30px;
+        height: 30px;
+      }
+      @keyframes square {
+        0% { transform: translateY(0) rotate(0deg); opacity: 0.7; border-radius: 50%; }
+        100% { transform: translateY(-800px) rotate(360deg); opacity: 0; border-radius: 20%; }
+      }
+    }
+    @media (max-width: 480px) {
+      body {
+        padding: 10px;
+      }
+      .container {
+        padding: 25px;
+        margin: 20px auto 30px;
+      }
+      h1 {
+        font-size: 1.8rem;
+      }
+      label {
+        font-size: 0.95rem;
+      }
+      input[type="text"], input[type="date"], input[type="file"], input[type="tel"], textarea, select {
+        padding: 12px 15px;
+        font-size: 0.95rem;
+      }
+      button {
+        padding: 12px;
+        font-size: 1rem;
+      }
+      .nav-links-old a, .toggle-btn {
+        max-width: 100%;
+        width: 100%;
+      }
+      .bg-bubbles {
+        display: none;
+      }
+      [class*="animation"] {
+        animation-duration: 0.3s !important;
+      }
+      .transition {
+        transition-duration: 0.2s !important;
+      }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      * {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+      }
+    }
+  </style>
+</head>
+<body oncontextmenu="return false">
+  <div id="securityOverlay"><i class="fas fa-shield-alt"></i>⚠ Screenshot Disabled</div>
+  <div class="notification" id="notification">
+    <i class="fas fa-check-circle"></i>
+    <span id="notification-text">Operation completed successfully</span>
+  </div>
+  <ul class="bg-bubbles">
+    <li></li><li></li><li></li><li></li><li></li><li></li><li></li><li></li><li></li><li></li>
+  </ul>
+
+  <!-- Enhanced Navigation Bar -->
+  <nav class="main-navbar">
+    <a class="nav-brand" href="{{ url_for('landing') }}">
+      <i class="fas fa-arrow-left"></i> Back to Home
+    </a>
+    <div class="nav-links">
+      <span class="nav-text">Welcome, {{ session.get('student_email', 'User') }}</span>
+      <a href="{{ url_for('logout') }}" class="logout-btn">
+        <i class="fas fa-sign-out-alt"></i> Logout
+      </a>
+    </div>
+  </nav>
+  
+  <div class="nav-links-old">
+    <a href="/admin"><i class="fas fa-user-cog"></i>Admin Panel</a>
+    <button class="toggle-btn" id="themeToggle"><i class="fas fa-moon"></i>Toggle Theme</button>
+  </div>
+  
+  <div class="container">
+    <h1 class="floating"><i class="fas fa-id-card"></i> <span id="form-title">ID Card Generator</span></h1>
+    {% if success %}
+    <div class="notification success show">
+      <i class="fas fa-check-circle"></i>
+      <span>{{ success }}</span>
+    </div>
+    {% endif %}
+    {% if error %}
+    <div class="notification error show">
+      <i class="fas fa-exclamation-circle"></i>
+      <span>{{ error }}</span>
+    </div>
+    {% endif %}
+    <form method="POST" action="/fetch_record" id="fetchForm" style="{% if show_fetch %}display: grid;{% else %}display: none;{% endif %}">
+      <div class="form-group" style="grid-column: 1 / -1;">
+        <label for="fetch_unique_id"><i class="fas fa-key"></i>Enter Unique ID and click on Fetch Record to Edit:</label>
+        <input id="fetch_unique_id" type="text" name="unique_id" placeholder="Enter your unique ID" required pattern="\d+" title="Please enter a valid numeric unique ID" />
+      </div>
+      <div class="form-actions">
+        <button type="submit"><i class="fas fa-search"></i>Fetch Record</button>
+        <button type="button" id="createNewBtn"><i class="fas fa-plus"></i>Create New ID</button>
+        <button><a href="/student_login" style="color: white; text-decoration: none;"><i class="fas fa-home"></i>Go to Home</a></button>
+      </div>
+    </form>
+    <form method="POST" enctype="multipart/form-data" id="idCardForm" style="{% if not show_fetch %}display: grid;{% else %}display: none;{% endif %}">
+      <input type="hidden" name="student_id" id="student_id" value="{% if form_data and form_data['student_id'] %}{{ form_data['student_id'] }}{% else %}{% endif %}">
+      <div class="form-group">
+        <label for="template_id"><i class="fas fa-file"></i>School Name:</label>
+        <select id="template_id" name="template_id" required>
+          {% for template in templates %}
+            <option value="{{ template.id }}"
+              {% if selected_template_id is defined and selected_template_id == template.id %}
+                selected
+              {% elif form_data and form_data['template_id'] == template.id %}
+                selected
+              {% endif %}
+            >{{ template.school_name }}</option>
+          {% else %}
+            <option value="" disabled>No templates available</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="name"><i class="fas fa-user"></i>Full Name:</label>
+        <input id="name" type="text" name="name" value="{% if form_data and form_data['name'] %}{{ form_data['name'] }}{% else %}{% endif %}" required pattern="[A-Za-z\s]{2,50}" title="Name must be 2-50 characters, letters and spaces only" />
+      </div>
+      <div class="form-group">
+        <label for="father_name"><i class="fas fa-user-friends"></i>Father's Name:</label>
+        <input id="father_name" type="text" name="father_name" value="{% if form_data and form_data['father_name'] %}{{ form_data['father_name'] }}{% else %}{% endif %}" required pattern="[A-Za-z\s]{2,50}" title="Father's name must be 2-50 characters, letters and spaces only" />
+      </div>
+      <div class="form-group">
+        <label for="class_name"><i class="fas fa-graduation-cap"></i>Class:</label>
+        <select id="class_name" name="class_name" required onchange="handleClassChange()">
+          <option value="">Select Class Level</option>
+          <optgroup label="School">
+            <option value="Nursery" {% if form_data and form_data['class_name'] == 'Nursery' %}selected{% endif %}>Nursery</option>
+            <option value="L.K.G" {% if form_data and form_data['class_name'] == 'LKG' %}selected{% endif %}>L.K.G</option>
+            <option value="U.K.G" {% if form_data and form_data['class_name'] == 'UKG' %}selected{% endif %}>U.K.G</option>
+            <option value="1st" {% if form_data and form_data['class_name'] == 'Class 1' %}selected{% endif %}>1st</option>
+            <option value=" 2nd" {% if form_data and form_data['class_name'] == 'Class 2' %}selected{% endif %}>2nd</option>
+            <option value=" 3rd" {% if form_data and form_data['class_name'] == 'Class 3' %}selected{% endif %}>3rd</option>
+            <option value=" 4th" {% if form_data and form_data['class_name'] == 'Class 4' %}selected{% endif %}>4th</option>
+            <option value=" 5th" {% if form_data and form_data['class_name'] == 'Class 5' %}selected{% endif %}>5th</option>
+            <option value=" 6th" {% if form_data and form_data['class_name'] == 'Class 6' %}selected{% endif %}>6th</option>
+            <option value=" 7th" {% if form_data and form_data['class_name'] == 'Class 7' %}selected{% endif %}>7th</option>
+            <option value=" 8th" {% if form_data and form_data['class_name'] == 'Class 8' %}selected{% endif %}>8th</option>
+            <option value=" 9th" {% if form_data and form_data['class_name'] == 'Class 9' %}selected{% endif %}>9th</option>
+            <option value=" 10th" {% if form_data and form_data['class_name'] == 'Class 10' %}selected{% endif %}>10th</option>
+            <option value=" 11th" {% if form_data and form_data['class_name'] == 'Class 11' %}selected{% endif %}> 11th</option>
+            <option value="12th" {% if form_data and form_data['class_name'] == 'Class 12' %}selected{% endif %}> 12th</option>
+          </optgroup>
+          <optgroup label="Undergraduate">
+            <option value="B.A. 1st Year" {% if form_data and form_data['class_name'] == 'B.A. 1st Year' %}selected{% endif %}>B.A. 1st Year</option>
+            <option value="B.A. 2nd Year" {% if form_data and form_data['class_name'] == 'B.A. 2nd Year' %}selected{% endif %}>B.A. 2nd Year</option>
+            <option value="B.A. 3rd Year" {% if form_data and form_data['class_name'] == 'B.A. 3rd Year' %}selected{% endif %}>B.A. 3rd Year</option>
+            <option value="B.Sc. 1st Year" {% if form_data and form_data['class_name'] == 'B.Sc. 1st Year' %}selected{% endif %}>B.Sc. 1st Year</option>
+            <option value="B.Sc. 2nd Year" {% if form_data and form_data['class_name'] == 'B.Sc. 2nd Year' %}selected{% endif %}>B.Sc. 2nd Year</option>
+            <option value="B.Sc. 3rd Year" {% if form_data and form_data['class_name'] == 'B.Sc. 3rd Year' %}selected{% endif %}>B.Sc. 3rd Year</option>
+            <option value="B.Com. 1st Year" {% if form_data and form_data['class_name'] == 'B.Com. 1st Year' %}selected{% endif %}>B.Com. 1st Year</option>
+            <option value="B.Com. 2nd Year" {% if form_data and form_data['class_name'] == 'B.Com. 2nd Year' %}selected{% endif %}>B.Com. 2nd Year</option>
+            <option value="B.Com. 3rd Year" {% if form_data and form_data['class_name'] == 'B.Com. 3rd Year' %}selected{% endif %}>B.Com. 3rd Year</option>
+            <option value="B.Tech 1st Year" {% if form_data and form_data['class_name'] == 'B.Tech 1st Year' %}selected{% endif %}>B.Tech 1st Year</option>
+            <option value="B.Tech 2nd Year" {% if form_data and form_data['class_name'] == 'B.Tech 2nd Year' %}selected{% endif %}>B.Tech 2nd Year</option>
+            <option value="B.Tech 3rd Year" {% if form_data and form_data['class_name'] == 'B.Tech 3rd Year' %}selected{% endif %}>B.Tech 3rd Year</option>
+            <option value="B.Tech 4th Year" {% if form_data and form_data['class_name'] == 'B.Tech 4th Year' %}selected{% endif %}>B.Tech 4th Year</option>
+          </optgroup>
+          <optgroup label="Postgraduate">
+            <option value="M.A. 1st Year" {% if form_data and form_data['class_name'] == 'M.A. 1st Year' %}selected{% endif %}>M.A. 1st Year</option>
+            <option value="M.A. 2nd Year" {% if form_data and form_data['class_name'] == 'M.A. 2nd Year' %}selected{% endif %}>M.A. 2nd Year</option>
+            <option value="M.Sc. 1st Year" {% if form_data and form_data['class_name'] == 'M.Sc. 1st Year' %}selected{% endif %}>M.Sc. 1st Year</option>
+            <option value="M.Sc. 2nd Year" {% if form_data and form_data['class_name'] == 'M.Sc. 2nd Year' %}selected{% endif %}>M.Sc. 2nd Year</option>
+            <option value="M.Com. 1st Year" {% if form_data and form_data['class_name'] == 'M.Com. 1st Year' %}selected{% endif %}>M.Com. 1st Year</option>
+            <option value="M.Com. 2nd Year" {% if form_data and form_data['class_name'] == 'M.Com. 2nd Year' %}selected{% endif %}>M.Com. 2nd Year</option>
+            <option value="M.Tech 1st Year" {% if form_data and form_data['class_name'] == 'M.Tech 1st Year' %}selected{% endif %}>M.Tech 1st Year</option>
+            <option value="M.Tech 2nd Year" {% if form_data and form_data['class_name'] == 'M.Tech 2nd Year' %}selected{% endif %}>M.Tech 2nd Year</option>
+          </optgroup>
+          <option value="custom">Other (Type your own)</option>
+        </select>
+        <input type="text" id="custom_class" name="custom_class" style="display: none; margin-top: 10px;" placeholder="Enter your class name" />
+      </div>
+      <div class="form-group">
+        <label for="dob"><i class="fas fa-calendar-alt"></i>Date of Birth:</label>
+        <input id="dob" type="date" name="dob" value="{% if form_data and form_data['dob'] %}{{ form_data['dob'] }}{% else %}{% endif %}" required />
+      </div>
+      <div class="form-group" style="grid-column: 1 / -1;">
+        <label for="address"><i class="fas fa-home"></i>Address:</label>
+        <textarea id="address" name="address" rows="3" required maxlength="200">{% if form_data and form_data['address'] %}{{ form_data['address'] }}{% else %}{% endif %}</textarea>
+      </div>
+      <div class="form-group">
+        <label for="phone"><i class="fas fa-phone"></i>Phone Number:</label>
+        <input id="phone" type="tel" name="phone" value="{% if form_data and form_data['phone'] %}{{ form_data['phone'] }}{% else %}{% endif %}" required pattern="[0-9]{10}" title="Please enter a valid 10-digit phone number" />
+      </div>
+      <div class="form-group">
+        <label><i class="fas fa-camera"></i>Upload Photo (Max 2MB, JPG/PNG):</label>
+        
+        <div class="photo-upload-options">
+          <div class="upload-option active" id="fileOption" onclick="selectUploadOption('file')">
+            <i class="fas fa-file-upload"></i>
+            <div>File Upload</div>
+          </div>
+          <div class="upload-option" id="cameraOption" onclick="selectUploadOption('camera')">
+            <i class="fas fa-camera"></i>
+            <div>Take Photo</div>
+          </div>
+        </div>
+
+        <!-- File Upload Section -->
+        <div id="fileUploadSection">
+          <input id="photo" type="file" name="photo" accept="image/*" required onchange="validateFile(this)" />
+          <div class="file-info" id="fileInfo">Supported formats: JPG, PNG, JPEG. Max size: 2MB</div>
+        </div>
+
+        <!-- Camera Section -->
+        <div id="cameraSection" style="display: none;">
+          <div id="cameraPreview">
+            <video id="cameraVideo" autoplay playsinline></video>
+            <canvas id="cameraCanvas" style="display: none;"></canvas>
+          </div>
+          <div class="camera-controls">
+            <button type="button" class="btn" onclick="startCamera()"><i class="fas fa-play"></i> Start Camera</button>
+            <button type="button" class="btn" onclick="capturePhoto()" id="captureBtn" disabled><i class="fas fa-camera"></i> Capture Photo</button>
+            <button type="button" class="btn" onclick="stopCamera()"><i class="fas fa-stop"></i> Stop Camera</button>
+          </div>
+          <input type="hidden" id="photoData" name="photo_data" />
+        </div>
+      </div>
+      <div class="form-actions">
+        <button type="submit" id="submit-btn"><i class="fas fa-id-card"></i> <span id="submit-btn-text">Generate ID Card</span></button>
+        <button type="button" onclick="clearForm()"><i class="fas fa-times"></i>Cancel</button>
+      </div>
+    </form>
+    {% if generated_url %}
+    <div class="preview-section" id="preview-section">
+      <h2><i class="fas fa-eye"></i>Generated ID Card Preview</h2>
+      <img src="{{ generated_url }}" alt="Generated ID Card" id="preview-image"
+           onerror="this.src='/static/placeholder.jpg'; this.alt='No preview available';" />
+
+    </div>
+    {% endif %}
+  </div>
+
+<script>
+    let stream = null;
+    let currentUploadOption = 'file';
+
+    function showNotification(message, type = 'success') {
+      const notification = document.getElementById('notification');
+      const notificationText = document.getElementById('notification-text');
+      notificationText.textContent = message;
+      notification.className = `notification ${type} show`;
+      setTimeout(() => {
+        notification.classList.remove('show');
+      }, 4000);
+    }
+
+    function handleClassChange() {
+      const classSelect = document.getElementById('class_name');
+      const customClassInput = document.getElementById('custom_class');
+      
+      if (classSelect.value === 'custom') {
+        customClassInput.style.display = 'block';
+        customClassInput.required = true;
+      } else {
+        customClassInput.style.display = 'none';
+        customClassInput.required = false;
+        customClassInput.value = '';
+      }
+    }
+
+    function selectUploadOption(option) {
+      currentUploadOption = option;
+      
+      // Update UI
+      document.getElementById('fileOption').classList.toggle('active', option === 'file');
+      document.getElementById('cameraOption').classList.toggle('active', option === 'camera');
+      document.getElementById('fileUploadSection').style.display = option === 'file' ? 'block' : 'none';
+      document.getElementById('cameraSection').style.display = option === 'camera' ? 'block' : 'none';
+      
+      // Stop camera if switching away from camera
+      if (option !== 'camera') {
+        stopCamera();
+      }
+    }
+
+    function validateFile(input) {
+      const fileInfo = document.getElementById('fileInfo');
+      const file = input.files[0];
+      
+      if (!file) return;
+      
+      // Check file size (2MB = 2 * 1024 * 1024 bytes)
+      const maxSize = 2 * 1024 * 1024;
+      if (file.size > maxSize) {
+        fileInfo.textContent = 'File size must be less than 2MB';
+        fileInfo.className = 'file-info error';
+        input.value = '';
+        return;
+      }
+      
+      // Check file type
+      const validTypes = ['image/jpeg', 'image/jpg', 'image/png'];
+      if (!validTypes.includes(file.type)) {
+        fileInfo.textContent = 'Please select a JPG or PNG image';
+        fileInfo.className = 'file-info error';
+        input.value = '';
+        return;
+      }
+      
+      fileInfo.textContent = `File selected: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`;
+      fileInfo.className = 'file-info';
+    }
+
+    async function startCamera() {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ 
+          video: { 
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+            facingMode: 'user'
+          } 
+        });
+        const video = document.getElementById('cameraVideo');
+        video.srcObject = stream;
+        document.getElementById('captureBtn').disabled = false;
+        showNotification('Camera started successfully', 'success');
+      } catch (err) {
+        console.error('Error starting camera:', err);
+        showNotification('Error accessing camera: ' + err.message, 'error');
+      }
+    }
+
+    function capturePhoto() {
+      const video = document.getElementById('cameraVideo');
+      const canvas = document.getElementById('cameraCanvas');
+      const context = canvas.getContext('2d');
+      
+      // Set canvas dimensions to match video
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      
+      // Draw current video frame to canvas
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+      
+      // Convert to data URL
+      const photoData = canvas.toDataURL('image/jpeg', 0.8);
+      document.getElementById('photoData').value = photoData;
+      
+      // Show preview
+      video.style.display = 'none';
+      canvas.style.display = 'block';
+      
+      showNotification('Photo captured successfully!', 'success');
+    }
+
+    function stopCamera() {
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+        stream = null;
+      }
+      document.getElementById('cameraVideo').style.display = 'block';
+      document.getElementById('cameraCanvas').style.display = 'none';
+      document.getElementById('captureBtn').disabled = true;
+      document.getElementById('photoData').value = '';
+    }
+
+    function clearForm() {
+      document.getElementById('idCardForm').reset();
+      document.getElementById('student_id').value = '';
+      document.getElementById('photo').required = true;
+      document.getElementById('submit-btn-text').textContent = 'Generate ID Card';
+      document.getElementById('form-title').textContent = 'ID Card Generator';
+      document.getElementById('fetchForm').style.display = 'grid';
+      document.getElementById('idCardForm').style.display = 'none';
+      document.getElementById('custom_class').style.display = 'none';
+      stopCamera();
+      selectUploadOption('file');
+      fetch('/clear_edit_session', {method: 'POST'});
+    }
+    
+    function createNewCard() {
+      document.getElementById('student_id').value = '';
+      document.getElementById('idCardForm').reset();
+      fetch('/clear_edit_session', {method: 'POST'})
+        .then(response => response.json())
+        .then(data => {
+          if (data.success) {
+            document.getElementById('submit-btn-text').textContent = 'Generate ID Card';
+            document.getElementById('form-title').textContent = 'ID Card Generator';
+            document.getElementById('fetchForm').style.display = 'none';
+            document.getElementById('idCardForm').style.display = 'grid';
+            document.getElementById('photo').required = true;
+            document.getElementById('custom_class').style.display = 'none';
+            stopCamera();
+            selectUploadOption('file');
+            const previewSection = document.getElementById('preview-section');
+            if (previewSection) previewSection.style.display = 'none';
+            showNotification('Ready to create a new ID card', 'success');
+          }
+        });
+    }
+    
+    document.addEventListener('DOMContentLoaded', function() {
+      const dobInput = document.getElementById('dob');
+      const today = new Date().toISOString().split('T')[0];
+      dobInput.setAttribute('max', today);
+      
+      // Initialize class selection
+      handleClassChange();
+      
+      {% if success and success != '' %}
+      showNotification('{{ success }}', 'success');
+      {% endif %}
+      
+      {% if error and error != '' %}
+      showNotification('{{ error }}', 'error');
+      {% endif %}
+      
+      document.getElementById('createNewBtn').addEventListener('click', function() {
+        createNewCard();
+      });
+      
+      document.getElementById('fetchForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        const submitBtn = this.querySelector('button[type="submit"]');
+        const originalText = submitBtn.innerHTML;
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Fetching...';
+        submitBtn.disabled = true;
+        const formData = new FormData(this);
+        fetch('/fetch_record', {
+          method: 'POST',
+          body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+          submitBtn.innerHTML = originalText;
+          submitBtn.disabled = false;
+          if (data.success) {
+            window.open(data.edit_url, '_blank');
+          } else {
+            showNotification(data.error || 'No record found', 'error');
+          }
+        })
+        .catch(error => {
+          showNotification('Error fetching record: ' + error.message, 'error');
+          submitBtn.innerHTML = originalText;
+          submitBtn.disabled = false;
+        });
+      });
+      
+      // Handle form submission for camera photos
+      document.getElementById('idCardForm').addEventListener('submit', function(e) {
+        if (currentUploadOption === 'camera' && !document.getElementById('photoData').value) {
+          e.preventDefault();
+          showNotification('Please capture a photo first', 'error');
+          return;
+        }
+        
+        // If using camera, we need to handle the photo data differently
+        if (currentUploadOption === 'camera') {
+          // The photo data is already in the hidden input field
+          // The backend will need to handle base64 image data
+        }
+      });
+      
+      document.addEventListener('keyup', function (e) {
+        if (e.key === "PrintScreen") {
+          let overlay = document.getElementById('securityOverlay');
+          overlay.style.display = 'flex';
+          setTimeout(() => {
+            overlay.style.display = 'none';
+          }, 2000);
+        }
+      });
+      
+      document.addEventListener('keydown', function (e) {
+        if ((e.ctrlKey && (e.key.toLowerCase() === 's')) ||
+            (e.ctrlKey && e.shiftKey && (e.key.toLowerCase() === 's')) ||
+            (e.key === "PrintScreen")) {
+          e.preventDefault();
+          alert("Screenshots and saving are disabled.");
+        }
+      });
+      
+      const toggleBtn = document.getElementById('themeToggle');
+      const themeIcon = toggleBtn.querySelector('i');
+      toggleBtn.addEventListener('click', () => {
+        document.body.classList.toggle('dark');
+        toggleBtn.innerHTML = document.body.classList.contains('dark')
+          ? '<i class="fas fa-sun"></i>Light Mode'
+          : '<i class="fas fa-moon"></i>Dark Mode';
+      });
+      
+      const buttons = document.querySelectorAll('button, .nav-links a, .logout-btn');
+      buttons.forEach(button => {
+        button.addEventListener('mouseenter', function() {
+          this.style.transform = 'translateY(-3px)';
+        });
+        button.addEventListener('mouseleave', function() {
+          this.style.transform = 'translateY(0)';
+        });
+      });
+      
+      const inputs = document.querySelectorAll('input, textarea, select');
+      inputs.forEach(input => {
+        input.addEventListener('focus', function() {
+          this.parentElement.style.transform = 'translateY(-5px)';
+        });
+        input.addEventListener('blur', function() {
+          this.parentElement.style.transform = 'translateY(0)';
+        });
+      });
+
+      // Enhanced navbar interactions
+      const navBrand = document.querySelector('.nav-brand');
+      navBrand.addEventListener('mouseenter', function() {
+        this.style.transform = 'translateX(-5px)';
+      });
+      navBrand.addEventListener('mouseleave', function() {
+        this.style.transform = 'translateX(0)';
+      });
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Animated ID Card Editor</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600&display=swap');
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    :root {
+      --primary: #0052cc;
+      --primary-dark: #003d99;
+      --accent: #ff6b6b;
+      --text: #2c3e50;
+      --text-light: #e4e4e4;
+      --bg-light: linear-gradient(135deg, #f0f4ff, #d9e2ff);
+      --bg-dark: linear-gradient(135deg, #1e1e1e, #121212);
+      --card-light: #ffffff;
+      --card-dark: #1e1e1e;
+      --success-bg: #d4edda;
+      --success-text: #155724;
+      --error-bg: #f8d7da;
+      --error-text: #721c24;
+      --transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+    body {
+      font-family: 'Montserrat', Arial, sans-serif;
+      background: var(--bg-light);
+      margin: 0;
+      padding: 0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      color: var(--text);
+      transition: var(--transition);
+      position: relative;
+      overflow-x: hidden;
+    }
+    .bg-bubbles {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: -1;
+      overflow: hidden;
+    }
+    .bg-bubbles li {
+      position: absolute;
+      list-style: none;
+      display: block;
+      width: 30px;
+      height: 30px;
+      background-color: rgba(0, 82, 204, 0.15);
+      bottom: -120px;
+      border-radius: 50%;
+      animation: square 20s infinite;
+      transition-timing-function: linear;
+    }
+    .bg-bubbles li:nth-child(1) { left: 10%; animation-delay: 0s; width: 60px; height: 60px; }
+    .bg-bubbles li:nth-child(2) { left: 20%; animation-delay: 2s; animation-duration: 15s; width: 40px; height: 40px; }
+    .bg-bubbles li:nth-child(3) { left: 25%; animation-delay: 4s; width: 80px; height: 80px; }
+    .bg-bubbles li:nth-child(4) { left: 40%; animation-delay: 0s; animation-duration: 18s; width: 100px; height: 100px; }
+    .bg-bubbles li:nth-child(5) { left: 70%; animation-delay: 3s; width: 70px; height: 70px; }
+    .bg-bubbles li:nth-child(6) { left: 80%; animation-delay: 2s; width: 90px; height: 90px; }
+    .bg-bubbles li:nth-child(7) { left: 32%; animation-delay: 6s; width: 110px; height: 110px; }
+    .bg-bubbles li:nth-child(8) { left: 55%; animation-delay: 8s; animation-duration: 16s; width: 30px; height: 30px; }
+    .bg-bubbles li:nth-child(9) { left: 25%; animation-delay: 10s; animation-duration: 18s; width: 60px; height: 60px; }
+    .bg-bubbles li:nth-child(10) { left: 90%; animation-delay: 5s; width: 80px; height: 80px; }
+    body.dark {
+      background: var(--bg-dark);
+      color: var(--text-light);
+    }
+    body.dark .bg-bubbles li { background-color: rgba(51, 153, 255, 0.1); }
+    body.dark .container { background: var(--card-dark); box-shadow: 0 15px 45px rgba(255, 255, 255, 0.05); }
+    body.dark input, body.dark textarea, body.dark select {
+      background: #2b2b2b;
+      border-color: #444;
+      color: var(--text-light);
+    }
+    body.dark input:focus, body.dark textarea:focus, body.dark select:focus {
+      border-color: #3399ff;
+      box-shadow: 0 0 10px rgba(51, 153, 255, 0.6);
+    }
+    body.dark h1, body.dark h2 { color: #fff; }
+    .nav-links {
+      margin: 15px 0;
+      width: 100%;
+      max-width: 95%;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 8px;
+      padding: 0 10px;
+      animation: slideDown 0.5s ease-out;
+    }
+    .nav-links a, .toggle-btn {
+      background: var(--primary);
+      color: white;
+      padding: 8px 16px;
+      border-radius: 25px;
+      font-weight: 600;
+      font-size: 0.9rem;
+      text-decoration: none;
+      box-shadow: 0 3px 10px rgba(0, 82, 204, 0.3);
+      transition: var(--transition);
+      border: none;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      flex: 1;
+      max-width: 160px;
+      text-align: center;
+      justify-content: center;
+    }
+    .nav-links a:hover, .toggle-btn:hover {
+      background: var(--primary-dark);
+      box-shadow: 0 5px 12px rgba(0, 61, 153, 0.5);
+      transform: translateY(-2px);
+    }
+    .nav-links a:active, .toggle-btn:active { transform: translateY(0); }
+    .container {
+      background: var(--card-light);
+      margin: 20px auto 40px;
+      border-radius: 15px;
+      max-width: 95%;
+      width: 100%;
+      padding: 20px;
+      box-shadow: 0 15px 45px rgba(0, 0, 0, 0.1);
+      transition: var(--transition);
+      animation: fadeInUp 0.8s ease-out;
+      position: relative;
+      overflow: hidden;
+    }
+    .container::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 4px;
+      background: linear-gradient(90deg, var(--primary), var(--accent));
+      transform: translateX(-100%);
+      animation: slideIn 1s forwards 0.5s;
+    }
+    h1 {
+      text-align: center;
+      color: var(--text);
+      font-weight: 700;
+      margin-bottom: 20px;
+      letter-spacing: 1px;
+      font-size: 1.8rem;
+      animation: fadeInUp 0.8s ease-out;
+      position: relative;
+      padding-bottom: 10px;
+    }
+    h1::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 80px;
+      height: 3px;
+      background: linear-gradient(90deg, var(--primary), var(--accent));
+      border-radius: 2px;
+    }
+    h2 {
+      color: var(--text);
+      font-weight: 600;
+      margin-bottom: 15px;
+      font-size: 1.4rem;
+      animation: fadeInUp 0.6s ease-out;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    form {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 15px;
+    }
+    label {
+      display: block;
+      font-weight: 600;
+      margin-bottom: 6px;
+      font-size: 0.9rem;
+      animation: fadeIn 0.6s ease-out;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    label i { color: var(--primary); }
+    .form-group {
+      animation: fadeInUp 0.6s ease-out;
+      animation-fill-mode: both;
+    }
+    .form-group:nth-child(1) { animation-delay: 0.1s; }
+    .form-group:nth-child(2) { animation-delay: 0.2s; }
+    .form-group:nth-child(3) { animation-delay: 0.3s; }
+    .form-group:nth-child(4) { animation-delay: 0.4s; }
+    .form-group:nth-child(5) { animation-delay: 0.5s; }
+    .form-group:nth-child(6) { animation-delay: 0.6s; }
+    .form-group:nth-child(7) { animation-delay: 0.7s; }
+    .form-group:nth-child(8) { animation-delay: 0.8s; }
+    .form-group:nth-child(9) { animation-delay: 0.9s; }
+    input[type="text"], input[type="date"], input[type="file"], input[type="tel"], textarea, select {
+      width: 100%;
+      padding: 10px 14px;
+      border-radius: 8px;
+      border: 2px solid #ced6e0;
+      font-size: 0.9rem;
+      transition: var(--transition);
+      font-family: 'Montserrat', sans-serif;
+    }
+    input[type="text"]:focus, input[type="date"]:focus, input[type="file"]:focus, input[type="tel"]:focus, textarea:focus, select:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(0, 82, 204, 0.2);
+      transform: translateY(-2px);
+    }
+    input[type="text"]:hover, input[type="date"]:hover, input[type="file"]:hover, input[type="tel"]:hover, textarea:hover, select:hover {
+      border-color: #a0bcf8;
+    }
+    .form-actions {
+      grid-column: 1 / -1;
+      text-align: center;
+      margin-top: 10px;
+      animation: fadeInUp 0.8s ease-out;
+      animation-delay: 0.8s;
+      animation-fill-mode: both;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      justify-content: center;
+    }
+    button {
+      background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+      border: none;
+      border-radius: 25px;
+      color: white;
+      cursor: pointer;
+      font-weight: 700;
+      font-size: 1rem;
+      padding: 12px 40px;
+      box-shadow: 0 6px 15px rgba(0, 82, 204, 0.3);
+      transition: var(--transition);
+      position: relative;
+      overflow: hidden;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      width: 100%;
+      justify-content: center;
+    }
+    button::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+      transition: 0.5s;
+      transform: translateX(-100%);
+    }
+    button:hover::before { transform: translateX(100%); }
+    button:hover {
+      background: linear-gradient(135deg, var(--primary-dark), #002966);
+      box-shadow: 0 8px 20px rgba(0, 61, 153, 0.5);
+      transform: translateY(-2px);
+    }
+    button:active { transform: translateY(0); }
+    .preview-section {
+      text-align: center;
+      margin-top: 30px;
+      animation: fadeIn 1s ease-out;
+    }
+    .preview-section h2 {
+      animation: fadeInUp 0.6s ease-out;
+      margin-bottom: 15px;
+    }
+    .preview-section img {
+      max-width: 100%;
+      width: 280px;
+      border-radius: 10px;
+      border: 2px solid var(--primary);
+      box-shadow: 0 8px 20px rgba(0, 82, 204, 0.25);
+      transition: var(--transition);
+      animation: fadeIn 0.8s ease-out, pulse 2s infinite ease-in-out;
+    }
+    .preview-section img:hover {
+      transform: scale(1.03) rotate(0.5deg);
+      box-shadow: 0 10px 25px rgba(0, 82, 204, 0.4);
+    }
+    .notification {
+      position: fixed;
+      top: 15px;
+      right: 15px;
+      padding: 10px 15px;
+      border-radius: 8px;
+      color: white;
+      box-shadow: 0 3px 10px rgba(0, 0, 0, 0.2);
+      transform: translateX(100%);
+      opacity: 0;
+      transition: var(--transition);
+      z-index: 1001;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      max-width: 90%;
+    }
+    .notification.show { transform: translateX(0); opacity: 1; }
+    .notification.success { background: var(--success-bg); color: var(--success-text); }
+    .notification.error { background: var(--error-bg); color: var(--error-text); }
+    #securityOverlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(255,255,255,0.95);
+      backdrop-filter: blur(10px);
+      z-index: 9999;
+      display: none;
+      justify-content: center;
+      align-items: center;
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: #d32f2f;
+      animation: shake 0.5s ease-in-out;
+      text-align: center;
+      padding: 20px;
+    }
+    #securityOverlay i { margin-right: 10px; font-size: 1.5rem; }
+    .download-btn {
+      display: inline-block;
+      margin-top: 15px;
+      background: linear-gradient(135deg, var(--accent), #ff5252);
+      padding: 10px 25px;
+      border-radius: 25px;
+      color: white;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 0.9rem;
+      box-shadow: 0 5px 12px rgba(255, 107, 107, 0.4);
+      transition: var(--transition);
+    }
+    .download-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 15px rgba(255, 107, 107, 0.5);
+    }
+    .checkbox-container {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 8px 0;
+    }
+    .checkbox {
+      appearance: none;
+      -webkit-appearance: none;
+      width: 16px;
+      height: 16px;
+      border: 2px solid #ced6e0;
+      border-radius: 3px;
+      background: var(--card-light);
+      position: relative;
+      cursor: pointer;
+    }
+    .checkbox:checked {
+      background: var(--primary);
+      border-color: var(--primary);
+    }
+    .checkbox:checked::after {
+      content: '✓';
+      position: absolute;
+      color: white;
+      font-size: 10px;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+    }
+    body.dark .checkbox {
+      background: #2b2b2b;
+      border-color: #444;
+    }
+    body.dark .checkbox:checked {
+      background: #3399ff;
+      border-color: #3399ff;
+    }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes slideDown { from { opacity: 0; transform: translateY(-15px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes slideIn { from { transform: translateX(-100%); } to { transform: translateX(0); } }
+    @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.015); } 100% { transform: scale(1); } }
+    @keyframes shake { 0%, 100% { transform: translateX(0); } 10%, 30%, 50%, 70%, 90% { transform: translateX(-8px); } 20%, 40%, 60%, 80% { transform: translateX(8px); } }
+    @keyframes square { 0% { transform: translateY(0) rotate(0deg); opacity: 0.7; border-radius: 50%; } 100% { transform: translateY(-800px) rotate(720deg); opacity: 0; border-radius: 20%; } }
+    @keyframes float { 0% { transform: translateY(0) rotate(0deg); } 50% { transform: translateY(-8px) rotate(3deg); } 100% { transform: translateY(0) rotate(0deg); } }
+    .floating { animation: float 5s ease-in-out infinite; }
+    @media (max-width: 768px) {
+      body { padding-bottom: 20px; }
+      .container { padding: 15px; width: 95%; margin: 15px auto 30px; }
+      h1 { font-size: 1.6rem; }
+      h2 { font-size: 1.2rem; }
+      .nav-links { flex-direction: column; align-items: center; }
+      .nav-links a, .toggle-btn { max-width: 100%; font-size: 0.85rem; padding: 8px 12px; }
+      form { gap: 12px; }
+      input[type="text"], input[type="date"], input[type="file"], input[type="tel"], textarea, select {
+        padding: 8px 12px;
+        font-size: 0.85rem;
+      }
+      button { padding: 10px; font-size: 0.9rem; }
+      .preview-section img { width: 90%; max-width: 260px; }
+      .notification { font-size: 0.8rem; padding: 8px 12px; max-width: 85%; }
+      #securityOverlay { font-size: 1rem; padding: 15px; }
+      #securityOverlay i { font-size: 1.3rem; }
+    }
+    @media (max-width: 480px) {
+      h1 { font-size: 1.4rem; }
+      h2 { font-size: 1.1rem; }
+      label { font-size: 0.8rem; }
+      .container { padding: 12px; }
+      .nav-links a, .toggle-btn { font-size: 0.8rem; padding: 7px 10px; }
+      input[type="text"], input[type="date"], input[type="file"], input[type="tel"], textarea, select {
+        padding: 7px 10px;
+        font-size: 0.8rem;
+      }
+      button { padding: 8px; font-size: 0.85rem; }
+      .preview-section img { width: 85%; max-width: 240px; }
+      .bg-bubbles li { width: 25px; height: 25px; }
+      .bg-bubbles li:nth-child(1) { width: 50px; height: 50px; }
+      .bg-bubbles li:nth-child(2) { width: 35px; height: 35px; }
+      .bg-bubbles li:nth-child(3) { width: 70px; height: 70px; }
+      .bg-bubbles li:nth-child(4) { width: 90px; height: 90px; }
+      .bg-bubbles li:nth-child(5) { width: 60px; height: 60px; }
+      .bg-bubbles li:nth-child(6) { width: 80px; height: 80px; }
+      .bg-bubbles li:nth-child(7) { width: 100px; height: 100px; }
+      .bg-bubbles li:nth-child(8) { width: 25px; height: 25px; }
+      .bg-bubbles li:nth-child(9) { width: 50px; height: 50px; }
+      .bg-bubbles li:nth-child(10) { width: 70px; height: 70px; }
+    }
+  </style>
+</head>
+<body oncontextmenu="return false">
+  <div id="securityOverlay"><i class="fas fa-shield-alt"></i>⚠ Screenshot Disabled</div>
+  <div class="notification" id="notification">
+    <i class="fas fa-check-circle"></i>
+    <span id="notification-text">Operation completed successfully</span>
+  </div>
+  <ul class="bg-bubbles">
+    <li></li><li></li><li></li><li></li><li></li><li></li><li></li><li></li><li></li><li></li>
+  </ul>
+  <div class="nav-links">
+    <a href="/admin"><i class="fas fa-user-cog"></i>Admin Panel</a>
+    <button class="toggle-btn" id="themeToggle"><i class="fas fa-moon"></i>Toggle Theme</button>
+  </div>
+  <div class="container">
+    <h1 class="floating"><i class="fas fa-id-card"></i> <span id="form-title">Edit Your ID Card</span></h1>
+    {% if success %}
+    <div class="notification success show">
+      <i class="fas fa-check-circle"></i>
+      <span>{{ success }}</span>
+    </div>
+    {% endif %}
+    {% if error %}
+    <div class="notification error show">
+      <i class="fas fa-exclamation-circle"></i>
+      <span>{{ error }}</span>
+    </div>
+    {% endif %}
+    <form method="POST" enctype="multipart/form-data" id="idCardForm" style="display: grid;" 
+          action="{% if form_data and form_data['id'] %}{{ url_for('edit_student', student_id=form_data['id']) }}{% else %}#{% endif %}">
+      
+      <input type="hidden" name="student_id" id="student_id" value="{% if form_data and form_data['id'] %}{{ form_data['id'] }}{% else %}0{% endif %}">
+      <div class="form-group">
+        <label for="template_id"><i class="fas fa-file"></i>School Name:</label>
+        <select id="template_id" name="template_id" required>
+          {% for template in templates %}
+            <option value="{{ template.id }}" {% if form_data and form_data['template_id'] == template.id %}selected{% endif %}>{{ template.school_name }}</option>
+          {% else %}
+            <option value="" disabled>No templates available</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="name"><i class="fas fa-user"></i>Full Name:</label>
+        <input id="name" type="text" name="name" value="{% if form_data and form_data['name'] %}{{ form_data['name'] }}{% else %}{% endif %}" required pattern="[A-Za-z\s]{2,50}" title="Name must be 2-50 characters, letters and spaces only" />
+      </div>
+      <div class="form-group">
+        <label for="father_name"><i class="fas fa-user-friends"></i>Father's Name:</label>
+        <input id="father_name" type="text" name="father_name" value="{% if form_data and form_data['father_name'] %}{{ form_data['father_name'] }}{% else %}{% endif %}" required pattern="[A-Za-z\s]{2,50}" title="Father's name must be 2-50 characters, letters and spaces only" />
+      </div>
+      <div class="form-group">
+        <label for="class_name"><i class="fas fa-graduation-cap"></i>Class:</label>
+        <input id="class_name" type="text" name="class_name" value="{% if form_data and form_data['class_name'] %}{{ form_data['class_name'] }}{% else %}{% endif %}" required pattern="[A-Za-z0-9\s]{1,20}" title="Class must be 1-20 characters" />
+      </div>
+      <div class="form-group">
+        <label for="dob"><i class="fas fa-calendar-alt"></i>Date of Birth:</label>
+        <input id="dob" type="date" name="dob" value="{% if form_data and form_data['dob'] %}{{ form_data['dob'] }}{% else %}{% endif %}" required />
+      </div>
+      <div class="form-group" style="grid-column: 1 / -1;">
+        <label for="address"><i class="fas fa-home"></i>Address:</label>
+        <textarea id="address" name="address" rows="3" required maxlength="200">{% if form_data and form_data['address'] %}{{ form_data['address'] }}{% else %}{% endif %}</textarea>
+      </div>
+      <div class="form-group">
+        <label for="phone"><i class="fas fa-phone"></i>Phone Number:</label>
+        <input id="phone" type="tel" name="phone" value="{% if form_data and form_data['phone'] %}{{ form_data['phone'] }}{% else %}{% endif %}" required pattern="[0-9]{10}" title="Please enter a valid 10-digit phone number" />
+      </div>
+      <div class="form-group">
+        <label for="photo"><i class="fas fa-camera"></i>Upload Photo (Leave blank to keep existing):</label>
+        <input id="photo" type="file" name="photo" accept="image/*" />
+      </div>
+      <div class="form-actions">
+        <button type="submit" id="submit-btn"><i class="fas fa-id-card"></i> <span id="submit-btn-text">Update ID Card</span></button>
+        <button type="button" onclick="window.close()"><i class="fas fa-times"></i>Cancel</button>
+      </div>
+    </form>
+    {% if generated_url %}
+    <div class="preview-section" id="preview-section">
+      <h2><i class="fas fa-eye"></i>Updated ID Card Preview</h2>
+      <img src="{{ generated_url }}" alt="Updated ID Card" id="preview-image"
+           onerror="this.src='/static/placeholder.jpg'; this.alt='No preview available';" />
+    </div>
+    {% endif %}
+  </div>
+
+  
+
+
+  <script>
+    function showNotification(message, type = 'success') {
+      const notification = document.getElementById('notification');
+      const notificationText = document.getElementById('notification-text');
+      notificationText.textContent = message;
+      notification.className = `notification ${type} show`;
+      setTimeout(() => {
+        notification.classList.remove('show');
+      }, 4000);
+    }
+    
+    document.addEventListener('DOMContentLoaded', function() {
+      const dobInput = document.getElementById('dob');
+      const today = new Date().toISOString().split('T')[0];
+      dobInput.setAttribute('max', today);
+      
+      {% if success and success != '' %}
+      showNotification('{{ success }}', 'success');
+      {% endif %}
+      
+      {% if error and error != '' %}
+      showNotification('{{ error }}', 'error');
+      {% endif %}
+      
+      document.addEventListener('keyup', function (e) {
+        if (e.key === "PrintScreen") {
+          let overlay = document.getElementById('securityOverlay');
+          overlay.style.display = 'flex';
+          setTimeout(() => {
+            overlay.style.display = 'none';
+          }, 2000);
+        }
+      });
+      
+      document.addEventListener('keydown', function (e) {
+        if ((e.ctrlKey && (e.key.toLowerCase() === 's')) ||
+            (e.ctrlKey && e.shiftKey && (e.key.toLowerCase() === 's')) ||
+            (e.key === "PrintScreen")) {
+          e.preventDefault();
+          alert("Screenshots and saving are disabled.");
+        }
+      });
+      
+      const toggleBtn = document.getElementById('themeToggle');
+      const themeIcon = toggleBtn.querySelector('i');
+      toggleBtn.addEventListener('click', () => {
+        document.body.classList.toggle('dark');
+        toggleBtn.innerHTML = document.body.classList.contains('dark')
+          ? '<i class="fas fa-sun"></i>Light Mode'
+          : '<i class="fas fa-moon"></i>Dark Mode';
+      });
+      
+      const buttons = document.querySelectorAll('button, .nav-links a');
+      buttons.forEach(button => {
+        button.addEventListener('mouseenter', function() {
+          this.style.transform = 'translateY(-2px)';
+        });
+        button.addEventListener('mouseleave', function() {
+          this.style.transform = 'translateY(0)';
+        });
+      });
+      
+      const inputs = document.querySelectorAll('input, textarea, select');
+      inputs.forEach(input => {
+        input.addEventListener('focus', function() {
+          this.parentElement.style.transform = 'translateY(-3px)';
+        });
+        input.addEventListener('blur', function() {
+          this.parentElement.style.transform = 'translateY(0)';
+        });
+      });
+    });
+  </script>
+</body>
+</html>
