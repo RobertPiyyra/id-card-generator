@@ -1,18 +1,61 @@
+# -------------------------
+# Core Python
+# -------------------------
 numpy==1.26.4
-pandas
-Flask==2.3.3
-Pillow==10.4.0
-PyMuPDF==1.26.4
-Werkzeug==3.0.4
+pandas>=2.1.0
 python-dateutil==2.9.0.post0
-Flask-Limiter==3.13
+
+# -------------------------
+# Flask stack
+# -------------------------
+Flask==2.3.3
+Werkzeug==3.0.4
+Flask-Login>=0.6.3
 Flask-WTF==1.2.1
+Flask-Limiter==3.13
 Flask-Talisman==1.1.0
-cryptography==43.0.1
-openpyxl==3.1.2
-gunicorn==21.2.0
+itsdangerous>=2.1.2
 email-validator==2.1.0
+gunicorn==21.2.0
+python-dotenv>=1.0.1
+
+# -------------------------
+# Database / ORM
+# -------------------------
+SQLAlchemy>=2.0.25
+
+# -------------------------
+# Image / CV / ML
+# -------------------------
+Pillow==10.4.0
+opencv-python-headless>=4.9.0.80
+mediapipe>=0.10.9
+rembg>=2.0.55
+onnxruntime>=1.16.3
+
+# -------------------------
+# PDF / Vector
+# -------------------------
+PyMuPDF==1.26.4
 reportlab==4.4.6
-opencv-python-headless
+
+# -------------------------
+# QR Code
+# -------------------------
+qrcode[pil]>=7.4.2
+
+# -------------------------
+# Excel
+# -------------------------
+openpyxl==3.1.2
+
+# -------------------------
+# Security
+# -------------------------
+cryptography==43.0.1
+
+# -------------------------
+# Arabic text shaping
+# -------------------------
 arabic-reshaper==3.0.0
 python-bidi==0.4.2
