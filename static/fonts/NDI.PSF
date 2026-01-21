@@ -1,0 +1,42 @@
+serverdict begin 0 exitserver
+%%BeginFont: NewDelhi
+%%Title: NewDelhi
+
+/makeoutlinedict 7 dict def
+/MakeOutlineFont
+ { makeoutlinedict begin
+   /uniqueid exch def
+   /strokewidth exch def
+   /newfontname exch def
+   /basefontname exch def
+   /basefontdict basefontname findfont def
+   
+   /numentries basefontdict maxlength 1 add def
+   /outfontdict numentries dict def
+   
+   basefontdict
+    { exch dup /FID ne
+	   { exch outfontdict 3 1 roll put }
+	   { pop pop }
+	   ifelse
+	} forall
+	
+   outfontdict /FontName newfontname put
+   outfontdict /StrokeWidth strokewidth put
+   outfontdict /UniqueID uniqueid put
+   outfontdict /FontMatrix [.001 0 .000212 .001 0 0] put
+   	
+   newfontname outfontdict definefont pop
+   end
+ } def
+  
+/NewDelhi-Normal /NewDelhi-NormIt 1000 36 div
+    
+  
+/NewDelhi-Normal findfont dup /UniqueID known
+  { /UniqueID get 2 add }
+  { pop 2 }
+  ifelse
+ MakeOutlineFont
+%EOF
+

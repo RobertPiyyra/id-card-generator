@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Visual Editor - {{ template.school_name }}</title>
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        body { background: #e9ecef; overflow: hidden; height: 100vh; display: flex; flex-direction: column; font-family: 'Segoe UI', sans-serif; }
+        .editor-container { flex: 1; display: flex; overflow: hidden; }
+        
+        /* Canvas Area */
+        .canvas-area { 
+            flex: 1; 
+            background: #cbd5e0; 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            overflow: auto; 
+            position: relative;
+            background-image: radial-gradient(#a0aec0 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+        
+        /* Sidebar */
+        .sidebar { 
+            width: 340px; 
+            background: white; 
+            border-left: 1px solid #ddd; 
+            display: flex; 
+            flex-direction: column; 
+            box-shadow: -5px 0 15px rgba(0,0,0,0.05);
+            z-index: 10;
+        }
+        .sidebar-header { padding: 20px; border-bottom: 1px solid #eee; background: #f8f9fa; }
+        .sidebar-content { flex: 1; padding: 20px; overflow-y: auto; }
+        .sidebar-footer { padding: 20px; border-top: 1px solid #eee; background: #fff; }
+        
+        /* Controls */
+        .control-group { margin-bottom: 20px; border: 1px solid #eee; padding: 15px; border-radius: 8px; position: relative; }
+        .control-group h6 { 
+            color: #6c757d; font-weight: 700; text-transform: uppercase; font-size: 0.75rem; margin-bottom: 15px; 
+            display: flex; align-items: center; gap: 8px; letter-spacing: 0.5px;
+        }
+        
+        .input-row { display: flex; gap: 10px; margin-bottom: 10px; align-items: center; }
+        .input-row label { flex: 1; font-size: 0.85rem; color: #495057; margin: 0; font-weight: 500; }
+        .input-row input[type="number"] { width: 80px; text-align: center; }
+        
+        /* Floating Toolbar */
+        .toolbar {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: white;
+            padding: 8px 15px;
+            border-radius: 50px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+            display: flex;
+            gap: 10px;
+            z-index: 100;
+            align-items: center;
+        }
+        .zoom-level { font-weight: bold; min-width: 50px; text-align: center; font-size: 0.9rem; }
+
+        /* Selected State */
+        .no-selection { text-align: center; color: #999; margin-top: 50px; }
+        .active-field-indicator {
+            background: #e8f0fe; color: #0d6efd; padding: 8px; border-radius: 4px; 
+            margin-bottom: 15px; font-weight: bold; text-align: center; border: 1px solid #b6d4fe;
+        }
+    </style>
+</head>
+<body>
+
+<nav class="navbar navbar-dark bg-dark px-4 shadow-sm" style="height: 60px;">
+    <span class="navbar-brand mb-0 h1"><i class="fas fa-edit"></i> Editor: {{ template.school_name }}</span>
+    <div>
+        <a href="/admin" class="btn btn-outline-light btn-sm"><i class="fas fa-times"></i> Close</a>
+    </div>
+</nav>
+
+<div class="editor-container">
+    <div class="canvas-area" id="canvasWrapper">
+        <div class="toolbar">
+            <button class="btn btn-light btn-sm rounded-circle" onclick="setZoom(-0.1)"><i class="fas fa-minus"></i></button>
+            <span class="zoom-level" id="zoomLevel">100%</span>
+            <button class="btn btn-light btn-sm rounded-circle" onclick="setZoom(0.1)"><i class="fas fa-plus"></i></button>
+            <div class="vr mx-2"></div>
+            <button class="btn btn-light btn-sm" onclick="resetView()"><i class="fas fa-compress-arrows-alt"></i> Fit</button>
+        </div>
+        <canvas id="c"></canvas>
+    </div>
+
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <h5 class="m-0">Properties</h5>
+            <small class="text-muted">Click an element to edit</small>
+        </div>
+        
+        <div class="sidebar-content">
+            <div class="control-group" style="border-left: 4px solid #dc3545;">
+                <h6 class="text-danger"><i class="fas fa-image"></i> Student Photo</h6>
+                <div class="input-row">
+                    <label>X / Y</label>
+                    <input type="number" id="photo_x" class="form-control form-control-sm" onchange="updatePhotoObj()">
+                    <input type="number" id="photo_y" class="form-control form-control-sm" onchange="updatePhotoObj()">
+                </div>
+                <div class="input-row">
+                    <label>Width / Height</label>
+                    <input type="number" id="photo_w" class="form-control form-control-sm" onchange="updatePhotoObj()">
+                    <input type="number" id="photo_h" class="form-control form-control-sm" onchange="updatePhotoObj()">
+                </div>
+            </div>
+
+            <div id="fieldProperties" style="display:none;">
+                <div class="active-field-indicator" id="activeFieldName">Selected: None</div>
+                
+                <div class="control-group" style="border-left: 4px solid #198754;">
+                    <h6 class="text-success"><i class="fas fa-arrows-alt"></i> Position & Size</h6>
+                    <div class="input-row">
+                        <label>Position X</label>
+                        <input type="number" id="field_x" class="form-control form-control-sm" oninput="updateActiveObject()">
+                    </div>
+                    <div class="input-row">
+                        <label>Position Y</label>
+                        <input type="number" id="field_y" class="form-control form-control-sm" oninput="updateActiveObject()">
+                    </div>
+                </div>
+
+                <div class="control-group" style="border-left: 4px solid #fd7e14;">
+                    <h6 style="color: #fd7e14;"><i class="fas fa-font"></i> Typography</h6>
+                    <div class="input-row">
+                        <label>Font Size</label>
+                        <input type="number" id="field_size" class="form-control form-control-sm" oninput="updateActiveObject()">
+                    </div>
+                    <div class="input-row">
+                        <label>Color</label>
+                        <input type="color" id="field_color" class="form-control form-control-sm form-control-color" style="width:100%" oninput="updateActiveObject()">
+                    </div>
+                    <div class="input-row mt-2">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="field_bold" onchange="updateActiveObject()">
+                            <label class="form-check-label" for="field_bold">Bold Text</label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="noSelectionMsg" class="no-selection">
+                <i class="fas fa-mouse-pointer fa-3x mb-3"></i>
+                <p>Select a text field on the canvas to edit its properties.</p>
+            </div>
+
+        </div>
+
+        <div class="sidebar-footer">
+            <button onclick="saveLayout()" id="saveBtn" class="btn btn-primary w-100 py-2 fw-bold">
+                <i class="fas fa-save"></i> Save Layout
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Configuration from Backend
+    const TEMPLATE_ID = {{ template_id }};
+    const BG_IMAGE_URL = "{{ image_url }}"; // URL to the template image
+    
+    // Initial Settings (Populated via API)
+    let photoSettings = {{ template.photo_settings | tojson }};
+    
+    const canvas = new fabric.Canvas('c');
+    let zoom = 1;
+    let photoRect; 
+    let activeObject = null;
+
+    // 1. Initialize Canvas
+    fabric.Image.fromURL(BG_IMAGE_URL, function(img) {
+        // Set canvas to exact image dimensions
+        const w = {{ template.card_width or 1015 }};
+        const h = {{ template.card_height or 661 }};
+        
+        canvas.setWidth(w);
+        canvas.setHeight(h);
+        
+        // Scale background image to fit canvas exactly
+        img.scaleToWidth(w);
+        img.scaleToHeight(h);
+        
+        canvas.setBackgroundImage(img, canvas.renderAll.bind(canvas));
+        
+        // Load Objects
+        loadEditorData();
+        fitToScreen();
+    });
+
+    // 2. Load Data from API
+    function loadEditorData() {
+        // A. Draw Photo Placeholder (Fixed Object)
+        photoRect = new fabric.Rect({
+            left: photoSettings.photo_x || 50,
+            top: photoSettings.photo_y || 50,
+            width: photoSettings.photo_width || 100,
+            height: photoSettings.photo_height || 120,
+            fill: 'rgba(220, 53, 69, 0.3)',
+            stroke: '#dc3545',
+            strokeWidth: 2,
+            transparentCorners: false,
+            cornerColor: '#dc3545',
+            cornerSize: 8,
+            data_type: 'photo' // Custom property to identify
+        });
+        
+        const photoLabel = new fabric.Text('PHOTO AREA', {
+            fontSize: 14, fill: '#dc3545', 
+            left: photoRect.left, top: photoRect.top - 20,
+            selectable: false, evented: false
+        });
+
+        canvas.add(photoRect);
+        canvas.add(photoLabel);
+        updatePhotoInputs(); // Fill sidebar with initial values
+
+        // B. Fetch Text Fields
+        fetch(`/admin/get_editor_fields/${TEMPLATE_ID}`)
+            .then(res => res.json())
+            .then(fields => {
+                fields.forEach(field => {
+                    addTextField(field);
+                });
+                canvas.renderAll();
+            });
+    }
+
+    // Helper: Add individual text object
+    function addTextField(field) {
+        const textObj = new fabric.Text(field.label, {
+            left: field.x,
+            top: field.y,
+            fontSize: field.size,
+            fill: field.color,
+            fontWeight: field.bold ? 'bold' : 'normal',
+            fontFamily: 'Arial',
+            // Custom properties for saving
+            id: field.key, 
+            data_type: 'field' 
+        });
+        
+        textObj.setControlsVisibility({
+            mt: false, mb: false, ml: false, mr: false, // Disable stretching
+            bl: true, br: true, tl: true, tr: true // Allow scaling
+        });
+
+        canvas.add(textObj);
+    }
+
+    // 3. Interaction Handlers
+    canvas.on('object:selected', function(e) {
+        const obj = e.target;
+        
+        if (obj.data_type === 'photo') {
+            // Photo selected - Focus on photo inputs
+            // (Photo inputs are always visible at top)
+        } else if (obj.data_type === 'field') {
+            // Text Field selected - Show Field Properties
+            activeObject = obj;
+            showFieldProperties(obj);
+        }
+    });
+
+    canvas.on('selection:cleared', function() {
+        document.getElementById('fieldProperties').style.display = 'none';
+        document.getElementById('noSelectionMsg').style.display = 'block';
+        activeObject = null;
+    });
+
+    canvas.on('object:modified', function(e) {
+        const obj = e.target;
+        if (obj.data_type === 'photo') updatePhotoInputs();
+        if (obj.data_type === 'field') showFieldProperties(obj); // Refresh numbers
+    });
+
+    // 4. GUI -> Canvas Sync Functions
+    
+    // A. Photo
+    function updatePhotoInputs() {
+        document.getElementById('photo_x').value = Math.round(photoRect.left);
+        document.getElementById('photo_y').value = Math.round(photoRect.top);
+        document.getElementById('photo_w').value = Math.round(photoRect.getScaledWidth());
+        document.getElementById('photo_h').value = Math.round(photoRect.getScaledHeight());
+    }
+
+    function updatePhotoObj() {
+        photoRect.set({
+            left: parseInt(document.getElementById('photo_x').value),
+            top: parseInt(document.getElementById('photo_y').value)
+        });
+        photoRect.scaleToWidth(parseInt(document.getElementById('photo_w').value));
+        photoRect.scaleToHeight(parseInt(document.getElementById('photo_h').value));
+        canvas.renderAll();
+    }
+
+    // B. Fields
+    function showFieldProperties(obj) {
+        document.getElementById('noSelectionMsg').style.display = 'none';
+        document.getElementById('fieldProperties').style.display = 'block';
+        
+        document.getElementById('activeFieldName').innerText = "Selected: " + obj.text; // Or obj.id for internal name
+        document.getElementById('field_x').value = Math.round(obj.left);
+        document.getElementById('field_y').value = Math.round(obj.top);
+        
+        // Font size calculation in Fabric can be tricky with scaling
+        // Effective Size = fontSize * scaleY
+        const effectiveSize = Math.round(obj.fontSize * obj.scaleY);
+        document.getElementById('field_size').value = effectiveSize;
+        
+        document.getElementById('field_color').value = obj.fill;
+        document.getElementById('field_bold').checked = (obj.fontWeight === 'bold');
+    }
+
+    function updateActiveObject() {
+        if (!activeObject) return;
+
+        activeObject.set({
+            left: parseInt(document.getElementById('field_x').value),
+            top: parseInt(document.getElementById('field_y').value),
+            fill: document.getElementById('field_color').value,
+            fontWeight: document.getElementById('field_bold').checked ? 'bold' : 'normal'
+        });
+
+        // Handle font size resizing logic
+        // We reset scale to 1 and set new font size to keep things clean
+        const newSize = parseInt(document.getElementById('field_size').value);
+        activeObject.set({ fontSize: newSize, scaleX: 1, scaleY: 1 });
+
+        canvas.renderAll();
+    }
+
+    // 5. Save Layout
+    function saveLayout() {
+        const btn = document.getElementById('saveBtn');
+        const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+        
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+
+        // Collect Field Data
+        const fieldsData = [];
+        canvas.getObjects().forEach(obj => {
+            if (obj.data_type === 'field') {
+                fieldsData.push({
+                    key: obj.id,
+                    x: Math.round(obj.left),
+                    y: Math.round(obj.top),
+                    size: Math.round(obj.fontSize * obj.scaleY),
+                    color: obj.fill,
+                    bold: (obj.fontWeight === 'bold'),
+                    visible: true
+                });
+            }
+        });
+
+        // Collect Photo Data
+        const photoData = {
+            photo_x: Math.round(photoRect.left),
+            photo_y: Math.round(photoRect.top),
+            photo_width: Math.round(photoRect.getScaledWidth()),
+            photo_height: Math.round(photoRect.getScaledHeight())
+        };
+
+        // Send to Server
+        // We use two API calls here (one for fields, one for template settings)
+        // Or create a combined route. For now, let's use the field route.
+        
+        fetch('/admin/save_field_settings', {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify({
+                template_id: TEMPLATE_ID,
+                fields: fieldsData
+            })
+        })
+        .then(res => res.json())
+        .then(data => {
+            // Also update photo settings via existing route
+            // (You might want to merge these endpoints in production)
+            fetch('/update_template_settings', {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                },
+                body: JSON.stringify({
+                    template_id: TEMPLATE_ID,
+                    photo_settings: photoData
+                })
+            }).then(() => {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-check"></i> Saved!';
+                setTimeout(() => { btn.innerHTML = '<i class="fas fa-save"></i> Save Layout'; }, 2000);
+            });
+        });
+    }
+
+    // 6. View Helpers
+    function setZoom(delta) {
+        zoom += delta;
+        if(zoom < 0.1) zoom = 0.1;
+        canvas.setZoom(zoom);
+        document.getElementById('zoomLevel').innerText = Math.round(zoom * 100) + '%';
+    }
+    
+    function resetView() {
+        fitToScreen();
+    }
+
+    function fitToScreen() {
+        const wrapper = document.getElementById('canvasWrapper');
+        const scaleX = (wrapper.clientWidth - 40) / canvas.width;
+        const scaleY = (wrapper.clientHeight - 40) / canvas.height;
+        const scale = Math.min(scaleX, scaleY);
+        
+        zoom = scale;
+        canvas.setZoom(zoom);
+        
+        // Center canvas
+        const vpt = canvas.viewportTransform;
+        vpt[4] = (wrapper.clientWidth - canvas.width * zoom) / 2;
+        vpt[5] = (wrapper.clientHeight - canvas.height * zoom) / 2;
+        
+        document.getElementById('zoomLevel').innerText = Math.round(zoom * 100) + '%';
+        canvas.requestRenderAll();
+    }
+
+    // Handle Window Resize
+    window.addEventListener('resize', fitToScreen);
+
+</script>
+
+</body>
+</html>

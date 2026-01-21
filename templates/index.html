@@ -1,0 +1,1798 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>Animated ID Card Generator</title>
+    <link rel="icon" href="data:,">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        /* ===== CSS Variables ===== */
+        :root {
+            --primary: #0052cc;
+            --primary-dark: #003d99;
+            --primary-light: #4d88ff;
+            --accent: #ff6b6b;
+            --accent-dark: #ff5252;
+            --success: #28a745;
+            --warning: #ffc107;
+            --danger: #dc3545;
+            --text-primary: #2c3e50;
+            --text-secondary: #6c757d;
+            --text-light: #e4e4e4;
+            --bg-light: linear-gradient(135deg, #f0f4ff, #d9e2ff);
+            --bg-dark: linear-gradient(135deg, #1a1a2e, #16213e);
+            --card-light: #ffffff;
+            --card-dark: #1e1e2e;
+            --border-light: #dee2e6;
+            --border-dark: #44475a;
+            --shadow-light: rgba(0, 0, 0, 0.1);
+            --shadow-dark: rgba(0, 0, 0, 0.3);
+            --transition-fast: 0.3s ease;
+            --transition-normal: 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            --transition-slow: 0.6s ease;
+            --border-radius-sm: 8px;
+            --border-radius-md: 12px;
+            --border-radius-lg: 20px;
+            --border-radius-xl: 30px;
+            --spacing-xs: 0.5rem;
+            --spacing-sm: 1rem;
+            --spacing-md: 1.5rem;
+            --spacing-lg: 2rem;
+            --spacing-xl: 3rem;
+        }
+
+        /* ===== Reset & Base Styles ===== */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Montserrat', Arial, sans-serif;
+            background: var(--bg-light);
+            color: var(--text-primary);
+            min-height: 100vh;
+            transition: background var(--transition-normal), color var(--transition-normal);
+            position: relative;
+            overflow-x: hidden;
+            line-height: 1.6;
+        }
+
+        body.dark-mode {
+            background: var(--bg-dark);
+            color: var(--text-light);
+        }
+
+        img {
+            max-width: 100%;
+            height: auto;
+        }
+
+        /* ===== Background Bubbles ===== */
+        .background-bubbles {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            overflow: hidden;
+            pointer-events: none;
+        }
+
+        .bubble {
+            position: absolute;
+            list-style: none;
+            background-color: rgba(0, 82, 204, 0.1);
+            border-radius: 50%;
+            animation: float 25s infinite linear;
+        }
+
+        .dark-mode .bubble {
+            background-color: rgba(51, 153, 255, 0.05);
+        }
+
+        /* ===== Navigation ===== */
+        .main-nav {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(12px);
+            border-radius: var(--border-radius-lg);
+            margin: var(--spacing-md) auto 0;
+            padding: var(--spacing-sm) var(--spacing-lg);
+            max-width: 1200px;
+            width: 90%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 8px 32px rgba(0, 82, 204, 0.15);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            animation: slideDown 0.5s ease-out;
+            position: relative;
+            z-index: 1000;
+        }
+
+        .dark-mode .main-nav {
+            background: rgba(30, 30, 46, 0.95);
+            border-color: rgba(255, 255, 255, 0.1);
+            box-shadow: 0 8px 32px var(--shadow-dark);
+        }
+
+        .nav-brand {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-xs);
+            font-weight: 600;
+            color: var(--primary);
+            text-decoration: none;
+            padding: 0.5rem 1rem;
+            border-radius: var(--border-radius-md);
+            background: linear-gradient(135deg, 
+                rgba(0, 82, 204, 0.1), 
+                rgba(255, 107, 107, 0.1));
+            transition: all var(--transition-fast);
+        }
+
+        .nav-brand:hover {
+            transform: translateX(-5px);
+            background: linear-gradient(135deg, 
+                rgba(0, 82, 204, 0.2), 
+                rgba(255, 107, 107, 0.2));
+        }
+
+        .nav-actions {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-sm);
+        }
+
+        .user-greeting {
+            font-weight: 500;
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+        }
+
+        .dark-mode .user-greeting {
+            color: var(--text-light);
+        }
+
+        .nav-btn {
+            padding: 0.6rem 1.2rem;
+            border-radius: var(--border-radius-xl);
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 0.9rem;
+            transition: all var(--transition-fast);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            border: none;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            color: white;
+            box-shadow: 0 4px 15px rgba(0, 82, 204, 0.3);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 82, 204, 0.4);
+            background: linear-gradient(135deg, var(--primary-dark), #002966);
+        }
+
+        .btn-secondary {
+            background: linear-gradient(135deg, var(--accent), var(--accent-dark));
+            color: white;
+            box-shadow: 0 4px 15px rgba(255, 107, 107, 0.3);
+        }
+
+        .btn-secondary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(255, 107, 107, 0.4);
+            background: linear-gradient(135deg, var(--accent-dark), #ff0000);
+        }
+
+        .btn-outline {
+            background: transparent;
+            border: 2px solid var(--primary);
+            color: var(--primary);
+        }
+
+        .btn-outline:hover {
+            background: var(--primary);
+            color: white;
+        }
+
+        /* ===== Main Container ===== */
+        .main-container {
+            max-width: 1200px;
+            width: 90%;
+            margin: var(--spacing-lg) auto var(--spacing-xl);
+            animation: fadeInUp 0.8s ease-out;
+        }
+
+        .card {
+            background: var(--card-light);
+            border-radius: var(--border-radius-lg);
+            padding: var(--spacing-xl);
+            box-shadow: 0 20px 60px var(--shadow-light);
+            transition: all var(--transition-normal);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .dark-mode .card {
+            background: var(--card-dark);
+            box-shadow: 0 20px 60px var(--shadow-dark);
+        }
+
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 4px;
+            background: linear-gradient(90deg, var(--primary), var(--accent));
+            transform: translateX(-100%);
+            animation: slideIn 1s forwards 0.5s;
+        }
+
+        /* ===== Typography ===== */
+        .page-title {
+            text-align: center;
+            font-weight: 700;
+            margin-bottom: var(--spacing-lg);
+            font-size: clamp(1.8rem, 5vw, 2.6rem);
+            animation: fadeInUp 0.8s ease-out;
+            position: relative;
+            padding-bottom: var(--spacing-sm);
+        }
+
+        .page-title::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 100px;
+            height: 4px;
+            background: linear-gradient(90deg, var(--primary), var(--accent));
+            border-radius: 2px;
+        }
+
+        .section-title {
+            font-weight: 600;
+            margin-bottom: var(--spacing-md);
+            font-size: clamp(1.2rem, 4vw, 1.8rem);
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-xs);
+        }
+
+        .form-label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.95rem;
+        }
+
+        .form-label i {
+            color: var(--primary);
+            width: 20px;
+        }
+
+        /* ===== Form Styles ===== */
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: var(--spacing-md) var(--spacing-lg);
+            margin-bottom: var(--spacing-lg);
+        }
+
+        .form-group {
+            animation: fadeInUp 0.6s ease-out;
+            animation-fill-mode: both;
+        }
+
+        .form-group.full-width {
+            grid-column: 1 / -1;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 0.875rem 1rem;
+            border: 2px solid var(--border-light);
+            border-radius: var(--border-radius-md);
+            font-family: 'Montserrat', sans-serif;
+            font-size: 1rem;
+            transition: all var(--transition-fast);
+            background: var(--card-light);
+            color: var(--text-primary);
+        }
+
+        .dark-mode .form-control {
+            background: #2b2b3b;
+            border-color: var(--border-dark);
+            color: var(--text-light);
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 4px rgba(0, 82, 204, 0.2);
+            transform: translateY(-2px);
+        }
+
+        .form-control:hover:not(:focus) {
+            border-color: var(--primary-light);
+        }
+
+        textarea.form-control {
+            min-height: 120px;
+            resize: vertical;
+        }
+
+        select.form-control {
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='%230052cc' viewBox='0 0 16 16'%3E%3Cpath d='M7.247 11.14L2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 1rem center;
+            padding-right: 3rem;
+        }
+
+        .dark-mode select.form-control {
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='%234d88ff' viewBox='0 0 16 16'%3E%3Cpath d='M7.247 11.14L2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z'/%3E%3C/svg%3E");
+        }
+
+        /* ===== Photo Upload ===== */
+        .upload-options {
+            display: flex;
+            gap: var(--spacing-sm);
+            margin-bottom: var(--spacing-sm);
+            flex-wrap: wrap;
+        }
+
+        .upload-option {
+            flex: 1;
+            min-width: 140px;
+            text-align: center;
+            padding: var(--spacing-md);
+            border: 2px solid var(--border-light);
+            border-radius: var(--border-radius-md);
+            cursor: pointer;
+            transition: all var(--transition-fast);
+            background: var(--card-light);
+        }
+
+        .dark-mode .upload-option {
+            background: #2b2b3b;
+            border-color: var(--border-dark);
+        }
+
+        .upload-option:hover {
+            border-color: var(--primary);
+            transform: translateY(-2px);
+        }
+
+        .upload-option.active {
+            border-color: var(--primary);
+            background: rgba(0, 82, 204, 0.1);
+            box-shadow: 0 4px 12px rgba(0, 82, 204, 0.1);
+        }
+
+        .upload-option i {
+            font-size: 1.5rem;
+            margin-bottom: 0.5rem;
+            color: var(--primary);
+        }
+
+        .upload-section {
+            margin-top: var(--spacing-sm);
+        }
+
+        .camera-preview {
+            display: none;
+            margin-top: var(--spacing-sm);
+            text-align: center;
+        }
+
+        .camera-preview.active {
+            display: block;
+        }
+
+        #cameraVideo, #cameraCanvas {
+            width: 100%;
+            max-width: 400px;
+            border-radius: var(--border-radius-md);
+            border: 2px solid var(--primary);
+            background: #000;
+        }
+
+        .camera-controls {
+            margin-top: var(--spacing-sm);
+            display: flex;
+            gap: var(--spacing-sm);
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .file-info {
+            margin-top: 0.5rem;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+
+        .file-info.error {
+            color: var(--danger);
+        }
+
+        /* ===== Action Buttons ===== */
+        .action-buttons {
+            display: flex;
+            gap: var(--spacing-md);
+            justify-content: center;
+            margin-top: var(--spacing-lg);
+            flex-wrap: wrap;
+        }
+
+        .action-btn {
+            padding: 1rem 2.5rem;
+            border-radius: var(--border-radius-xl);
+            border: none;
+            font-weight: 600;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all var(--transition-normal);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            min-width: 200px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .action-btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, 
+                transparent, 
+                rgba(255, 255, 255, 0.2), 
+                transparent);
+            transition: left 0.6s;
+        }
+
+        .action-btn:hover::before {
+            left: 100%;
+        }
+
+        .action-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+        }
+
+        .action-btn:active {
+            transform: translateY(-1px);
+        }
+
+        .btn-icon {
+            font-size: 1.1rem;
+        }
+
+        /* ===== Preview Section ===== */
+        .preview-section {
+            text-align: center;
+            margin-top: var(--spacing-xl);
+            padding-top: var(--spacing-xl);
+            border-top: 2px solid var(--border-light);
+            animation: fadeIn var(--transition-slow) ease-out;
+        }
+
+        .dark-mode .preview-section {
+            border-color: var(--border-dark);
+        }
+
+        .preview-image {
+            max-width: 320px;
+            width: 100%;
+            border-radius: var(--border-radius-md);
+            border: 3px solid var(--primary);
+            box-shadow: 0 10px 30px rgba(0, 82, 204, 0.2);
+            transition: all var(--transition-normal);
+            animation: fadeIn 0.8s ease-out, gentlePulse 4s infinite ease-in-out;
+        }
+
+        .preview-image:hover {
+            transform: scale(1.03) rotate(1deg);
+            box-shadow: 0 15px 40px rgba(0, 82, 204, 0.3);
+        }
+
+        /* ===== Notifications ===== */
+        .notification {
+            position: fixed;
+            top: var(--spacing-lg);
+            right: var(--spacing-lg);
+            padding: var(--spacing-md) var(--spacing-lg);
+            border-radius: var(--border-radius-md);
+            color: white;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+            transform: translateX(100%);
+            opacity: 0;
+            transition: all var(--transition-normal);
+            z-index: 1001;
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-sm);
+            max-width: 400px;
+            backdrop-filter: blur(10px);
+        }
+
+        .notification.show {
+            transform: translateX(0);
+            opacity: 1;
+        }
+
+        .notification.success {
+            background: linear-gradient(135deg, #28a745, #218838);
+        }
+
+        .notification.error {
+            background: linear-gradient(135deg, #dc3545, #c82333);
+        }
+
+        .notification.warning {
+            background: linear-gradient(135deg, #ffc107, #e0a800);
+        }
+
+        .notification.info {
+            background: linear-gradient(135deg, #17a2b8, #138496);
+        }
+
+        .notification-icon {
+            font-size: 1.2rem;
+        }
+
+        /* ===== Security Overlay ===== */
+        .security-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(12px);
+            z-index: 9999;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--danger);
+            animation: shake 0.5s ease-in-out;
+        }
+
+        .dark-mode .security-overlay {
+            background: rgba(26, 26, 46, 0.95);
+        }
+
+        /* ===== Custom Classes ===== */
+        .floating {
+            animation: floatElement 6s ease-in-out infinite;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        .visible {
+            display: block !important;
+        }
+
+        .loading {
+            opacity: 0.7;
+            pointer-events: none;
+        }
+
+        .loading::after {
+            content: '';
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid white;
+            border-radius: 50%;
+            border-top-color: transparent;
+            animation: spin 0.8s linear infinite;
+            margin-left: 10px;
+        }
+
+        /* ===== Animations ===== */
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes fadeInUp {
+            from { 
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to { 
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes slideDown {
+            from { 
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to { 
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes slideIn {
+            from { transform: translateX(-100%); }
+            to { transform: translateX(0); }
+        }
+
+        @keyframes gentlePulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.02); }
+        }
+
+        @keyframes float {
+            0% { transform: translateY(0) rotate(0deg); }
+            50% { transform: translateY(-20px) rotate(180deg); }
+            100% { transform: translateY(0) rotate(360deg); }
+        }
+
+        @keyframes floatElement {
+            0%, 100% { transform: translateY(0) rotate(0deg); }
+            50% { transform: translateY(-10px) rotate(2deg); }
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
+            20%, 40%, 60%, 80% { transform: translateX(5px); }
+        }
+
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        /* ===== Responsive Design ===== */
+        @media (max-width: 1024px) {
+            .main-container {
+                width: 95%;
+            }
+            
+            .card {
+                padding: var(--spacing-lg);
+            }
+        }
+
+        @media (max-width: 768px) {
+            .main-nav {
+                flex-direction: column;
+                gap: var(--spacing-sm);
+                text-align: center;
+                padding: var(--spacing-sm);
+            }
+
+            .nav-actions {
+                flex-direction: column;
+                width: 100%;
+            }
+
+            .nav-btn {
+                width: 100%;
+                justify-content: center;
+            }
+
+            .form-grid {
+                grid-template-columns: 1fr;
+                gap: var(--spacing-sm);
+            }
+
+            .action-buttons {
+                flex-direction: column;
+            }
+
+            .action-btn {
+                width: 100%;
+                min-width: auto;
+            }
+
+            .upload-options {
+                flex-direction: column;
+            }
+
+            .notification {
+                top: var(--spacing-sm);
+                right: var(--spacing-sm);
+                left: var(--spacing-sm);
+                width: auto;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .main-container {
+                width: 98%;
+                margin: var(--spacing-sm) auto;
+            }
+
+            .card {
+                padding: var(--spacing-md);
+                border-radius: var(--border-radius-md);
+            }
+
+            .page-title {
+                font-size: 1.6rem;
+                margin-bottom: var(--spacing-md);
+            }
+
+            .section-title {
+                font-size: 1.3rem;
+            }
+
+            .form-control {
+                padding: 0.75rem;
+                font-size: 0.95rem;
+            }
+
+            .action-btn {
+                padding: 0.875rem 1.5rem;
+                font-size: 0.95rem;
+            }
+
+            .preview-image {
+                max-width: 280px;
+            }
+        }
+
+        /* ===== Accessibility ===== */
+        @media (prefers-reduced-motion: reduce) {
+            *,
+            *::before,
+            *::after {
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.01ms !important;
+                scroll-behavior: auto !important;
+            }
+        }
+
+        /* ===== Focus States ===== */
+        .focus-visible {
+            outline: 3px solid var(--primary);
+            outline-offset: 2px;
+        }
+
+        /* ===== Utility Classes ===== */
+        .text-center { text-align: center; }
+        .text-right { text-align: right; }
+        .text-left { text-align: left; }
+        .mt-1 { margin-top: var(--spacing-xs); }
+        .mt-2 { margin-top: var(--spacing-sm); }
+        .mt-3 { margin-top: var(--spacing-md); }
+        .mt-4 { margin-top: var(--spacing-lg); }
+        .mt-5 { margin-top: var(--spacing-xl); }
+        .mb-1 { margin-bottom: var(--spacing-xs); }
+        .mb-2 { margin-bottom: var(--spacing-sm); }
+        .mb-3 { margin-bottom: var(--spacing-md); }
+        .mb-4 { margin-bottom: var(--spacing-lg); }
+        .mb-5 { margin-bottom: var(--spacing-xl); }
+        .d-flex { display: flex; }
+        .d-grid { display: grid; }
+        .align-center { align-items: center; }
+        .justify-center { justify-content: center; }
+        .justify-between { justify-content: space-between; }
+        .gap-1 { gap: var(--spacing-xs); }
+        .gap-2 { gap: var(--spacing-sm); }
+        .gap-3 { gap: var(--spacing-md); }
+        .gap-4 { gap: var(--spacing-lg); }
+        .w-100 { width: 100%; }
+    </style>
+</head>
+<body>
+    <!-- Security Overlay -->
+    <div class="security-overlay" id="securityOverlay">
+        <i class="fas fa-shield-alt"></i>
+        <span>Screenshot Protection Active</span>
+    </div>
+
+    <!-- Notification System -->
+    <div class="notification" id="notification">
+        <i class="fas fa-check-circle notification-icon" id="notificationIcon"></i>
+        <span id="notificationText">Operation completed successfully</span>
+    </div>
+
+    <!-- Background Animation -->
+    <div class="background-bubbles" id="backgroundBubbles">
+        <!-- Bubbles will be generated by JavaScript -->
+    </div>
+
+    <!-- Main Navigation -->
+    <nav class="main-nav">
+        <a href="{{ url_for('landing') }}" class="nav-brand">
+            <i class="fas fa-arrow-left"></i>
+            <span>Back to Home</span>
+        </a>
+        
+        <div class="nav-actions">
+            <span class="user-greeting">
+                Welcome, {{ session.get('student_email', 'User') }}
+            </span>
+            
+            <a href="/admin" class="nav-btn btn-primary">
+                <i class="fas fa-user-cog"></i>
+                <span>Admin Panel</span>
+            </a>
+            
+            <button class="nav-btn btn-outline" id="themeToggle">
+                <i class="fas fa-moon"></i>
+                <span>Dark Mode</span>
+            </button>
+            
+            <a href="{{ url_for('logout') }}" class="nav-btn btn-secondary">
+                <i class="fas fa-sign-out-alt"></i>
+                <span>Logout</span>
+            </a>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="main-container">
+
+        <div id="deadlineBanner" style="display: none; margin-bottom: 2rem;"></div>
+        <!-- Fetch Form -->
+        <div class="card" id="fetchCard" style="{{ 'display: none;' if not show_fetch else '' }}">
+            <h1 class="page-title floating">
+                <i class="fas fa-id-card"></i>
+                <span>ID Card Management</span>
+            </h1>
+            
+            {% if success %}
+            <div class="notification success show">
+                <i class="fas fa-check-circle notification-icon"></i>
+                <span>{{ success }}</span>
+            </div>
+            {% endif %}
+            
+            {% if error %}
+            <div class="notification error show">
+                <i class="fas fa-exclamation-circle notification-icon"></i>
+                <span>{{ error }}</span>
+            </div>
+            {% endif %}
+            
+            <form method="POST" action="/fetch_record" id="fetchForm" class="form-grid">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                <div class="form-group full-width">
+                    <label for="fetch_unique_id">
+                        <i class="fas fa-key"></i>
+                        <span>Enter Unique ID to Edit Record:</span>
+                    </label>
+                    <input 
+                        type="text" 
+                        id="fetch_unique_id" 
+                        name="unique_id" 
+                        class="form-control"
+                        placeholder="Enter your unique ID (numbers only)"
+                        required 
+                        pattern="\d+"
+                        title="Please enter a valid numeric unique ID"
+                    />
+                    <small class="file-info">
+                        Enter the unique ID provided during ID card creation
+                    </small>
+                </div>
+                
+                <div class="action-buttons full-width">
+                    <button type="submit" class="action-btn btn-primary">
+                        <i class="fas fa-search btn-icon"></i>
+                        <span>Fetch Record</span>
+                    </button>
+                    
+                    <button type="button" class="action-btn btn-outline" id="createNewBtn">
+                        <i class="fas fa-plus btn-icon"></i>
+                        <span>Create New ID</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- ID Card Form -->
+        <div class="card" id="idCardFormCard" style="{{ 'display: none;' if show_fetch else '' }}">
+            <h1 class="page-title">
+                <i class="fas fa-id-card"></i>
+                <span id="formTitle">ID Card Generator</span>
+            </h1>
+            
+            <form method="POST" enctype="multipart/form-data" id="idCardForm" class="form-grid">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                <input type="hidden" name="student_id" id="student_id" 
+                       value="{{ form_data.get('student_id', '') if form_data else '' }}">
+                
+                <!-- School Selection -->
+                <div class="form-group">
+                    <label for="template_id">
+                        <i class="fas fa-school"></i>
+                        <span>School Name:</span>
+                    </label>
+                     <select id="template_id" name="template_id" class="form-control" required>
+                         <option value="">Select a School</option>
+                         {% for template in templates %}
+                         <option value="{{ template.id }}" data-deadline="{{ template.deadline }}"
+                             {% if selected_template_id == template.id or (form_data and form_data.get('template_id')|int == template.id) %}
+                                 selected
+                             {% endif %}
+                         >
+                             {{ template.school_name }}
+                         </option>
+                         {% else %}
+                         <option value="" disabled>No templates available</option>
+                         {% endfor %}
+                     </select>
+                </div>
+                
+                <!-- Personal Information -->
+                <div class="form-group">
+                    <label for="name">
+                        <i class="fas fa-user"></i>
+                        <span>Full Name:</span>
+                    </label>
+                    <input type="text" id="name" name="name" class="form-control"
+                           value="{{ form_data.get('name', '') if form_data else '' }}"
+                           required pattern="[A-Za-z\s]{2,50}"
+                           title="Name must be 2-50 characters, letters and spaces only">
+                </div>
+                
+                <div class="form-group">
+                    <label for="father_name">
+                        <i class="fas fa-user-friends"></i>
+                        <span>Father's Name:</span>
+                    </label>
+                    <input type="text" id="father_name" name="father_name" class="form-control"
+                           value="{{ form_data.get('father_name', '') if form_data else '' }}"
+                           required pattern="[A-Za-z\s]{2,50}"
+                           title="Father's name must be 2-50 characters, letters and spaces only">
+                </div>
+                
+                <!-- Class Selection -->
+                <div class="form-group">
+                    <label for="class_name">
+                        <i class="fas fa-graduation-cap"></i>
+                        <span>Class:</span>
+                    </label>
+                    <select id="class_name" name="class_name" class="form-control" required>
+                        <option value="">Select Class Level</option>
+                        <optgroup label="School">
+                            {% set school_classes = ['Nursery', 'L.K.G', 'U.K.G', '1st', '2nd', '3rd', '4th', '5th', 
+                                                   '6th', '7th', '8th', '9th', '10th', '11th', '12th'] %}
+                            {% for class_name in school_classes %}
+                            <option value="{{ class_name }}"
+                                {% if form_data and form_data.get('class_name') == class_name %}selected{% endif %}>
+                                {{ class_name }}
+                            </option>
+                            {% endfor %}
+                        </optgroup>
+                        <optgroup label="Undergraduate">
+                            {% set ug_classes = ['B.A. 1st Year', 'B.A. 2nd Year', 'B.A. 3rd Year',
+                                               'B.Sc. 1st Year', 'B.Sc. 2nd Year', 'B.Sc. 3rd Year',
+                                               'B.Com. 1st Year', 'B.Com. 2nd Year', 'B.Com. 3rd Year',
+                                               'B.Tech 1st Year', 'B.Tech 2nd Year', 'B.Tech 3rd Year', 'B.Tech 4th Year'] %}
+                            {% for class_name in ug_classes %}
+                            <option value="{{ class_name }}"
+                                {% if form_data and form_data.get('class_name') == class_name %}selected{% endif %}>
+                                {{ class_name }}
+                            </option>
+                            {% endfor %}
+                        </optgroup>
+                        <optgroup label="Postgraduate">
+                            {% set pg_classes = ['M.A. 1st Year', 'M.A. 2nd Year',
+                                               'M.Sc. 1st Year', 'M.Sc. 2nd Year',
+                                               'M.Com. 1st Year', 'M.Com. 2nd Year',
+                                               'M.Tech 1st Year', 'M.Tech 2nd Year'] %}
+                            {% for class_name in pg_classes %}
+                            <option value="{{ class_name }}"
+                                {% if form_data and form_data.get('class_name') == class_name %}selected{% endif %}>
+                                {{ class_name }}
+                            </option>
+                            {% endfor %}
+                        </optgroup>
+                        <option value="custom">Other (Custom)</option>
+                    </select>
+                    
+                    <input type="text" id="custom_class" name="custom_class" class="form-control mt-2"
+                           style="display: none;" placeholder="Enter your class name">
+                </div>
+                
+                <!-- Additional Details -->
+                <div class="form-group">
+                    <label for="dob">
+                        <i class="fas fa-calendar-alt"></i>
+                        <span>Date of Birth:</span>
+                    </label>
+                    <input type="date" id="dob" name="dob" class="form-control"
+                           value="{{ form_data.get('dob', '') if form_data else '' }}" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="phone">
+                        <i class="fas fa-phone"></i>
+                        <span>Phone Number:</span>
+                    </label>
+                    <input type="tel" id="phone" name="phone" class="form-control"
+                           value="{{ form_data.get('phone', '') if form_data else '' }}"
+                           required pattern="[0-9]{10}"
+                           title="Please enter a valid 10-digit phone number">
+                </div>
+                
+                <div class="form-group full-width">
+                    <label for="address">
+                        <i class="fas fa-home"></i>
+                        <span>Address:</span>
+                    </label>
+                    <textarea id="address" name="address" class="form-control" rows="3" required
+                              maxlength="200">{{ form_data.get('address', '') if form_data else '' }}</textarea>
+                </div>
+                
+                <!-- Dynamic Fields Container -->
+                <div id="dynamicFieldsContainer" class="full-width"></div>
+                
+                <!-- Photo Upload -->
+                <div class="form-group full-width">
+                    <label>
+                        <i class="fas fa-camera"></i>
+                        <span>Upload Photo:</span>
+                    </label>
+                    
+                    <div class="upload-options">
+                        <div class="upload-option active" data-option="file">
+                            <i class="fas fa-file-upload"></i>
+                            <div>File Upload</div>
+                        </div>
+                        <div class="upload-option" data-option="camera">
+                            <i class="fas fa-camera"></i>
+                            <div>Take Photo</div>
+                        </div>
+                    </div>
+                    
+                    <!-- File Upload Section -->
+                    <div class="upload-section" id="fileUploadSection">
+                        <input type="file" id="photo" name="photo" class="form-control"
+                               accept="image/*" required>
+                        <div class="file-info" id="fileInfo">
+                            Supported formats: JPG, PNG, JPEG. Max size: 2MB
+                        </div>
+                    </div>
+                    
+                    <!-- Camera Section -->
+                    <div class="upload-section hidden" id="cameraSection">
+                        <div class="camera-preview" id="cameraPreview">
+                            <video id="cameraVideo" autoplay playsinline></video>
+                            <canvas id="cameraCanvas" class="hidden"></canvas>
+                        </div>
+                        <div class="camera-controls">
+                            <button type="button" class="nav-btn btn-primary" id="startCameraBtn">
+                                <i class="fas fa-play"></i>
+                                <span>Start Camera</span>
+                            </button>
+                            <button type="button" class="nav-btn btn-secondary" id="captureBtn" disabled>
+                                <i class="fas fa-camera"></i>
+                                <span>Capture Photo</span>
+                            </button>
+                            <button type="button" class="nav-btn btn-outline" id="stopCameraBtn">
+                                <i class="fas fa-stop"></i>
+                                <span>Stop Camera</span>
+                            </button>
+                        </div>
+                        <input type="hidden" id="photoData" name="photo_data">
+                    </div>
+                </div>
+                
+                <!-- Form Actions -->
+                <div class="action-buttons full-width">
+                    <button type="submit" class="action-btn btn-primary" id="submitBtn">
+                        <i class="fas fa-id-card btn-icon"></i>
+                        <span id="submitBtnText">Generate ID Card</span>
+                    </button>
+                    
+                    <button type="button" class="action-btn btn-outline" id="cancelBtn">
+                        <i class="fas fa-times btn-icon"></i>
+                        <span>Cancel</span>
+                    </button>
+                    
+                    <button type="button" class="action-btn btn-primary" id="backToFetchBtn">
+                        <i class="fas fa-arrow-left btn-icon"></i>
+                        <span>Back to Search</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Preview Section -->
+        {% if generated_url %}
+        <div class="preview-section">
+            <h2 class="section-title">
+                <i class="fas fa-eye"></i>
+                <span>Generated ID Card Preview</span>
+            </h2>
+            
+            <div class="preview-image-container">
+                <img src="{{ generated_url }}" 
+                     alt="Generated ID Card" 
+                     class="preview-image"
+                     onerror="this.src='/static/placeholder.jpg'; this.alt='Preview not available';"
+                     id="previewImage">
+            </div>
+        </div>
+        {% endif %}
+    </main>
+
+    <script>
+        // ===== Application State =====
+        const AppState = {
+            currentUploadOption: 'file',
+            cameraStream: null,
+            isCameraActive: false,
+            isDarkMode: localStorage.getItem('darkMode') === 'true',
+            formMode: '{{ "fetch" if show_fetch else "create" }}'
+        };
+
+        // ===== DOM Elements =====
+        const elements = {
+            // Forms
+            fetchForm: document.getElementById('fetchForm'),
+            idCardForm: document.getElementById('idCardForm'),
+            fetchCard: document.getElementById('fetchCard'),
+            idCardFormCard: document.getElementById('idCardFormCard'),
+            
+            // Navigation
+            themeToggle: document.getElementById('themeToggle'),
+            createNewBtn: document.getElementById('createNewBtn'),
+            cancelBtn: document.getElementById('cancelBtn'),
+            backToFetchBtn: document.getElementById('backToFetchBtn'),
+            
+            // Form Fields
+            studentId: document.getElementById('student_id'),
+            templateSelect: document.getElementById('template_id'),
+            classNameSelect: document.getElementById('class_name'),
+            customClassInput: document.getElementById('custom_class'),
+            dobInput: document.getElementById('dob'),
+            
+            // Photo Upload
+            uploadOptions: document.querySelectorAll('.upload-option'),
+            fileUploadSection: document.getElementById('fileUploadSection'),
+            cameraSection: document.getElementById('cameraSection'),
+            photoInput: document.getElementById('photo'),
+            photoDataInput: document.getElementById('photoData'),
+            fileInfo: document.getElementById('fileInfo'),
+            
+            // Camera
+            cameraVideo: document.getElementById('cameraVideo'),
+            cameraCanvas: document.getElementById('cameraCanvas'),
+            cameraPreview: document.getElementById('cameraPreview'),
+            startCameraBtn: document.getElementById('startCameraBtn'),
+            captureBtn: document.getElementById('captureBtn'),
+            stopCameraBtn: document.getElementById('stopCameraBtn'),
+            
+            // Dynamic Fields
+            dynamicFieldsContainer: document.getElementById('dynamicFieldsContainer'),
+            
+            // Buttons & Text
+            submitBtn: document.getElementById('submitBtn'),
+            submitBtnText: document.getElementById('submitBtnText'),
+            formTitle: document.getElementById('formTitle'),
+            
+            // Notifications
+            notification: document.getElementById('notification'),
+            notificationText: document.getElementById('notificationText'),
+            notificationIcon: document.getElementById('notificationIcon'),
+            
+            // Security
+            securityOverlay: document.getElementById('securityOverlay'),
+            
+            // Background
+            backgroundBubbles: document.getElementById('backgroundBubbles')
+        };
+
+        // ===== Utility Functions =====
+        const Utils = {
+            showNotification(message, type = 'success') {
+                elements.notificationText.textContent = message;
+                elements.notificationIcon.className = `fas ${this.getNotificationIcon(type)} notification-icon`;
+                elements.notification.className = `notification ${type}`;
+                
+                setTimeout(() => {
+                    elements.notification.classList.add('show');
+                }, 10);
+                
+                setTimeout(() => {
+                    elements.notification.classList.remove('show');
+                }, 4000);
+            },
+
+            getNotificationIcon(type) {
+                const icons = {
+                    success: 'fa-check-circle',
+                    error: 'fa-exclamation-circle',
+                    warning: 'fa-exclamation-triangle',
+                    info: 'fa-info-circle'
+                };
+                return icons[type] || icons.success;
+            },
+
+            validateFile(file) {
+                const maxSize = 2 * 1024 * 1024; // 2MB
+                const validTypes = ['image/jpeg', 'image/jpg', 'image/png'];
+                
+                if (!file) return false;
+                
+                if (file.size > maxSize) {
+                    elements.fileInfo.textContent = 'File size must be less than 2MB';
+                    elements.fileInfo.classList.add('error');
+                    return false;
+                }
+                
+                if (!validTypes.includes(file.type)) {
+                    elements.fileInfo.textContent = 'Please select a JPG or PNG image';
+                    elements.fileInfo.classList.add('error');
+                    return false;
+                }
+                
+                elements.fileInfo.textContent = `File selected: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`;
+                elements.fileInfo.classList.remove('error');
+                return true;
+            },
+
+            generateBubbles() {
+                const bubbleCount = 10;
+                for (let i = 0; i < bubbleCount; i++) {
+                    const bubble = document.createElement('div');
+                    bubble.className = 'bubble';
+                    
+                    // Random properties
+                    const size = Math.random() * 120 + 40;
+                    const left = Math.random() * 100;
+                    const animationDuration = Math.random() * 20 + 15;
+                    const animationDelay = Math.random() * 5;
+                    
+                    Object.assign(bubble.style, {
+                        width: `${size}px`,
+                        height: `${size}px`,
+                        left: `${left}%`,
+                        bottom: `-${size}px`,
+                        animationDuration: `${animationDuration}s`,
+                        animationDelay: `${animationDelay}s`
+                    });
+                    
+                    elements.backgroundBubbles.appendChild(bubble);
+                }
+            },
+
+            formatDate(date) {
+                return new Date(date).toISOString().split('T')[0];
+            }
+        };
+
+        // ===== Camera Functions =====
+        const CameraManager = {
+            async start() {
+                try {
+                    const constraints = {
+                        video: {
+                            width: { ideal: 1280 },
+                            height: { ideal: 720 },
+                            facingMode: 'user'
+                        }
+                    };
+                    
+                    elements.cameraStream = await navigator.mediaDevices.getUserMedia(constraints);
+                    elements.cameraVideo.srcObject = elements.cameraStream;
+                    elements.captureBtn.disabled = false;
+                    elements.cameraPreview.classList.add('active');
+                    AppState.isCameraActive = true;
+                    
+                    Utils.showNotification('Camera started successfully', 'success');
+                } catch (err) {
+                    console.error('Camera error:', err);
+                    Utils.showNotification(`Camera error: ${err.message}`, 'error');
+                }
+            },
+
+            capture() {
+                const video = elements.cameraVideo;
+                const canvas = elements.cameraCanvas;
+                const context = canvas.getContext('2d');
+                
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                
+                context.drawImage(video, 0, 0, canvas.width, canvas.height);
+                
+                const photoData = canvas.toDataURL('image/jpeg', 0.8);
+                elements.photoDataInput.value = photoData;
+                
+                video.style.display = 'none';
+                canvas.style.display = 'block';
+                canvas.classList.remove('hidden');
+                
+                Utils.showNotification('Photo captured successfully!', 'success');
+            },
+
+            stop() {
+                if (elements.cameraStream) {
+                    elements.cameraStream.getTracks().forEach(track => track.stop());
+                    elements.cameraStream = null;
+                }
+                
+                elements.cameraVideo.srcObject = null;
+                elements.cameraVideo.style.display = 'block';
+                elements.cameraCanvas.style.display = 'none';
+                elements.cameraCanvas.classList.add('hidden');
+                elements.captureBtn.disabled = true;
+                elements.photoDataInput.value = '';
+                elements.cameraPreview.classList.remove('active');
+                AppState.isCameraActive = false;
+            }
+        };
+
+        // ===== Form Management =====
+        const FormManager = {
+            toggleFormMode(mode) {
+                AppState.formMode = mode;
+                
+                if (mode === 'fetch') {
+                    elements.fetchCard.style.display = 'block';
+                    elements.idCardFormCard.style.display = 'none';
+                } else {
+                    elements.fetchCard.style.display = 'none';
+                    elements.idCardFormCard.style.display = 'block';
+                    this.updateFormState();
+                }
+            },
+
+            updateFormState() {
+                const isEditMode = elements.studentId.value !== '';
+                elements.submitBtnText.textContent = isEditMode ? 'Update ID Card' : 'Generate ID Card';
+                elements.formTitle.textContent = isEditMode ? 'Edit ID Card' : 'Create New ID Card';
+                elements.photoInput.required = !isEditMode;
+            },
+
+            handleClassChange() {
+                const showCustom = elements.classNameSelect.value === 'custom';
+                elements.customClassInput.style.display = showCustom ? 'block' : 'none';
+                elements.customClassInput.required = showCustom;
+                if (!showCustom) elements.customClassInput.value = '';
+            },
+
+            async loadDynamicFields() {
+                const templateId = elements.templateSelect.value;
+                if (!templateId) return;
+                
+                try {
+                    const response = await fetch(`/admin/template/${templateId}/form-fields`);
+                    const fields = await response.json();
+                    
+                    elements.dynamicFieldsContainer.innerHTML = '';
+                    
+                    if (fields.length > 0) {
+                        const header = document.createElement('h3');
+                        header.className = 'section-title mt-3';
+                        header.innerHTML = '<i class="fas fa-list"></i> Additional Information';
+                        elements.dynamicFieldsContainer.appendChild(header);
+                        
+                        fields.forEach(field => {
+                            const group = document.createElement('div');
+                            group.className = 'form-group';
+                            
+                            const label = document.createElement('label');
+                            label.innerHTML = `<i class="fas fa-${this.getFieldIcon(field.field_type)}"></i> ${field.field_label}`;
+                            if (field.is_required) {
+                                label.innerHTML += ' <span style="color: var(--accent)">*</span>';
+                            }
+                            group.appendChild(label);
+                            
+                            let input;
+                            if (field.field_type === 'select') {
+                                input = document.createElement('select');
+                                input.innerHTML = '<option value="">Select an option</option>';
+                                field.field_options?.forEach(option => {
+                                    input.innerHTML += `<option value="${option}">${option}</option>`;
+                                });
+                            } else if (field.field_type === 'textarea') {
+                                input = document.createElement('textarea');
+                                input.rows = 3;
+                            } else {
+                                input = document.createElement('input');
+                                input.type = field.field_type;
+                            }
+                            
+                            input.name = field.field_name;
+                            input.id = field.field_name;
+                            input.className = 'form-control';
+                            input.required = field.is_required;
+                            input.placeholder = `Enter ${field.field_label.toLowerCase()}`;
+                            
+                            group.appendChild(input);
+                            elements.dynamicFieldsContainer.appendChild(group);
+                        });
+                    }
+                } catch (error) {
+                    console.error('Error loading dynamic fields:', error);
+                }
+            },
+
+            getFieldIcon(fieldType) {
+                const icons = {
+                    text: 'font',
+                    email: 'envelope',
+                    tel: 'phone',
+                    date: 'calendar',
+                    select: 'list',
+                    textarea: 'align-left',
+                    number: 'hashtag'
+                };
+                return icons[fieldType] || 'edit';
+            },
+
+            clearForm() {
+                elements.idCardForm.reset();
+                elements.studentId.value = '';
+                elements.customClassInput.style.display = 'none';
+                elements.dynamicFieldsContainer.innerHTML = '';
+                
+                if (AppState.currentUploadOption === 'camera') {
+                    CameraManager.stop();
+                }
+                
+                this.updateFormState();
+                this.toggleFormMode('fetch');
+                
+                // Clear edit session
+                fetch('/clear_edit_session', { method: 'POST' });
+                
+                Utils.showNotification('Form cleared successfully', 'success');
+            }
+        };
+
+        // ===== Theme Management =====
+        const ThemeManager = {
+            init() {
+                if (AppState.isDarkMode) {
+                    document.body.classList.add('dark-mode');
+                    this.updateThemeButton();
+                }
+            },
+
+            toggle() {
+                AppState.isDarkMode = !AppState.isDarkMode;
+                document.body.classList.toggle('dark-mode', AppState.isDarkMode);
+                localStorage.setItem('darkMode', AppState.isDarkMode);
+                this.updateThemeButton();
+                
+                const theme = AppState.isDarkMode ? 'dark' : 'light';
+                Utils.showNotification(`Switched to ${theme} mode`, 'success');
+            },
+
+            updateThemeButton() {
+                const icon = elements.themeToggle.querySelector('i');
+                const text = elements.themeToggle.querySelector('span');
+                
+                if (AppState.isDarkMode) {
+                    icon.className = 'fas fa-sun';
+                    text.textContent = 'Light Mode';
+                } else {
+                    icon.className = 'fas fa-moon';
+                    text.textContent = 'Dark Mode';
+                }
+            }
+        };
+
+        // ===== Security Features =====
+        const SecurityManager = {
+            init() {
+                this.preventScreenshots();
+                this.disableRightClick();
+                this.preventCopyPaste();
+            },
+
+            preventScreenshots() {
+                document.addEventListener('keydown', (e) => {
+                    if ((e.ctrlKey && e.key.toLowerCase() === 's') || 
+                        (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 's') ||
+                        e.key === 'PrintScreen') {
+                        e.preventDefault();
+                        this.showSecurityWarning();
+                    }
+                });
+            },
+
+            disableRightClick() {
+                document.addEventListener('contextmenu', (e) => {
+                    e.preventDefault();
+                    this.showSecurityWarning();
+                });
+            },
+
+            preventCopyPaste() {
+                document.addEventListener('copy', (e) => e.preventDefault());
+                document.addEventListener('cut', (e) => e.preventDefault());
+                document.addEventListener('paste', (e) => e.preventDefault());
+            },
+
+            showSecurityWarning() {
+                elements.securityOverlay.style.display = 'flex';
+                setTimeout(() => {
+                    elements.securityOverlay.style.display = 'none';
+                }, 2000);
+                
+                Utils.showNotification('Security features enabled', 'warning');
+            }
+        };
+
+        // ===== Event Handlers =====
+        const EventHandlers = {
+            init() {
+                // Theme toggle
+                elements.themeToggle.addEventListener('click', () => ThemeManager.toggle());
+                
+                // Form mode toggles
+                elements.createNewBtn.addEventListener('click', () => FormManager.toggleFormMode('create'));
+                elements.cancelBtn.addEventListener('click', () => FormManager.clearForm());
+                elements.backToFetchBtn.addEventListener('click', () => FormManager.toggleFormMode('fetch'));
+                
+                // Form field changes
+                elements.classNameSelect.addEventListener('change', () => FormManager.handleClassChange());
+                elements.templateSelect.addEventListener('change', () => FormManager.loadDynamicFields());
+                
+                // Photo upload options
+                elements.uploadOptions.forEach(option => {
+                    option.addEventListener('click', (e) => {
+                        const selectedOption = e.currentTarget.dataset.option;
+                        AppState.currentUploadOption = selectedOption;
+                        
+                        elements.uploadOptions.forEach(opt => opt.classList.remove('active'));
+                        e.currentTarget.classList.add('active');
+                        
+                        elements.fileUploadSection.classList.toggle('hidden', selectedOption !== 'file');
+                        elements.cameraSection.classList.toggle('hidden', selectedOption !== 'camera');
+                        
+                        if (selectedOption !== 'camera') {
+                            CameraManager.stop();
+                        }
+                    });
+                });
+                
+                // File validation
+                elements.photoInput.addEventListener('change', (e) => {
+                    Utils.validateFile(e.target.files[0]);
+                });
+                
+                // Camera controls
+                elements.startCameraBtn.addEventListener('click', () => CameraManager.start());
+                elements.captureBtn.addEventListener('click', () => CameraManager.capture());
+                elements.stopCameraBtn.addEventListener('click', () => CameraManager.stop());
+                
+                // Form submissions
+                elements.fetchForm.addEventListener('submit', this.handleFetchSubmit);
+                elements.idCardForm.addEventListener('submit', this.handleIdCardSubmit);
+                
+                // Set max date for DOB
+                elements.dobInput.max = Utils.formatDate(new Date());
+                
+                // Initialize form state
+                FormManager.handleClassChange();
+            },
+
+            async handleFetchSubmit(e) {
+                e.preventDefault();
+                
+                const submitBtn = elements.fetchForm.querySelector('button[type="submit"]');
+                const originalContent = submitBtn.innerHTML;
+                
+                submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Searching...';
+                submitBtn.disabled = true;
+                
+                try {
+                    const formData = new FormData(elements.fetchForm);
+                    const response = await fetch('/fetch_record', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        window.location.href = data.edit_url;
+                    } else {
+                        Utils.showNotification(data.error || 'Record not found', 'error');
+                    }
+                } catch (error) {
+                    Utils.showNotification('Error fetching record', 'error');
+                } finally {
+                    submitBtn.innerHTML = originalContent;
+                    submitBtn.disabled = false;
+                }
+            },
+
+            async handleIdCardSubmit(e) {
+                if (AppState.currentUploadOption === 'camera' && !elements.photoDataInput.value) {
+                    e.preventDefault();
+                    Utils.showNotification('Please capture a photo first', 'error');
+                    return;
+                }
+                
+                const submitBtn = elements.submitBtn;
+                const originalContent = submitBtn.innerHTML;
+                
+                submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+                submitBtn.disabled = true;
+                
+                // Form will submit normally, just show loading state
+                setTimeout(() => {
+                    submitBtn.innerHTML = originalContent;
+                    submitBtn.disabled = false;
+                }, 3000);
+            }
+        };
+
+        // ===== Initialize Application =====
+        document.addEventListener('DOMContentLoaded', () => {
+            // Generate background bubbles
+            Utils.generateBubbles();
+            
+            // Initialize managers
+            ThemeManager.init();
+            SecurityManager.init();
+            EventHandlers.init();
+            
+            // Set initial form mode
+            FormManager.toggleFormMode(AppState.formMode);
+            
+            // Load dynamic fields if template is selected
+            if (elements.templateSelect.value) {
+                FormManager.loadDynamicFields();
+            }
+            
+            // Add focus styles for accessibility
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Tab') {
+                    document.body.classList.add('keyboard-navigation');
+                }
+            });
+            
+            document.addEventListener('mousedown', () => {
+                document.body.classList.remove('keyboard-navigation');
+            });
+            
+            // Clean up camera on page unload
+            window.addEventListener('beforeunload', () => {
+                if (AppState.isCameraActive) {
+                    CameraManager.stop();
+                }
+            });
+        });
+
+        // ===== Error Handling =====
+        window.addEventListener('error', (e) => {
+            console.error('Global error:', e.error);
+            Utils.showNotification('An error occurred. Please try again.', 'error');
+        });
+
+        window.addEventListener('unhandledrejection', (e) => {
+            console.error('Unhandled promise rejection:', e.reason);
+            Utils.showNotification('An error occurred. Please try again.', 'error');
+        });
+        
+
+       document.addEventListener('DOMContentLoaded', function() {
+           const templateSelect = document.getElementById('template_id');
+           const banner = document.getElementById('deadlineBanner');
+   
+           // Function to update the banner
+           function updateDeadlineBanner() {
+               const selectedOption = templateSelect.options[templateSelect.selectedIndex];
+               const deadlineStr = selectedOption ? selectedOption.getAttribute('data-deadline') : null;
+   
+               if (!deadlineStr) {
+                   banner.style.display = 'none';
+                   return;
+               }
+   
+               const deadlineDate = new Date(deadlineStr);
+               const now = new Date();
+               const diff = deadlineDate - now;
+   
+               // Format Date for display (e.g., "25 December 2025, 05:00 PM")
+               const dateDisplay = deadlineDate.toLocaleDateString('en-GB', {
+                   day: 'numeric', month: 'long', year: 'numeric',
+                   hour: '2-digit', minute: '2-digit', hour12: true
+               });
+   
+               if (diff < 0) {
+                   // --- DEADLINE EXPIRED (RED) ---
+                   banner.innerHTML = `
+                       <div style="background: linear-gradient(135deg, #dc3545, #c82333); color: white; padding: 1.5rem; border-radius: 12px; box-shadow: 0 10px 30px rgba(220, 53, 69, 0.3); text-align: center;">
+                           <h3 style="margin-bottom: 0.5rem; display: flex; align-items: center; justify-content: center; gap: 0.5rem; font-weight: 700;">
+                               <i class="fas fa-ban"></i> Submission Closed
+                           </h3>
+                           <p style="font-size: 1.1rem;">The deadline for this ID card was <strong>${dateDisplay}</strong>.</p>
+                           <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid rgba(255,255,255,0.3); font-size: 0.9rem; opacity: 0.9;">
+                               <i class="fas fa-lock"></i> New generations and edits are disabled.
+                           </div>
+                       </div>
+                   `;
+               } else {
+                   // --- COUNTDOWN ACTIVE (YELLOW) ---
+                   const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+                   const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                   const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+   
+                   banner.innerHTML = `
+                       <div style="background: linear-gradient(135deg, #ffc107, #ffdb4d); color: #333; padding: 1.5rem; border-radius: 12px; box-shadow: 0 10px 30px rgba(255, 193, 7, 0.3); text-align: center;">
+                           <h3 style="margin-bottom: 0.5rem; display: flex; align-items: center; justify-content: center; gap: 0.5rem; color: #000; font-weight: 700;">
+                               <i class="fas fa-clock fa-spin" style="--fa-animation-duration: 3s;"></i> 
+                               Submission Deadline Approaching
+                           </h3>
+                           <p style="margin-bottom: 1.5rem; color: #444; font-weight: 500;">
+                               Please complete your ID card generation before: <br>
+                               <span style="background: rgba(0,0,0,0.1); padding: 2px 8px; border-radius: 4px; font-weight: 700;">${dateDisplay}</span>
+                           </p>
+                           
+                           <div style="display: flex; justify-content: center; gap: 1rem; flex-wrap: wrap;">
+                               <div style="background: rgba(255,255,255,0.9); padding: 0.8rem; border-radius: 8px; min-width: 80px; box-shadow: 0 4px 10px rgba(0,0,0,0.05);">
+                                   <span style="display: block; font-size: 1.8rem; font-weight: 800; color: #dc3545; line-height: 1;">${days}</span>
+                                   <small style="font-size: 0.75rem; text-transform: uppercase; font-weight: 600; color: #666;">Days</small>
+                               </div>
+                               <div style="background: rgba(255,255,255,0.9); padding: 0.8rem; border-radius: 8px; min-width: 80px; box-shadow: 0 4px 10px rgba(0,0,0,0.05);">
+                                   <span style="display: block; font-size: 1.8rem; font-weight: 800; color: #dc3545; line-height: 1;">${hours}</span>
+                                   <small style="font-size: 0.75rem; text-transform: uppercase; font-weight: 600; color: #666;">Hours</small>
+                               </div>
+                               <div style="background: rgba(255,255,255,0.9); padding: 0.8rem; border-radius: 8px; min-width: 80px; box-shadow: 0 4px 10px rgba(0,0,0,0.05);">
+                                   <span style="display: block; font-size: 1.8rem; font-weight: 800; color: #dc3545; line-height: 1;">${minutes}</span>
+                                   <small style="font-size: 0.75rem; text-transform: uppercase; font-weight: 600; color: #666;">Mins</small>
+                               </div>
+                           </div>
+                       </div>
+                   `;
+               }
+               banner.style.display = 'block';
+           }
+   
+           // Run instantly on page load
+           updateDeadlineBanner();
+   
+           // Run whenever the user changes the school
+           templateSelect.addEventListener('change', updateDeadlineBanner);
+   
+           // Keep the timer updating live every minute
+           setInterval(updateDeadlineBanner, 60000);
+       });
+
+    </script>
+    
+</body>
+</html>

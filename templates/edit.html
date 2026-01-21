@@ -1,0 +1,756 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="csrf-token" content="{{ csrf_token() }}">
+  <title>Animated ID Card Editor</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600&display=swap');
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    :root {
+      --primary: #0052cc;
+      --primary-dark: #003d99;
+      --accent: #ff6b6b;
+      --text: #2c3e50;
+      --text-light: #e4e4e4;
+      --bg-light: linear-gradient(135deg, #f0f4ff, #d9e2ff);
+      --bg-dark: linear-gradient(135deg, #1e1e1e, #121212);
+      --card-light: #ffffff;
+      --card-dark: #1e1e1e;
+      --success-bg: #d4edda;
+      --success-text: #155724;
+      --error-bg: #f8d7da;
+      --error-text: #721c24;
+      --transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+    body {
+      font-family: 'Montserrat', Arial, sans-serif;
+      background: var(--bg-light);
+      margin: 0;
+      padding: 0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      color: var(--text);
+      transition: var(--transition);
+      position: relative;
+      overflow-x: hidden;
+    }
+    .bg-bubbles {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: -1;
+      overflow: hidden;
+    }
+    .bg-bubbles li {
+      position: absolute;
+      list-style: none;
+      display: block;
+      width: 30px;
+      height: 30px;
+      background-color: rgba(0, 82, 204, 0.15);
+      bottom: -120px;
+      border-radius: 50%;
+      animation: square 20s infinite;
+      transition-timing-function: linear;
+    }
+    .bg-bubbles li:nth-child(1) { left: 10%; animation-delay: 0s; width: 60px; height: 60px; }
+    .bg-bubbles li:nth-child(2) { left: 20%; animation-delay: 2s; animation-duration: 15s; width: 40px; height: 40px; }
+    .bg-bubbles li:nth-child(3) { left: 25%; animation-delay: 4s; width: 80px; height: 80px; }
+    .bg-bubbles li:nth-child(4) { left: 40%; animation-delay: 0s; animation-duration: 18s; width: 100px; height: 100px; }
+    .bg-bubbles li:nth-child(5) { left: 70%; animation-delay: 3s; width: 70px; height: 70px; }
+    .bg-bubbles li:nth-child(6) { left: 80%; animation-delay: 2s; width: 90px; height: 90px; }
+    .bg-bubbles li:nth-child(7) { left: 32%; animation-delay: 6s; width: 110px; height: 110px; }
+    .bg-bubbles li:nth-child(8) { left: 55%; animation-delay: 8s; animation-duration: 16s; width: 30px; height: 30px; }
+    .bg-bubbles li:nth-child(9) { left: 25%; animation-delay: 10s; animation-duration: 18s; width: 60px; height: 60px; }
+    .bg-bubbles li:nth-child(10) { left: 90%; animation-delay: 5s; width: 80px; height: 80px; }
+    body.dark {
+      background: var(--bg-dark);
+      color: var(--text-light);
+    }
+    body.dark .bg-bubbles li { background-color: rgba(51, 153, 255, 0.1); }
+    body.dark .container { background: var(--card-dark); box-shadow: 0 15px 45px rgba(255, 255, 255, 0.05); }
+    body.dark input, body.dark textarea, body.dark select {
+      background: #2b2b2b;
+      border-color: #444;
+      color: var(--text-light);
+    }
+    body.dark input:focus, body.dark textarea:focus, body.dark select:focus {
+      border-color: #3399ff;
+      box-shadow: 0 0 10px rgba(51, 153, 255, 0.6);
+    }
+    body.dark h1, body.dark h2 { color: #fff; }
+    
+    .nav-links {
+      margin: 15px 0;
+      width: 100%;
+      max-width: 95%;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 8px;
+      padding: 0 10px;
+      animation: slideDown 0.5s ease-out;
+    }
+    .nav-links a, .toggle-btn {
+      background: var(--primary);
+      color: white;
+      padding: 8px 16px;
+      border-radius: 25px;
+      font-weight: 600;
+      font-size: 0.9rem;
+      text-decoration: none;
+      box-shadow: 0 3px 10px rgba(0, 82, 204, 0.3);
+      transition: var(--transition);
+      border: none;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      flex: 1;
+      max-width: 160px;
+      text-align: center;
+      justify-content: center;
+    }
+    .nav-links a:hover, .toggle-btn:hover {
+      background: var(--primary-dark);
+      box-shadow: 0 5px 12px rgba(0, 61, 153, 0.5);
+      transform: translateY(-2px);
+    }
+    .nav-links a:active, .toggle-btn:active { transform: translateY(0); }
+    
+    .container {
+      background: var(--card-light);
+      margin: 20px auto 40px;
+      border-radius: 15px;
+      max-width: 95%;
+      width: 100%;
+      padding: 20px;
+      box-shadow: 0 15px 45px rgba(0, 0, 0, 0.1);
+      transition: var(--transition);
+      animation: fadeInUp 0.8s ease-out;
+      position: relative;
+      overflow: hidden;
+    }
+    .container::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 4px;
+      background: linear-gradient(90deg, var(--primary), var(--accent));
+      transform: translateX(-100%);
+      animation: slideIn 1s forwards 0.5s;
+    }
+    
+    h1 {
+      text-align: center;
+      color: var(--text);
+      font-weight: 700;
+      margin-bottom: 20px;
+      letter-spacing: 1px;
+      font-size: 1.8rem;
+      animation: fadeInUp 0.8s ease-out;
+      position: relative;
+      padding-bottom: 10px;
+    }
+    h1::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 80px;
+      height: 3px;
+      background: linear-gradient(90deg, var(--primary), var(--accent));
+      border-radius: 2px;
+    }
+    h2 {
+      color: var(--text);
+      font-weight: 600;
+      margin-bottom: 15px;
+      font-size: 1.4rem;
+      animation: fadeInUp 0.6s ease-out;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    
+    form {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 15px;
+    }
+    /* Grid layout for larger screens */
+    @media (min-width: 768px) {
+        form {
+            grid-template-columns: 1fr 1fr; /* Two columns */
+        }
+        .form-group.full-width, .form-actions {
+            grid-column: 1 / -1; /* Span full width */
+        }
+    }
+
+    label {
+      display: block;
+      font-weight: 600;
+      margin-bottom: 6px;
+      font-size: 0.9rem;
+      animation: fadeIn 0.6s ease-out;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    label i { color: var(--primary); }
+    
+    .form-group {
+      animation: fadeInUp 0.6s ease-out;
+      animation-fill-mode: both;
+    }
+    
+    input[type="text"], input[type="date"], input[type="file"], input[type="tel"], textarea, select {
+      width: 100%;
+      padding: 10px 14px;
+      border-radius: 8px;
+      border: 2px solid #ced6e0;
+      font-size: 0.9rem;
+      transition: var(--transition);
+      font-family: 'Montserrat', sans-serif;
+    }
+    input[type="text"]:focus, input[type="date"]:focus, input[type="file"]:focus, input[type="tel"]:focus, textarea:focus, select:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(0, 82, 204, 0.2);
+      transform: translateY(-2px);
+      outline: none;
+    }
+    input[type="text"]:hover, input[type="date"]:hover, input[type="file"]:hover, input[type="tel"]:hover, textarea:hover, select:hover {
+      border-color: #a0bcf8;
+    }
+    
+    .form-actions {
+      grid-column: 1 / -1;
+      text-align: center;
+      margin-top: 10px;
+      animation: fadeInUp 0.8s ease-out;
+      animation-delay: 0.6s;
+      animation-fill-mode: both;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      justify-content: center;
+    }
+    @media (min-width: 480px) {
+        .form-actions {
+            flex-direction: row;
+        }
+        button, .action-btn {
+            width: auto;
+            min-width: 160px;
+        }
+    }
+
+    button, .action-btn {
+      background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+      border: none;
+      border-radius: 25px;
+      color: white;
+      cursor: pointer;
+      font-weight: 700;
+      font-size: 1rem;
+      padding: 12px 30px;
+      box-shadow: 0 6px 15px rgba(0, 82, 204, 0.3);
+      transition: var(--transition);
+      position: relative;
+      overflow: hidden;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      justify-content: center;
+      text-decoration: none;
+    }
+    .btn-outline {
+        background: transparent;
+        border: 2px solid var(--primary);
+        color: var(--primary);
+        box-shadow: none;
+    }
+    body.dark .btn-outline {
+        border-color: #66b3ff;
+        color: #66b3ff;
+    }
+    .btn-outline:hover {
+        background: rgba(0, 82, 204, 0.1);
+        transform: translateY(-2px);
+        color: var(--primary-dark);
+    }
+    body.dark .btn-outline:hover {
+        background: rgba(102, 179, 255, 0.1);
+        color: #ffffff;
+    }
+
+    button::before, .action-btn::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+      transition: 0.5s;
+      transform: translateX(-100%);
+    }
+    button:hover::before, .action-btn:hover::before { transform: translateX(100%); }
+    button:hover {
+      background: linear-gradient(135deg, var(--primary-dark), #002966);
+      box-shadow: 0 8px 20px rgba(0, 61, 153, 0.5);
+      transform: translateY(-2px);
+    }
+    button:active, .action-btn:active { transform: translateY(0); }
+    
+    .preview-section {
+      text-align: center;
+      margin-top: 30px;
+      animation: fadeIn 1s ease-out;
+      border-top: 2px solid #eee;
+      padding-top: 20px;
+    }
+    body.dark .preview-section { border-top-color: #444; }
+
+    .preview-section h2 {
+      animation: fadeInUp 0.6s ease-out;
+      margin-bottom: 20px;
+      justify-content: center;
+    }
+    .preview-section img {
+      max-width: 100%;
+      width: 350px;
+      border-radius: 12px;
+      border: 4px solid #fff;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+      transition: var(--transition);
+      animation: fadeIn 0.8s ease-out;
+    }
+    body.dark .preview-section img { border-color: #333; }
+
+    .preview-section img:hover {
+      transform: scale(1.02);
+      box-shadow: 0 15px 40px rgba(0, 82, 204, 0.25);
+    }
+    
+    .notification {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      padding: 12px 20px;
+      border-radius: 10px;
+      color: white;
+      box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+      transform: translateX(120%);
+      transition: transform 0.4s cubic-bezier(0.68, -0.55, 0.27, 1.55);
+      z-index: 2000;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-weight: 500;
+      max-width: 350px;
+    }
+    .notification.show { transform: translateX(0); }
+    .notification.success { background: linear-gradient(135deg, #28a745, #20c997); }
+    .notification.error { background: linear-gradient(135deg, #dc3545, #f86b7d); }
+    
+    #securityOverlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(255,255,255,0.98);
+      backdrop-filter: blur(5px);
+      z-index: 9999;
+      display: none;
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
+      gap: 15px;
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: #d32f2f;
+      text-align: center;
+      padding: 20px;
+    }
+    body.dark #securityOverlay { background: rgba(18,18,18,0.98); }
+    #securityOverlay i { font-size: 3rem; margin-bottom: 10px; }
+
+    /* ================= DYNAMIC SECTION STYLING ================= */
+    #dynamic-fields-container {
+      grid-column: 1 / -1; /* Span full width of the parent grid */
+      background: rgba(0, 82, 204, 0.04); /* Subtle primary tint */
+      border: 2px dashed #a0bcf8; /* Dashed border to distinct it */
+      border-radius: 12px;
+      padding: 25px;
+      margin-top: 20px;
+      transition: var(--transition);
+    }
+    
+    body.dark #dynamic-fields-container {
+      background: rgba(255, 255, 255, 0.03);
+      border-color: #444;
+    }
+
+    .section-header {
+      width: 100%;
+      margin: 0 0 20px 0;
+      padding-bottom: 10px;
+      border-bottom: 2px solid rgba(0,0,0,0.1);
+      color: var(--primary);
+      font-weight: 700;
+      font-size: 1.1rem;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    
+    body.dark .section-header {
+      color: #66b3ff;
+      border-bottom-color: rgba(255,255,255,0.1);
+    }
+
+    /* Grid Layout for Dynamic Inputs */
+    .template-group {
+      display: grid;
+      gap: 20px;
+      grid-template-columns: 1fr; /* Default: 1 column (Mobile) */
+      width: 100%;
+      animation: fadeIn 0.5s ease-out;
+    }
+
+    /* Desktop View: 2 Columns */
+    @media (min-width: 768px) {
+      .template-group {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+
+    .empty-message {
+        grid-column: 1 / -1;
+        text-align: center;
+        padding: 20px;
+        color: #888;
+        font-style: italic;
+        background: rgba(0,0,0,0.02);
+        border-radius: 8px;
+    }
+    /* =========================================================== */
+
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes slideDown { from { opacity: 0; transform: translateY(-15px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes slideIn { from { transform: translateX(-100%); } to { transform: translateX(0); } }
+    @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.015); } 100% { transform: scale(1); } }
+    @keyframes shake { 0%, 100% { transform: translateX(0); } 10%, 30%, 50%, 70%, 90% { transform: translateX(-8px); } 20%, 40%, 60%, 80% { transform: translateX(8px); } }
+    @keyframes square { 0% { transform: translateY(0) rotate(0deg); opacity: 0.7; border-radius: 50%; } 100% { transform: translateY(-800px) rotate(720deg); opacity: 0; border-radius: 20%; } }
+    @keyframes float { 0% { transform: translateY(0) rotate(0deg); } 50% { transform: translateY(-8px) rotate(3deg); } 100% { transform: translateY(0) rotate(0deg); } }
+    .floating { animation: float 5s ease-in-out infinite; }
+    
+    @media (max-width: 768px) {
+      .container { padding: 15px; width: 95%; margin: 10px auto; }
+      h1 { font-size: 1.5rem; }
+      form { gap: 10px; display: flex; flex-direction: column; }
+      button, .action-btn { width: 100%; }
+    }
+  </style>
+</head>
+<body oncontextmenu="return false">
+  <div id="securityOverlay">
+      <i class="fas fa-shield-alt"></i>
+      <div>Screenshot Disabled</div>
+      <div style="font-size: 0.9rem; font-weight: 400; margin-top: 5px; color: #666;">This action is restricted for security.</div>
+  </div>
+  
+  <div class="notification" id="notification">
+    <i class="fas fa-info-circle"></i>
+    <span id="notification-text">Notification</span>
+  </div>
+
+  <ul class="bg-bubbles">
+    <li></li><li></li><li></li><li></li><li></li><li></li><li></li><li></li><li></li><li></li>
+  </ul>
+
+  <div class="nav-links">
+    <a href="/admin"><i class="fas fa-user-cog"></i>Admin Panel</a>
+    <button class="toggle-btn" id="themeToggle"><i class="fas fa-moon"></i>Toggle Theme</button>
+  </div>
+
+  <div class="container">
+    <h1 class="floating"><i class="fas fa-id-card"></i> <span id="form-title">Edit Your ID Card</span></h1>
+    
+    <form method="POST" enctype="multipart/form-data" id="idCardForm"
+       
+          action="{% if form_data and form_data['id'] %}{{ url_for('edit_student', student_id=form_data['id']) }}{% else %}#{% endif %}">
+      
+      <input type="hidden" name="student_id" id="student_id" value="{% if form_data and form_data['id'] %}{{ form_data['id'] }}{% else %}0{% endif %}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+      <div class="form-group full-width">
+        <label for="template_id"><i class="fas fa-file-alt"></i>School Template:</label>
+        <select id="template_id" name="template_id" required>
+          <option value="">-- Select Template --</option>
+          {% for template in templates %}
+            <option value="{{ template.id }}" {% if form_data and form_data['template_id'] == template.id %}selected{% endif %}>{{ template.school_name }}</option>
+          {% else %}
+            <option value="" disabled>No templates available</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="name"><i class="fas fa-user"></i>Full Name:</label>
+        <input id="name" type="text" name="name" value="{% if form_data and form_data['name'] %}{{ form_data['name'] }}{% else %}{% endif %}" required pattern="[A-Za-z\s]{2,50}" title="Name must be 2-50 characters, letters and spaces only" />
+      </div>
+
+      <div class="form-group">
+        <label for="father_name"><i class="fas fa-user-friends"></i>Father's Name:</label>
+        <input id="father_name" type="text" name="father_name" value="{% if form_data and form_data['father_name'] %}{{ form_data['father_name'] }}{% else %}{% endif %}" required pattern="[A-Za-z\s]{2,50}" title="Father's name must be 2-50 characters, letters and spaces only" />
+      </div>
+
+      <div class="form-group">
+        <label for="class_name"><i class="fas fa-graduation-cap"></i>Class:</label>
+        <input id="class_name" type="text" name="class_name" value="{% if form_data and form_data['class_name'] %}{{ form_data['class_name'] }}{% else %}{% endif %}" required pattern="[A-Za-z0-9\s]{1,20}" title="Class must be 1-20 characters" />
+      </div>
+
+      <div class="form-group">
+        <label for="dob"><i class="fas fa-calendar-alt"></i>Date of Birth:</label>
+        <input id="dob" type="date" name="dob" value="{% if form_data and form_data['dob'] %}{{ form_data['dob'] }}{% else %}{% endif %}" required />
+      </div>
+
+      <div class="form-group">
+        <label for="phone"><i class="fas fa-phone"></i>Phone Number:</label>
+        <input id="phone" type="tel" name="phone" value="{% if form_data and form_data['phone'] %}{{ form_data['phone'] }}{% else %}{% endif %}" required pattern="[0-9]{10}" title="Please enter a valid 10-digit phone number" />
+      </div>
+
+      <div class="form-group">
+        <label for="photo"><i class="fas fa-camera"></i>Update Photo:</label>
+        <input id="photo" type="file" name="photo" accept="image/*" />
+      </div>
+
+      <div class="form-group full-width">
+        <label for="address"><i class="fas fa-home"></i>Address:</label>
+        <textarea id="address" name="address" rows="2" required maxlength="200">{% if form_data and form_data['address'] %}{{ form_data['address'] }}{% else %}{% endif %}</textarea>
+      </div>
+
+      <div id="dynamic-fields-container">
+          <div class="section-header">
+              <i class="fas fa-sliders-h"></i> 
+              <span>School Specific Details</span>
+          </div>
+
+          {# Check if we have templates #}
+          {% if templates %}
+              {% for t in templates %}
+              <div class="template-group" 
+                   id="fields-template-{{ t.id }}" 
+                   data-template-id="{{ t.id }}"
+                   style="display: none;"> {% if t.fields %}
+                      {% for field in t.fields %}
+                      <div class="form-group">
+                          <label class="form-label">
+                              {{ field.field_label }}
+                              {% if field.is_required %}<span style="color:var(--accent); margin-left:4px;">*</span>{% endif %}
+                          </label>
+                          
+                          {% if field.field_type == 'select' %}
+                              <select name="{{ field.field_name }}" class="form-select" {% if field.is_required %}required{% endif %}>
+                                  <option value="">Select {{ field.field_label }}</option>
+                                  {% for option in field.field_options %}
+                                      <option value="{{ option }}" 
+                                          {% if form_data.custom_data and form_data.custom_data.get(field.field_name) == option %}selected{% endif %}>
+                                          {{ option }}
+                                      </option>
+                                  {% endfor %}
+                              </select>
+                          {% else %}
+                              <input type="{{ field.field_type }}" 
+                                     name="{{ field.field_name }}" 
+                                     class="form-control"
+                                     placeholder="Enter {{ field.field_label }}"
+                                     value="{{ form_data.custom_data.get(field.field_name, '') if form_data.custom_data else '' }}"
+                                     {% if field.is_required %}required{% endif %}>
+                          {% endif %}
+                      </div>
+                      {% endfor %}
+                  {% else %}
+                      <div class="empty-message">
+                          <i class="fas fa-info-circle"></i> No additional fields required for this school template.
+                      </div>
+                  {% endif %}
+              </div>
+              {% endfor %}
+          {% else %}
+              <div class="empty-message" style="color: var(--error-text);">
+                  Error: No templates loaded.
+              </div>
+          {% endif %}
+      </div>
+      <div class="form-actions">
+        <button type="submit" id="submit-btn"><i class="fas fa-save"></i> <span>Update ID Card</span></button>
+        <a href="{{ url_for('index') }}" class="action-btn btn-outline">
+            <i class="fas fa-times"></i> <span>Cancel</span>
+        </a>
+      </div>
+    </form>
+
+    {% if generated_url %}
+    <div class="preview-section" id="preview-section">
+      <h2><i class="fas fa-eye"></i> Updated ID Card Preview</h2>
+      <img src="{{ generated_url }}" alt="Updated ID Card" id="preview-image"
+           onerror="this.src='/static/placeholder.jpg'; this.alt='No preview available';" />
+    </div>
+    {% endif %}
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      // 1. Initial Setup
+      const dobInput = document.getElementById('dob');
+      if(dobInput) {
+          const today = new Date().toISOString().split('T')[0];
+          dobInput.setAttribute('max', today);
+      }
+      
+      // 2. Notifications Logic
+      const notification = document.getElementById('notification');
+      const notificationText = document.getElementById('notification-text');
+      const notificationIcon = notification.querySelector('i');
+
+      function showNotification(message, type = 'success') {
+        notificationText.textContent = message;
+        notification.className = `notification ${type} show`;
+        
+        if (type === 'success') {
+            notificationIcon.className = 'fas fa-check-circle';
+        } else {
+            notificationIcon.className = 'fas fa-exclamation-circle';
+        }
+
+        setTimeout(() => {
+          notification.classList.remove('show');
+        }, 4000);
+      }
+
+      // Check for server-side messages
+      {% if success and success != '' %}
+      showNotification('{{ success }}', 'success');
+      {% endif %}
+      
+      {% if error and error != '' %}
+      showNotification('{{ error }}', 'error');
+      {% endif %}
+      
+      // 3. Security (Disable Screenshot)
+      document.addEventListener('keyup', function (e) {
+        if (e.key === "PrintScreen") {
+          let overlay = document.getElementById('securityOverlay');
+          overlay.style.display = 'flex';
+          setTimeout(() => {
+            overlay.style.display = 'none';
+          }, 2000);
+        }
+      });
+      
+      document.addEventListener('keydown', function (e) {
+        if ((e.ctrlKey && (e.key.toLowerCase() === 's')) ||
+            (e.ctrlKey && e.shiftKey && (e.key.toLowerCase() === 's')) ||
+            (e.key === "PrintScreen")) {
+          e.preventDefault();
+          showNotification("Screenshots and saving are disabled.", "error");
+        }
+      });
+
+      // 4. Dynamic Field Switching Logic
+      const templateSelect = document.querySelector('select[name="template_id"]');
+      const dynamicContainer = document.getElementById('dynamic-fields-container');
+      
+      function updateFields() {
+          if (!templateSelect) return;
+          const selectedId = templateSelect.value;
+          
+          // 1. Hide ALL template groups
+          document.querySelectorAll('.template-group').forEach(el => {
+              el.style.display = 'none'; // Hide
+              // Disable inputs to prevent validation issues on hidden fields
+              el.querySelectorAll('input, select').forEach(input => input.disabled = true);
+          });
+          
+          // 2. Show ONLY the selected group
+          if (selectedId) {
+              const activeGroup = document.getElementById('fields-template-' + selectedId);
+              if (activeGroup) {
+                  // Simply set to 'grid' - CSS media queries handle columns (1 vs 2)
+                  activeGroup.style.display = 'grid'; 
+                  
+                  // Re-enable inputs
+                  activeGroup.querySelectorAll('input, select').forEach(input => input.disabled = false);
+                  
+                  // Show the container itself
+                  if(dynamicContainer) dynamicContainer.style.display = 'block';
+              } else {
+                  // Safe fallback if ID doesn't exist
+                  if(dynamicContainer) dynamicContainer.style.display = 'none';
+              }
+          }
+      }
+
+      if (templateSelect) {
+          templateSelect.addEventListener('change', updateFields);
+          // Trigger once on load to set initial state
+          updateFields();
+      }
+      
+      // 5. Theme Toggle
+      const toggleBtn = document.getElementById('themeToggle');
+      const themeIcon = toggleBtn.querySelector('i');
+      toggleBtn.addEventListener('click', () => {
+        document.body.classList.toggle('dark');
+        toggleBtn.innerHTML = document.body.classList.contains('dark')
+          ? '<i class="fas fa-sun"></i> Light Mode'
+          : '<i class="fas fa-moon"></i> Dark Mode';
+      });
+      
+      // 6. UI Animations
+      const buttons = document.querySelectorAll('button, .nav-links a, .download-btn');
+      buttons.forEach(button => {
+        button.addEventListener('mouseenter', function() {
+          this.style.transform = 'translateY(-2px)';
+        });
+        button.addEventListener('mouseleave', function() {
+          this.style.transform = 'translateY(0)';
+        });
+      });
+      
+      // Input Focus Effects
+      const inputs = document.querySelectorAll('input, textarea, select');
+      inputs.forEach(input => {
+        input.addEventListener('focus', function() {
+          this.parentElement.style.transform = 'translateY(-3px)';
+        });
+        input.addEventListener('blur', function() {
+          this.parentElement.style.transform = 'translateY(0)';
+        });
+      });
+    });
+  </script>
+</body>
+</html>

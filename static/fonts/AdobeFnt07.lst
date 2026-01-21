@@ -1,0 +1,82 @@
+%!Adobe-FontList 1.07
+
+%BeginFont
+Handler:DirectoryHandler
+FontType:TrueType
+FontName:AbbasiBalram
+FamilyName:Abbasi Balram
+StyleName:Regular
+FullName:Abbasi Balram
+WritingScript:Roman
+OutlineFileName:d:\All System Fonts\New Font\Abbasi font\ABBAB___.TTF
+DataFormat:sfntData
+FileLength:42260
+WeightClass:700
+WidthClass:5
+AngleClass:0
+%EndFont
+
+%BeginFont
+Handler:DirectoryHandler
+FontType:TrueType
+FontName:AbbasiMeghaDemiBold
+FamilyName:Abbasi Megha
+StyleName:DemiBold
+FullName:Abbasi Megha DemiBold
+WritingScript:Roman
+OutlineFileName:d:\All System Fonts\New Font\Abbasi font\ABBAMDB_.TTF
+DataFormat:sfntData
+FileLength:39204
+WeightClass:600
+WidthClass:5
+AngleClass:0
+%EndFont
+
+%BeginFont
+Handler:DirectoryHandler
+FontType:TrueType
+FontName:AbbasiManmeetNormal
+FamilyName:Abbasi Manmeet
+StyleName:Normal
+FullName:Abbasi Manmeet Normal
+WritingScript:Roman
+OutlineFileName:d:\All System Fonts\New Font\Abbasi font\ABBAMN__.TTF
+DataFormat:sfntData
+FileLength:44556
+WeightClass:400
+WidthClass:5
+AngleClass:0
+%EndFont
+
+%BeginFont
+Handler:DirectoryHandler
+FontType:TrueType
+FontName:Abbasi715Normal
+FamilyName:Abbasi 715
+StyleName:Normal
+FullName:Abbasi 715 Normal
+WritingScript:Roman
+OutlineFileName:d:\All System Fonts\New Font\Abbasi font\ABBAN__0.TTF
+DataFormat:sfntData
+FileLength:37780
+WeightClass:400
+WidthClass:5
+AngleClass:0
+%EndFont
+
+%BeginFont
+Handler:DirectoryHandler
+FontType:TrueType
+FontName:AbbasiShubhanjaliNormal
+FamilyName:Abbasi Shubhanjali
+StyleName:Normal
+FullName:Abbasi Shubhanjali Normal
+WritingScript:Roman
+OutlineFileName:d:\All System Fonts\New Font\Abbasi font\ABBASN__.TTF
+DataFormat:sfntData
+FileLength:42044
+WeightClass:400
+WidthClass:5
+AngleClass:0
+%EndFont
+

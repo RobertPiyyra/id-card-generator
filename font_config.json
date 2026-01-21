@@ -1,0 +1,15 @@
+{
+    "font_bold": "arialbd.ttf",
+    "font_regular": "A0012200.TTF",
+    "font_color": [
+        10,
+        32,
+        56
+    ],
+    "label_font_size": 36,
+    "value_font_size": 33,
+    "label_x": 50,
+    "value_x": 275,
+    "start_y": 275,
+    "line_height": 50
+}

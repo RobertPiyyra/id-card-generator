@@ -1,0 +1,63 @@
+# -------------------------
+# Python / Flask
+# -------------------------
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+ENV/
+id_venv/
+.venv/
+
+# -------------------------
+# Flask
+# -------------------------
+instance/
+*.log
+
+# -------------------------
+# IDE / Editors
+# -------------------------
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# -------------------------
+# OS files
+# -------------------------
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# -------------------------
+# Database
+# -------------------------
+*.sqlite3
+*.db
+
+# -------------------------
+# Generated files
+# -------------------------
+generated/
+output/
+exports/
+*.pdf
+*.png
+*.jpg
+*.jpeg
+
+# -------------------------
+# Uploads (photos)
+# -------------------------
+uploads/
+media/
+
+# -------------------------
+# Secrets
+# -------------------------
+.env
+.env.*

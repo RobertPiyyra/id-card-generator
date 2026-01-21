@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Bulk Upload Guide</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container mt-4">
+        <h1>📦 Bulk Upload Guide</h1>
+        
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5>📋 CSV Format Requirements</h5>
+            </div>
+            <div class="card-body">
+                <h6>Basic Columns (Required):</h6>
+                <table class="table table-bordered">
+                    <tr>
+                        <th>Column Name</th>
+                        <th>Description</th>
+                        <th>Required</th>
+                        <th>Example</th>
+                    </tr>
+                    <tr>
+                        <td><code>name</code></td>
+                        <td>Student's full name</td>
+                        <td>✅ Yes</td>
+                        <td>John Doe</td>
+                    </tr>
+                    <tr>
+                        <td><code>father_name</code></td>
+                        <td>Father's name</td>
+                        <td>❌ No</td>
+                        <td>Robert Doe</td>
+                    </tr>
+                    <tr>
+                        <td><code>class_name</code></td>
+                        <td>Class and section</td>
+                        <td>✅ Yes</td>
+                        <td>10-A</td>
+                    </tr>
+                    <tr>
+                        <td><code>dob</code></td>
+                        <td>Date of birth</td>
+                        <td>❌ No</td>
+                        <td>2005-01-15</td>
+                    </tr>
+                    <tr>
+                        <td><code>address</code></td>
+                        <td>Complete address</td>
+                        <td>❌ No</td>
+                        <td>123 Main Street, City</td>
+                    </tr>
+                    <tr>
+                        <td><code>phone</code></td>
+                        <td>Phone number</td>
+                        <td>❌ No</td>
+                        <td>9876543210</td>
+                    </tr>
+                    <tr>
+                        <td><code>photo_path</code></td>
+                        <td>Path to photo file</td>
+                        <td>❌ No</td>
+                        <td>photos/john.jpg</td>
+                    </tr>
+                </table>
+                
+                <h6 class="mt-4">Dynamic Columns:</h6>
+                <p>Additional columns are added based on the template's dynamic fields.</p>
+                <p>Column names should match the field names defined in the template.</p>
+                
+                <h6 class="mt-4">📁 Photo File Organization:</h6>
+                <pre>
+project/
+├── app.py
+├── static/
+│   ├── Uploads/
+│   └── photos/          ← Put all student photos here
+│       ├── john.jpg
+│       ├── jane.jpg
+│       └── ...
+└── bulk_data.csv        ← CSV with photo_path: "photos/john.jpg"
+                </pre>
+            </div>
+        </div>
+        
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5>📊 Sample CSV File</h5>
+            </div>
+            <div class="card-body">
+                <pre>
+name,father_name,class_name,dob,address,phone,photo_path,blood_group,hobbies,emergency_contact
+John Doe,Robert Doe,10-A,2005-01-15,123 Main Street,9876543210,photos/john.jpg,O+,Reading,1234567890
+Jane Smith,William Smith,11-B,2004-05-20,456 Oak Ave,9876543211,photos/jane.jpg,A+,Sports,1234567891
+                </pre>
+                <p><strong>Note:</strong> The columns <code>blood_group</code>, <code>hobbies</code>, and <code>emergency_contact</code> are dynamic fields that would be defined in the template.</p>
+            </div>
+        </div>
+        
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5>🎯 Tips for Successful Bulk Upload</h5>
+            </div>
+            <div class="card-body">
+                <ol>
+                    <li><strong>Check template first:</strong> Preview the template format to see required dynamic fields</li>
+                    <li><strong>Use correct column names:</strong> Column names must match exactly (case-insensitive)</li>
+                    <li><strong>Prepare photos in advance:</strong> Collect all photos in one folder</li>
+                    <li><strong>Use relative paths:</strong> Photo paths should be relative to your project root</li>
+                    <li><strong>Check for duplicates:</strong> Use the "Check for Duplicates" button before processing</li>
+                    <li><strong>Start with a small test:</strong> Test with 2-3 rows first to ensure everything works</li>
+                </ol>
+            </div>
+        </div>
+        
+        <div class="mt-4">
+            <a href="/admin" class="btn btn-primary">← Back to Admin</a>
+            <a href="/admin" class="btn btn-success">Try Bulk Upload</a>
+        </div>
+    </div>
+</body>
+</html>
