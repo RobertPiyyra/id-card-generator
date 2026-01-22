@@ -37,7 +37,7 @@ from qrcode.image.styles.moduledrawers import SquareModuleDrawer, RoundedModuleD
 from sqlalchemy import text, inspect
 import cv2
 import numpy as np
-import mediapipe as mp
+from mediapipe.python.solutions import face_detection
 from corel_routes import corel_bp
 from editor_routes import editor_bp
 from utils import (
@@ -658,11 +658,11 @@ def check_duplicate_student(form_data, photo_filename=None, student_id=None):
         logger.error(f"Error checking duplicates: {e}")
         return True, f"Database error: {str(e)}"
     
-# MediaPipe Face Detection (initialized globally for efficiency)
-mp_face = mp.solutions.face_detection
-face_detector = mp_face.FaceDetection(
-    model_selection=1,  # Full-range model (excellent for distant/small faces)
-    min_detection_confidence=0.6  # Slightly higher for reliability
+
+
+face_detector = face_detection.FaceDetection(
+    model_selection=1,
+    min_detection_confidence=0.6
 )
 
 
