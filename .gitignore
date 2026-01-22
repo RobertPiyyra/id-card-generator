@@ -37,7 +37,7 @@ desktop.ini
 # Database
 # -------------------------
 *.sqlite3
-*.db
+
 
 # -------------------------
 # Generated files
