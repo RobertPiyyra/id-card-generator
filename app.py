@@ -682,40 +682,41 @@ def auto_crop_face_photo(photo_path, target_width=260, target_height=313, remove
         pil_img = pil_img.convert("RGB")
         
         # ============================================================
-        # NEW: AI BACKGROUND REMOVAL
+        # FIXED: AI BACKGROUND REMOVAL (NO EXTRA SPACE)
         # ============================================================
         if remove_background and remove_bg:
             try:
                 logger.info("Starting AI background removal...")
         
-                # Always send PNG to rembg
+                # Convert to PNG for rembg
                 buf = io.BytesIO()
                 pil_img.save(buf, format="PNG")
                 input_bytes = buf.getvalue()
         
                 # Run rembg
                 output_bytes = remove_bg(input_bytes)
-                pil_img = Image.open(io.BytesIO(output_bytes)).convert("RGBA")
+                fg = Image.open(io.BytesIO(output_bytes)).convert("RGBA")
         
-                # 🔴 FIX 1: Trim transparent margins
-                pil_img = trim_transparent_edges(pil_img)
-        
-                # 🔴 FIX 2: Only now apply background color
+                # 🔒 IMPORTANT FIX:
+                # Keep ORIGINAL image size to avoid gaps
                 bg_rgb = tuple(int(bg_color[i:i+2], 16) for i in (1, 3, 5))
                 bg_layer = Image.new("RGB", pil_img.size, bg_rgb)
-                bg_layer.paste(pil_img, (0, 0), pil_img)
         
+                # Center the foreground on original canvas
+                fg_w, fg_h = fg.size
+                bg_w, bg_h = bg_layer.size
+                offset = ((bg_w - fg_w) // 2, (bg_h - fg_h) // 2)
+        
+                bg_layer.paste(fg, offset, fg)
                 pil_img = bg_layer
         
-                logger.info("Background removed and trimmed successfully")
+                logger.info("Background removed without canvas shrink")
         
             except Exception as e:
                 logger.error(f"Background removal failed: {e}")
                 pil_img = ImageOps.exif_transpose(Image.open(photo_path).convert("RGB"))
-        
-        else:
-            pil_img = pil_img.convert("RGB")
         # ============================================================
+
 
 
         img_np = np.array(pil_img)
@@ -745,7 +746,7 @@ def auto_crop_face_photo(photo_path, target_width=260, target_height=313, remove
         
         # Face Center Y: 58% down from top (Leaves space above for hat)
         # 0.50 = Center, 0.60 = Lower down
-        face_center_y_ratio = 0.50
+        face_center_y_ratio = 0.51
         # ============================================================
 
         # 4. Calculate the Perfect Portrait Crop Box
