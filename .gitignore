@@ -39,6 +39,16 @@ desktop.ini
 *.sqlite3
 
 
+# -------------------------
+# Generated files
+# -------------------------
+generated/
+output/
+exports/
+*.pdf
+*.png
+*.jpg
+*.jpeg
 
 # -------------------------
 # Uploads (photos)
@@ -53,5 +63,14 @@ media/
 .env.*
 
 # ---- RUNTIME / LARGE FILES ----
-
+static/uploads/
+static/generated/
+generated/
+output/
+exports/
 logs/
+*.pdf
+*.jpg
+*.jpeg
+*.png
+*.zip
