@@ -1,64 +1,44 @@
-# -------------------------
-# Core Python
-# -------------------------
+# Core
 numpy==1.26.4
-pandas==3.0.0
+pandas==2.1.4
 python-dateutil==2.9.0.post0
 
-# -------------------------
-# Flask stack
-# -------------------------
+# Flask
 Flask==2.3.3
 Werkzeug==3.0.4
 Flask-Login==0.6.3
 Flask-WTF==1.2.1
 Flask-Limiter==4.1.1
 Flask-Talisman==1.1.0
-itsdangerous==2.2.0
 email-validator==2.1.1
 gunicorn==21.2.0
 python-dotenv==1.2.1
+itsdangerous==2.2.0
 
-# -------------------------
-# Database / ORM
-# -------------------------
-SQLAlchemy==2.0.46
+# DB
+SQLAlchemy==2.0.29
 flask_sqlalchemy==3.1.1
 
-# -------------------------
-# Image / CV / ML
-# -------------------------
+# Image / ML (CRITICAL FIX)
 Pillow==10.4.0
 opencv-python-headless==4.11.0.86
-mediapipe==0.10.15
-rembg==2.0.55
-onnxruntime==1.15.1
+mediapipe==0.10.32
+onnxruntime==1.16.3
+rembg==2.0.72
 
-
-
-# -------------------------
-# PDF / Vector
-# -------------------------
+# PDF
 PyMuPDF==1.26.4
 reportlab==4.4.6
 
-# -------------------------
-# QR Code
-# -------------------------
-qrcode[pil]==8.2
+# QR
+qrcode[pil]==7.4.2
 
-# -------------------------
 # Excel
-# -------------------------
 openpyxl==3.1.2
 
-# -------------------------
 # Security
-# -------------------------
 cryptography==43.0.1
 
-# -------------------------
-# Arabic text shaping
-# -------------------------
+# Arabic
 arabic-reshaper==3.0.0
 python-bidi==0.4.2
