@@ -1,3 +1,6 @@
+from dotenv import load_dotenv
+load_dotenv()  # Load environment variables BEFORE any other imports
+
 from flask import Flask, render_template, request, url_for, Response, redirect, session, send_file, jsonify, flash, Blueprint
 from PIL import Image, ImageDraw, ImageFont,ImageOps
 import os
@@ -22,7 +25,6 @@ import io
 from io import BytesIO
 import base64
 import uuid
-from dotenv import load_dotenv
 from concurrent.futures import ThreadPoolExecutor
 import time
 from flask_wtf.csrf import CSRFProtect 
@@ -75,8 +77,6 @@ except ImportError:
     remove_bg = None
     print("Warning: 'rembg' library not installed. Background removal features will be disabled.")
 
-
-load_dotenv()
 
 # ================== App Config ==================
 app = Flask(__name__)

@@ -11,15 +11,25 @@ import cloudinary.uploader
 logger = logging.getLogger(__name__)
 
 # ================== Cloudinary Config ==================
+# Get credentials from environment variables (set by .env or Railway)
+cloud_name = os.getenv("CLOUDINARY_CLOUD_NAME")
+api_key = os.getenv("CLOUDINARY_API_KEY")
+api_secret = os.getenv("CLOUDINARY_API_SECRET")
+
+# Configure Cloudinary
 cloudinary.config(
-    cloud_name=os.getenv("CLOUDINARY_CLOUD_NAME"),
-    api_key=os.getenv("CLOUDINARY_API_KEY"),
-    api_secret=os.getenv("CLOUDINARY_API_SECRET")
+    cloud_name=cloud_name,
+    api_key=api_key,
+    api_secret=api_secret
 )
 
 # Verify configuration is loaded
-if not cloudinary.config().cloud_name:
-    logger.warning("⚠️ Cloudinary not configured! Check CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET in .env")
+if not cloud_name or not api_key or not api_secret:
+    logger.error("🚨 CRITICAL: Cloudinary credentials not found in environment!")
+    logger.error(f"  CLOUDINARY_CLOUD_NAME: {'✓' if cloud_name else '❌ MISSING'}")
+    logger.error(f"  CLOUDINARY_API_KEY: {'✓' if api_key else '❌ MISSING'}")
+    logger.error(f"  CLOUDINARY_API_SECRET: {'✓' if api_secret else '❌ MISSING'}")
+    logger.error("Set these in .env or Railway environment variables!")
 
 
 def upload_image(file_bytes, folder='generated', resource_type='image', format=None):
