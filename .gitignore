@@ -47,8 +47,7 @@ output/
 exports/
 *.pdf
 *.png
-*.jpg
-*.jpeg
+
 
 # -------------------------
 # Uploads (photos)
