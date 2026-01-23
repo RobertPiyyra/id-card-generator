@@ -1,76 +1,70 @@
-# -------------------------
-# Python / Flask
-# -------------------------
+# =========================
+# Python
+# =========================
 __pycache__/
 *.py[cod]
 *.pyo
 *.pyd
 .Python
+
+# =========================
+# Virtual Environments
+# =========================
 env/
 venv/
 ENV/
-id_venv/
 .venv/
+id_venv/
 
-# -------------------------
+# =========================
 # Flask
-# -------------------------
+# =========================
 instance/
 *.log
+logs/
 
-# -------------------------
+# =========================
 # IDE / Editors
-# -------------------------
+# =========================
 .vscode/
 .idea/
 *.sublime-project
 *.sublime-workspace
 
-# -------------------------
-# OS files
-# -------------------------
+# =========================
+# OS Files
+# =========================
 .DS_Store
 Thumbs.db
 desktop.ini
 
-# -------------------------
+# =========================
 # Database
-# -------------------------
+# =========================
 *.sqlite3
 
-
-# -------------------------
-# Generated files
-# -------------------------
+# =========================
+# Generated / Runtime Files
+# =========================
 generated/
 output/
 exports/
-*.pdf
-*.png
-*.jpg
-*.jpeg
-
-# -------------------------
-# Uploads (photos)
-# -------------------------
+static/generated/
+static/uploads/
 uploads/
 media/
 
-# -------------------------
-# Secrets
-# -------------------------
-.env
-.env.*
-
-# ---- RUNTIME / LARGE FILES ----
-static/uploads/
-static/generated/
-generated/
-output/
-exports/
-logs/
+# =========================
+# Documents & Images (generated only)
+# =========================
 *.pdf
+*.png
 *.jpg
 *.jpeg
-*.png
 *.zip
+
+# =========================
+# Secrets
+# =========================
+.env
+.env.*
