@@ -2427,13 +2427,17 @@ def edit_student(student_id):
             'custom_data': student.custom_data or {} # <--- CRITICAL: Send existing custom data to frontend
         }
         
-        preview_filename = student.generated_filename.replace(".pdf", ".jpg") if student.generated_filename else None
-        preview_path = os.path.join(GENERATED_FOLDER, preview_filename) if preview_filename else None
-        if preview_path and os.path.exists(preview_path):
+        # Use Cloudinary URLs if available
+        if student.image_url:
+            generated_url = student.image_url
+        elif student.generated_filename:
+            # Fallback to legacy local filename
+            preview_filename = student.generated_filename.replace(".pdf", ".jpg")
             generated_url = url_for('static', filename=f'generated/{preview_filename}')
         else:
             generated_url = url_for('static', filename='placeholder.jpg')
-        download_url = url_for('static', filename=f'generated/{student.generated_filename}') if student.generated_filename else None
+        
+        download_url = student.pdf_url if student.pdf_url else None
     
     except Exception as e:
         error = f"Error fetching student data: {str(e)}"
@@ -3070,21 +3074,23 @@ def download_compiled_school_pdf(template_id):
         card_count = 0
 
         for student in students:
-            if not student.generated_filename: continue
+            # Use Cloudinary URL if available, otherwise skip (legacy files no longer exist)
+            if not student.image_url: 
+                continue
             
-            # --- FIX: FORCE JPG EXTENSION ---
-            base_filename = student.generated_filename
-            if base_filename.lower().endswith('.pdf'):
-                img_filename = base_filename.rsplit('.', 1)[0] + '.jpg'
-            else:
-                img_filename = base_filename
-
-            img_path = os.path.join(GENERATED_FOLDER, img_filename)
-            
-            if not os.path.exists(img_path): 
-                print(f"Skipping card {student.id}: Image not found at {img_path}")
+            # Fetch image from Cloudinary URL
+            try:
+                response = requests.get(student.image_url, timeout=10)
+                img = Image.open(io.BytesIO(response.content))
+            except Exception as e:
+                logger.warning(f"Failed to fetch image for student {student.id} from Cloudinary: {e}")
                 continue
 
+            # Save image to BytesIO for ReportLab
+            img_buffer = io.BytesIO()
+            img.save(img_buffer, format="PNG")
+            img_buffer.seek(0)
+            
             # Grid Position
             idx = card_count % cards_per_sheet
             col = idx % cols
@@ -3100,9 +3106,11 @@ def download_compiled_school_pdf(template_id):
             y = grid_top_y - ((row + 1) * card_h_pt) - (row * gap)
 
             try:
-                c.drawImage(img_path, x, y, width=card_w_pt, height=card_h_pt)
+                from reportlab.platypus import Image as RLImage
+                rl_img = RLImage(img_buffer, width=card_w_pt, height=card_h_pt)
+                c.drawImage(img_buffer, x, y, width=card_w_pt, height=card_h_pt)
             except Exception as e:
-                print(f"Error drawing card {student.id} ({img_filename}): {e}")
+                print(f"Error drawing card {student.id}: {e}")
 
             card_count += 1
             
