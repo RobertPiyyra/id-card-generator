@@ -35,7 +35,7 @@ from itsdangerous import URLSafeTimedSerializer, SignatureExpired, BadTimeSignat
 from qrcode.image.pil import PilImage
 from qrcode.image.styles.moduledrawers import SquareModuleDrawer, RoundedModuleDrawer, CircleModuleDrawer
 from sqlalchemy import text, inspect
-import cv2
+
 import numpy as np
 from corel_routes import corel_bp
 from editor_routes import editor_bp
@@ -682,6 +682,7 @@ def auto_crop_face_photo(photo_path, target_width=260, target_height=313, remove
     5. Adds white padding if needed (never stretches/distorts).
     """
     try:
+        import cv2
         # 1. Load Image & Fix Orientation (Critical for mobile photos)
         pil_img = Image.open(photo_path)
         pil_img = ImageOps.exif_transpose(pil_img) # <--- FIXES LANDSCAPE/ROTION ISSUES
