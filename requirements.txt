@@ -26,13 +26,14 @@ SQLAlchemy==2.0.46
 flask_sqlalchemy==3.1.1
 
 # -------------------------
-# Image / CV / ML (CRITICAL FIXES)
+# Image / CV / ML
 # -------------------------
 Pillow==10.4.0
 opencv-python-headless==4.11.0.86
 mediapipe==0.10.32
 rembg==2.0.72
 onnxruntime==1.16.3
+
 
 # -------------------------
 # PDF / Vector
