@@ -4599,8 +4599,8 @@ def background_bulk_generate(task_id, template_id, excel_path, photo_map):
                         
                         ph = ph.resize((photo_settings["photo_width"], photo_settings["photo_height"]))
                         radii = [photo_settings.get(f"photo_border_{k}", 0) for k in ["top_left", "top_right", "bottom_right", "bottom_left"]]
-                            ph = round_photo(ph, radii)
-                            template_img.paste(ph, (photo_settings["photo_x"], photo_settings["photo_y"]), ph)
+                        ph = round_photo(ph, radii)
+                        template_img.paste(ph, (photo_settings["photo_x"], photo_settings["photo_y"]), ph)
                     except: pass
 
                     # Generate QR
