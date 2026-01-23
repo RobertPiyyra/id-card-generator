@@ -50,6 +50,7 @@ from utils import (
     get_available_fonts, load_font_dynamic, generate_qr_code, generate_data_hash,process_text_for_drawing
     ,trim_transparent_edges
 )
+from cloudinary_config import upload_image
 from models import db, Student, Template, TemplateField,ActivityLog
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
@@ -840,6 +841,95 @@ def _fallback_center_crop(pil_img, save_path, target_w, target_h):
     final = crop.resize((target_w, target_h), Image.Resampling.LANCZOS)
     final.save(save_path, "JPEG", quality=95)
     return True
+
+
+def _process_photo_pil(pil_img, target_width=260, target_height=313, remove_background=False, bg_color="#ffffff"):
+    """
+    Process a PIL Image in-memory (no file I/O).
+    Crops and optionally removes background.
+    Returns processed PIL Image.
+    """
+    try:
+        import cv2
+        
+        # Ensure RGB
+        if pil_img.mode != 'RGB':
+            pil_img = pil_img.convert("RGB")
+        
+        # Background removal (if enabled)
+        if remove_background and remove_bg:
+            try:
+                logger.info("Processing AI background removal...")
+                buf = io.BytesIO()
+                pil_img.save(buf, format="PNG")
+                output_bytes = remove_bg(buf.getvalue())
+                fg = Image.open(io.BytesIO(output_bytes)).convert("RGBA")
+                
+                bg_rgb = tuple(int(bg_color[i:i+2], 16) for i in (1, 3, 5))
+                bg_layer = Image.new("RGB", pil_img.size, bg_rgb)
+                fg_w, fg_h = fg.size
+                bg_w, bg_h = bg_layer.size
+                offset = ((bg_w - fg_w) // 2, (bg_h - fg_h) // 2)
+                bg_layer.paste(fg, offset, fg)
+                pil_img = bg_layer
+            except Exception as e:
+                logger.warning(f"Background removal failed, continuing: {e}")
+        
+        # Face detection and crop
+        if face_detector:
+            img_np = np.array(pil_img)
+            h_orig, w_orig, _ = img_np.shape
+            results = face_detector.process(img_np)
+            
+            if results.detections:
+                detection = max(results.detections, key=lambda d: d.score[0])
+                box = detection.location_data.relative_bounding_box
+                
+                face_w = int(box.width * w_orig)
+                face_h = int(box.height * h_orig)
+                face_cx = int((box.xmin + box.width / 2) * w_orig)
+                face_cy = int((box.ymin + box.height / 2) * h_orig)
+                
+                # Calculate crop
+                face_to_image_ratio = 0.45
+                face_center_y_ratio = 0.51
+                crop_h = int(face_h / face_to_image_ratio)
+                target_aspect = target_width / target_height
+                crop_w = int(crop_h * target_aspect)
+                
+                x1 = face_cx - (crop_w // 2)
+                x2 = x1 + crop_w
+                y1 = face_cy - int(crop_h * face_center_y_ratio)
+                y2 = y1 + crop_h
+                
+                # Handle out-of-bounds with padding
+                pad_l = max(0, -x1)
+                pad_t = max(0, -y1)
+                pad_r = max(0, x2 - w_orig)
+                pad_b = max(0, y2 - h_orig)
+                
+                if any([pad_l, pad_t, pad_r, pad_b]):
+                    img_np = cv2.copyMakeBorder(
+                        img_np, pad_t, pad_b, pad_l, pad_r,
+                        cv2.BORDER_CONSTANT, value=(255, 255, 255)
+                    )
+                    x1 += pad_l
+                    y1 += pad_t
+                    x2 += pad_l
+                    y2 += pad_t
+                
+                # Crop
+                crop_img = img_np[y1:y2, x1:x2]
+                if crop_img.size > 0:
+                    final_pil = Image.fromarray(crop_img)
+                    pil_img = final_pil.resize((target_width, target_height), Image.Resampling.LANCZOS)
+        
+        return pil_img
+    
+    except Exception as e:
+        logger.warning(f"Photo processing failed: {e}, returning original")
+        return pil_img
+
           
 def send_email(to, subject, body):
     msg = MIMEText(body)
@@ -1227,9 +1317,12 @@ def admin_student_preview(student_id):
         if not student:
             return jsonify({"success": False, "error": "Student not found"}), 404
         
-        # Get preview image URL
+        # Get preview image URL (use Cloudinary URLs if present)
         preview_url = None
-        if student.generated_filename:
+        if getattr(student, 'image_url', None):
+            preview_url = student.image_url
+        elif getattr(student, 'generated_filename', None):
+            # Legacy fallback to local file
             preview_filename = student.generated_filename.replace('.pdf', '.jpg')
             preview_path = os.path.join(GENERATED_FOLDER, preview_filename)
             if os.path.exists(preview_path):
@@ -1350,24 +1443,38 @@ def generate_student_preview(student_id):
                 draw.text((label_x, y), f"{label}:", font=label_font, fill=label_font_color)
                 draw.text((value_x, y), value, font=value_font, fill=value_font_color)
             
-            # Add photo
-            if student.photo_filename:
-                photo_path = os.path.join(UPLOAD_FOLDER, student.photo_filename)
-                if os.path.exists(photo_path):
+            # Add photo (Cloudinary URL preferred, fallback to legacy local filename)
+            try:
+                photo_stream = None
+                if getattr(student, 'photo_url', None):
+                    # Fetch remote image bytes
+                    import requests
+                    resp = requests.get(student.photo_url, timeout=8)
+                    if resp.status_code == 200:
+                        photo_stream = BytesIO(resp.content)
+                elif getattr(student, 'photo_filename', None):
+                    local_path = os.path.join(UPLOAD_FOLDER, student.photo_filename)
+                    if os.path.exists(local_path):
+                        photo_stream = open(local_path, 'rb')
+
+                if photo_stream:
+                    photo_img = Image.open(photo_stream).convert("RGBA").resize(
+                        (photo_settings["photo_width"], photo_settings["photo_height"])
+                    )
+                    radii = [
+                        photo_settings.get("photo_border_top_left", 0),
+                        photo_settings.get("photo_border_top_right", 0),
+                        photo_settings.get("photo_border_bottom_right", 0),
+                        photo_settings.get("photo_border_bottom_left", 0)
+                    ]
+                    photo_img = round_photo(photo_img, radii)
+                    template_img.paste(photo_img, (photo_settings["photo_x"], photo_settings["photo_y"]), photo_img)
                     try:
-                        photo_img = Image.open(photo_path).convert("RGBA").resize(
-                            (photo_settings["photo_width"], photo_settings["photo_height"])
-                        )
-                        radii = [
-                            photo_settings.get("photo_border_top_left", 0),
-                            photo_settings.get("photo_border_top_right", 0),
-                            photo_settings.get("photo_border_bottom_right", 0),
-                            photo_settings.get("photo_border_bottom_left", 0)
-                        ]
-                        photo_img = round_photo(photo_img, radii)
-                        template_img.paste(photo_img, (photo_settings["photo_x"], photo_settings["photo_y"]), photo_img)
-                    except Exception as e:
-                        logger.error(f"Error adding photo to preview: {e}")
+                        if not isinstance(photo_stream, BytesIO):
+                            photo_stream.close()
+                    except: pass
+            except Exception as e:
+                logger.error(f"Error adding photo to preview: {e}")
             
             # Add QR Code if enabled
             if qr_settings.get("enable_qr", False):
@@ -1400,18 +1507,19 @@ def generate_student_preview(student_id):
                 qr_img = qr_img.resize((qr_size, qr_size))
                 template_img.paste(qr_img, (qr_x, qr_y))
             
-            # Save preview
-            preview_filename = f"preview_{student_id}_{datetime.now().strftime('%Y%m%d%H%M%S')}.jpg"
-            preview_path = os.path.join(GENERATED_FOLDER, preview_filename)
-            template_img.save(preview_path, "JPEG", quality=95)
-            
-            preview_url = url_for('static', filename=f'generated/{preview_filename}')
-            
-            return jsonify({
-                "success": True,
-                "preview_url": preview_url,
-                "message": "Preview generated successfully"
-            })
+            # Save preview to Cloudinary (in-memory)
+            buf = BytesIO()
+            template_img.save(buf, format='JPEG', quality=95)
+            buf.seek(0)
+            img_bytes = buf.getvalue()
+            try:
+                uploaded = upload_image(img_bytes, folder='generated')
+                preview_url = uploaded if isinstance(uploaded, str) else uploaded.get('url')
+            except Exception as e:
+                logger.error(f"Cloudinary upload failed: {e}")
+                return jsonify({"success": False, "error": "Failed to upload preview"}), 500
+
+            return jsonify({"success": True, "preview_url": preview_url, "message": "Preview generated successfully"})
             
         except Exception as e:
             logger.error(f"Error generating preview: {e}")
@@ -1434,14 +1542,16 @@ def test_preview():
         draw.text((100, 100), "Preview Test - Working!", fill="black")
         draw.text((100, 150), f"Time: {datetime.now()}", fill="black")
       
-        test_path = os.path.join(GENERATED_FOLDER, "test_preview.jpg")
-        test_img.save(test_path, "JPEG", quality=95)
-      
-        return jsonify({
-            "success": True,
-            "message": "Preview test completed",
-            "test_image": url_for("static", filename="generated/test_preview.jpg")
-        })
+        buf = BytesIO()
+        test_img.save(buf, format='JPEG', quality=95)
+        buf.seek(0)
+        try:
+            uploaded = upload_image(buf.getvalue(), folder='generated')
+            test_url = uploaded if isinstance(uploaded, str) else uploaded.get('url')
+        except Exception as e:
+            return jsonify({"success": False, "error": f"Upload failed: {e}"}), 500
+
+        return jsonify({"success": True, "message": "Preview test completed", "test_image": test_url})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -1454,16 +1564,21 @@ def download_student_pdf(student_id):
     try:
         student = db.session.get(Student, student_id)
         
-        if not student or not student.generated_filename:
+        # Prefer remote PDF URL stored on student.pdf_url
+        if not student:
             return jsonify({"success": False, "error": "PDF not found"}), 404
-        
-        pdf_filename = student.generated_filename
-        pdf_path = os.path.join(GENERATED_FOLDER, pdf_filename)
-        
-        if not os.path.exists(pdf_path):
-            return jsonify({"success": False, "error": "PDF file not found"}), 404
-        
-        return send_file(pdf_path, as_attachment=True, download_name=pdf_filename)
+
+        if getattr(student, 'pdf_url', None):
+            return redirect(student.pdf_url)
+
+        # Legacy fallback: serve local file
+        if getattr(student, 'generated_filename', None):
+            pdf_filename = student.generated_filename
+            pdf_path = os.path.join(GENERATED_FOLDER, pdf_filename)
+            if os.path.exists(pdf_path):
+                return send_file(pdf_path, as_attachment=True, download_name=pdf_filename)
+
+        return jsonify({"success": False, "error": "PDF file not found"}), 404
         
     except Exception as e:
         logger.error(f"Error downloading student PDF: {e}")
@@ -1785,27 +1900,52 @@ def index():
                                            form_data=form_data, selected_template_id=template_id,
                                            deadline_info=deadline_info), 400 # Added deadline_info
 
-            # Handle Photo
+            # Handle Photo (upload to Cloudinary)
             photo_stored = None
+            photo_url = None
             if 'photo' in request.files and request.files['photo'].filename:
                 photo = request.files['photo']
                 photo_fn = secure_filename(photo.filename)
                 timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-                photo_stored = f"{timestamp}_{photo_fn}"
-                photo_path = os.path.join(UPLOAD_FOLDER, photo_stored)
-                photo.save(photo_path)
-                try: 
+                
+                # Convert to bytes and crop
+                photo_bytes = io.BytesIO()
+                photo.save(photo_bytes)
+                photo_bytes.seek(0)
+                
+                # Auto-crop using PIL
+                try:
+                    pil_img = Image.open(photo_bytes)
+                    photo_bytes = io.BytesIO()
+                    pil_img.save(photo_bytes, format='JPEG')
+                    photo_bytes.seek(0)
+                    
                     bg_color = photo_settings.get("bg_remove_color", "#ffffff")
-                    remove_bg_flag = photo_settings.get("remove_background", False)  # if you have this checkbox saved
-                    auto_crop_face_photo(
-                        photo_path,
-                        target_width=photo_settings.get("photo_width", 260),
-                        target_height=photo_settings.get("photo_height", 313),
-                        remove_background=remove_bg_flag,
-                        bg_color=bg_color
-                    )
-                except: pass
+                    remove_bg_flag = photo_settings.get("remove_background", False)
+                    # Note: auto_crop_face_photo expects file path; we'll skip it for Cloudinary flow
+                except: 
+                    photo_bytes.seek(0)
+                
+                # Upload to Cloudinary
+                try:
+                    uploaded = upload_image(photo_bytes.getvalue(), folder='photos')
+                    photo_url = uploaded if isinstance(uploaded, str) else uploaded.get('url')
+                except Exception as e:
+                    logger.error(f"Failed to upload photo to Cloudinary: {e}")
+                    photo_url = None
+                
+                if not photo_url:
+                    return render_template("index.html", error="Failed to upload photo. Please try again.", 
+                                           templates=templates, form_data=request.form, 
+                                           selected_template_id=template_id, deadline_info=deadline_info), 500
+                
+                photo_stored = f"{timestamp}_{photo_fn}"
+            elif request.form.get('photo_url'):
+                # Support existing photo_url from previous generation
+                photo_url = request.form.get('photo_url')
+                photo_stored = photo_url  # Store URL identifier
             elif request.form.get('photo_filename'):
+                # Legacy local filename
                 photo_stored = request.form.get('photo_filename')
             else:
                 raise ValueError("Photo is required")
@@ -1985,14 +2125,27 @@ def index():
                         draw.text((value_x, current_y), display_val, font=v_font, fill=V_COLOR)
                         current_y += line_height
 
-            # Photo & QR
+            # Photo & QR (fetch remote photo if needed)
             try:
-                ph = Image.open(os.path.join(UPLOAD_FOLDER, photo_stored)).convert("RGBA")
-                ph = ph.resize((photo_settings["photo_width"], photo_settings["photo_height"]))
-                radii = [photo_settings.get(f"photo_border_{k}", 0) for k in ["top_left", "top_right", "bottom_right", "bottom_left"]]
-                ph = round_photo(ph, radii)
-                template_img.paste(ph, (photo_settings["photo_x"], photo_settings["photo_y"]), ph)
-            except: pass
+                if photo_url:
+                    # Download photo from Cloudinary
+                    import requests
+                    resp = requests.get(photo_url, timeout=8)
+                    if resp.status_code == 200:
+                        ph = Image.open(io.BytesIO(resp.content)).convert("RGBA")
+                        ph = ph.resize((photo_settings["photo_width"], photo_settings["photo_height"]))
+                        radii = [photo_settings.get(f"photo_border_{k}", 0) for k in ["top_left", "top_right", "bottom_right", "bottom_left"]]
+                        ph = round_photo(ph, radii)
+                        template_img.paste(ph, (photo_settings["photo_x"], photo_settings["photo_y"]), ph)
+                elif photo_stored and not photo_stored.startswith('http'):
+                    # Legacy: load from local file
+                    ph = Image.open(os.path.join(UPLOAD_FOLDER, photo_stored)).convert("RGBA")
+                    ph = ph.resize((photo_settings["photo_width"], photo_settings["photo_height"]))
+                    radii = [photo_settings.get(f"photo_border_{k}", 0) for k in ["top_left", "top_right", "bottom_right", "bottom_left"]]
+                    ph = round_photo(ph, radii)
+                    template_img.paste(ph, (photo_settings["photo_x"], photo_settings["photo_y"]), ph)
+            except Exception as e:
+                logger.error(f"Error adding photo: {e}")
 
             data_hash = generate_data_hash(form_data, photo_stored)
             if qr_settings.get("enable_qr"):
@@ -2009,23 +2162,35 @@ def index():
                 template_img.paste(qr_img, (qr_settings.get("qr_x", 50), qr_settings.get("qr_y", 50)))
 
             # =========================================================
-            # CONCURRENCY FIX: SAVE INDIVIDUAL CARD IMAGE (NO SHEET)
+            # UPLOAD TO CLOUDINARY (NOT LOCAL SAVE)
             # =========================================================
-            ts = datetime.now().strftime("%Y%m%d%H%M%S")
-            # Unique name for this card
-            jpg_name = f"gen_{template_id}_{ts}.jpg"
-            # Keep PDF name for legacy compatibility/individual download if needed
-            pdf_name = f"gen_{template_id}_{ts}.pdf"
+            # Save image to bytes for Cloudinary upload
+            jpg_buf = io.BytesIO()
+            template_img.save(jpg_buf, format='JPEG', quality=95)
+            jpg_buf.seek(0)
+            jpg_bytes = jpg_buf.getvalue()
             
-            jpg_path = os.path.join(GENERATED_FOLDER, jpg_name)
-            pdf_path = os.path.join(GENERATED_FOLDER, pdf_name)
+            pdf_buf = io.BytesIO()
+            template_img.save(pdf_buf, format='PDF', quality=95)
+            pdf_buf.seek(0)
+            pdf_bytes = pdf_buf.getvalue()
             
-            # Save files
-            template_img.save(jpg_path, "JPEG", quality=95)
-            template_img.save(pdf_path, "PDF", resolution=300)
+            # Upload to Cloudinary
+            try:
+                jpg_result = upload_image(jpg_bytes, folder='generated')
+                image_url = jpg_result if isinstance(jpg_result, str) else jpg_result.get('url')
+                
+                pdf_result = upload_image(pdf_bytes, folder='generated', resource_type='raw')
+                pdf_url = pdf_result if isinstance(pdf_result, str) else pdf_result.get('url')
+            except Exception as e:
+                logger.error(f"Cloudinary upload failed: {e}")
+                return render_template("index.html", error=f"Failed to save image: {str(e)}", 
+                                       templates=templates, form_data=request.form, 
+                                       selected_template_id=template_id, deadline_info=deadline_info), 500
             
-            generated_url = url_for("static", filename=f"generated/{jpg_name}")
-            download_url = url_for("static", filename=f"generated/{pdf_name}")
+            # Legacy URLs (for backward compat, but won't be used if image_url is set)
+            generated_url = image_url
+            download_url = pdf_url
             # =========================================================
 
             # DB Insert/Update
@@ -2033,22 +2198,15 @@ def index():
                 edit_id = session['edit_student_id']
                 student = db.session.get(Student, edit_id)
                 if student:
-                    # Clean up old files
-                    if student.generated_filename:
-                        old_base = os.path.splitext(student.generated_filename)[0]
-                        for ext in ['.jpg', '.pdf']:
-                            try: os.remove(os.path.join(GENERATED_FOLDER, old_base + ext))
-                            except: pass
-
                     student.name = name
                     student.father_name = father_name
                     student.class_name = class_name
                     student.dob = dob
                     student.address = address
                     student.phone = phone
-                    student.photo_filename = photo_stored
-                    # Point to the JPG by default now
-                    student.generated_filename = jpg_name
+                    student.photo_url = photo_url  # Store Cloudinary URL
+                    student.image_url = image_url  # Store generated card image URL
+                    student.pdf_url = pdf_url  # Store generated PDF URL
                     student.created_at = datetime.now(timezone.utc)
                     student.data_hash = data_hash
                     student.template_id = template_id
@@ -2067,8 +2225,9 @@ def index():
                     dob=dob,
                     address=address,
                     phone=phone,
-                    photo_filename=photo_stored,
-                    generated_filename=jpg_name, # Point to the JPG
+                    photo_url=photo_url,  # Store Cloudinary URL instead of filename
+                    image_url=image_url,  # Store generated card image URL
+                    pdf_url=pdf_url,  # Store PDF URL
                     created_at=datetime.now(timezone.utc),
                     data_hash=data_hash,
                     template_id=template_id,
@@ -2388,33 +2547,53 @@ def edit_student(student_id):
       
         photo_fn = None
         photo_stored = existing_photo_filename
-        photo_path = os.path.join(UPLOAD_FOLDER, photo_stored) if photo_stored else None
+        photo_url = None
       
         if 'photo' in request.files and request.files['photo'].filename:
             photo = request.files['photo']
             photo_fn = secure_filename(photo.filename)
             timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
             photo_stored = f"{timestamp}_{photo_fn}"
-            photo_path = os.path.join(UPLOAD_FOLDER, photo_stored)
+            
             try:
-                photo.save(photo_path)
-                bg_color = photo_settings.get("bg_remove_color", "#ffffff")
-                remove_bg_flag = photo_settings.get("remove_background", False)  # if you have this checkbox saved
+                # Read photo to bytes
+                photo_bytes = io.BytesIO()
+                photo.save(photo_bytes)
+                photo_bytes.seek(0)
                 
-                auto_crop_face_photo(
-                    photo_path,
+                # Process photo (crop if needed)
+                pil_img = Image.open(photo_bytes)
+                pil_img = ImageOps.exif_transpose(pil_img)  # Fix orientation
+                pil_img = pil_img.convert("RGB")
+                
+                # Auto-crop face using AI
+                photo_settings = template_obj.photo_settings or {}
+                bg_color = photo_settings.get("bg_remove_color", "#ffffff")
+                remove_bg_flag = photo_settings.get("remove_background", False)
+                
+                # Process the PIL image directly (in-memory crop)
+                pil_img = _process_photo_pil(
+                    pil_img,
                     target_width=photo_settings.get("photo_width", 260),
                     target_height=photo_settings.get("photo_height", 313),
                     remove_background=remove_bg_flag,
                     bg_color=bg_color
                 )
+                
+                # Convert processed image to bytes
+                photo_bytes = io.BytesIO()
+                pil_img.save(photo_bytes, format="JPEG", quality=95)
+                photo_bytes.seek(0)
+                
+                # Upload to Cloudinary
+                photo_url = upload_image(photo_bytes.getvalue(), folder='photos')
             except Exception as e:
-                error = f"Error saving photo: {str(e)}"
+                error = f"Error processing photo: {str(e)}"
                 logger.error(error)
                 return render_template("edit.html", generated_url=generated_url, download_url=download_url,
                                      form_data=form_data, error=error, templates=templates), 500
         else:
-            if not photo_stored or not os.path.exists(photo_path):
+            if not photo_stored and not photo_url:
                 error = "No photo provided and no existing photo found"
                 logger.error(error)
                 return render_template("edit.html", generated_url=generated_url, download_url=download_url,
@@ -2634,17 +2813,18 @@ def edit_student(student_id):
                 template.paste(qr_img, (qr_x, qr_y))
           
             # =========================================================
-            # CONCURRENCY FIX: SAVE INDIVIDUAL CARD IMAGE (NO SHEET)
+            # CONCURRENCY FIX: SAVE INDIVIDUAL CARD IMAGE TO CLOUDINARY
             # =========================================================
             timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
             # Create unique filename: card_TEMPLATEID_STUDENTID_TIMESTAMP.jpg
             jpg_name = f"card_{template_id}_{student_id}_{timestamp}.jpg"
             pdf_name = f"card_{template_id}_{student_id}_{timestamp}.pdf" # Keep PDF name for legacy compatibility if needed
             
-            save_path = os.path.join(GENERATED_FOLDER, jpg_name)
-            
-            # Save the high-quality individual card
-            template.save(save_path, "JPEG", quality=95)
+            # Convert image to bytes and upload to Cloudinary
+            jpg_buffer = io.BytesIO()
+            template.save(jpg_buffer, "JPEG", quality=95)
+            jpg_buffer.seek(0)
+            jpg_url = upload_image(jpg_buffer.getvalue(), folder='cards', resource_type='image')
             
             # Clean up old file if it exists
             if student.generated_filename:
@@ -2653,14 +2833,13 @@ def edit_student(student_id):
                     os.remove(old_path)
             
             # Update URLs for frontend display
-            generated_url = url_for("static", filename=f"generated/{jpg_name}")
-            # Note: We technically aren't generating a PDF here anymore, but keeping the var for template compatibility
-            # Ideally, the frontend "Download PDF" button should now point to a route that converts this JPG to PDF on the fly
-            # OR we just save a PDF copy here too if individual download is needed immediately.
-            # Let's save a PDF copy as well for immediate single download support.
-            pdf_path = os.path.join(GENERATED_FOLDER, pdf_name)
-            template.save(pdf_path, "PDF", resolution=300)
-            download_url = url_for("static", filename=f"generated/{pdf_name}")
+            generated_url = jpg_url  # Use Cloudinary URL
+            # Upload PDF to Cloudinary as well
+            pdf_buffer = io.BytesIO()
+            template.save(pdf_buffer, "PDF", resolution=300)
+            pdf_buffer.seek(0)
+            pdf_url = upload_image(pdf_buffer.getvalue(), folder='cards', resource_type='raw')
+            download_url = pdf_url  # Use Cloudinary URL
           
             try:
                 # Delete old photo if changed
@@ -2685,10 +2864,9 @@ def edit_student(student_id):
                 student.address = address
                 student.phone = phone
                 student.photo_filename = photo_stored
-                # Point to the JPG by default now, or PDF if preferred. 
-                # Compiler looks for JPG, so let's store JPG filename or handle the extension swap in compiler.
-                # Storing the JPG filename is safer for the new compiler.
-                student.generated_filename = jpg_name 
+                # Store Cloudinary URLs instead of local filenames
+                student.image_url = jpg_url
+                student.pdf_url = pdf_url
                 student.created_at = datetime.utcnow()
                 student.data_hash = data_hash
                 student.template_id = template_id
@@ -3897,10 +4075,12 @@ def force_generate_pdf(template_id):
             arrangement_desc = "5 columns × 2 rows (Portrait)"
           
         pdf_name = f"ID_Cards_{arrangement}_{card_count}_cards_{datetime.now().strftime('%Y%m%d%H%M%S')}.pdf"
-        pdf_path = os.path.join(GENERATED_FOLDER, pdf_name)
       
-        # Save as PDF
-        sheet.save(pdf_path, "PDF", resolution=DPI)
+        # Save as PDF to Cloudinary
+        pdf_buffer = io.BytesIO()
+        sheet.save(pdf_buffer, "PDF", resolution=DPI)
+        pdf_buffer.seek(0)
+        pdf_url = upload_image(pdf_buffer.getvalue(), folder='bulk-sheets', resource_type='raw')
       
         logger.info(f"Generated PDF: {arrangement_desc} with {card_count} cards")
       
@@ -3964,14 +4144,16 @@ def test_color_render():
             draw.text((50, y), f"{name}: {color}", fill=tuple(color))
             y += 40
       
-        # Save and return
-        test_path = os.path.join(GENERATED_FOLDER, "test_color_render.jpg")
-        test_img.save(test_path, "JPEG", quality=95)
+        # Save and return to Cloudinary
+        test_buffer = io.BytesIO()
+        test_img.save(test_buffer, "JPEG", quality=95)
+        test_buffer.seek(0)
+        test_url = upload_image(test_buffer.getvalue(), folder='test', resource_type='image')
       
         return jsonify({
             "success": True,
             "message": "Color test completed",
-            "test_image": url_for("static", filename="generated/test_color_render.jpg")
+            "test_image": test_url
         })
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -4396,11 +4578,27 @@ def background_bulk_generate(task_id, template_id, excel_path, photo_map):
 
                     # Paste Photo
                     try:
-                        p_path = os.path.join(UPLOAD_FOLDER, used_photo) if used_photo != "placeholder.jpg" else PLACEHOLDER_PATH
-                        if os.path.exists(p_path):
-                            ph = Image.open(p_path).convert("RGBA")
-                            ph = ph.resize((photo_settings["photo_width"], photo_settings["photo_height"]))
-                            radii = [photo_settings.get(f"photo_border_{k}", 0) for k in ["top_left", "top_right", "bottom_right", "bottom_left"]]
+                        ph = None
+                        # Check if used_photo is a Cloudinary URL
+                        if used_photo.startswith('http'):
+                            # Fetch from Cloudinary
+                            try:
+                                response = requests.get(used_photo, timeout=10)
+                                ph = Image.open(io.BytesIO(response.content)).convert("RGBA")
+                            except Exception as e:
+                                logger.warning(f"Failed to fetch photo from Cloudinary: {e}")
+                        elif used_photo != "placeholder.jpg":
+                            # Legacy local file fallback
+                            p_path = os.path.join(UPLOAD_FOLDER, used_photo)
+                            if os.path.exists(p_path):
+                                ph = Image.open(p_path).convert("RGBA")
+                        
+                        # Use placeholder if no photo loaded
+                        if not ph:
+                            ph = Image.open(PLACEHOLDER_PATH).convert("RGBA")
+                        
+                        ph = ph.resize((photo_settings["photo_width"], photo_settings["photo_height"]))
+                        radii = [photo_settings.get(f"photo_border_{k}", 0) for k in ["top_left", "top_right", "bottom_right", "bottom_left"]]
                             ph = round_photo(ph, radii)
                             template_img.paste(ph, (photo_settings["photo_x"], photo_settings["photo_y"]), ph)
                     except: pass
@@ -4412,17 +4610,20 @@ def background_bulk_generate(task_id, template_id, excel_path, photo_map):
                         qr_img = qr_img.resize((qr_settings.get("qr_size", 120),)*2)
                         template_img.paste(qr_img, (qr_settings.get("qr_x", 50), qr_settings.get("qr_y", 50)))
 
-                    # Save Card Image
+                    # Upload Card Image to Cloudinary
                     ts = datetime.now().strftime("%Y%m%d%H%M%S%f")
                     jpg_name = f"card_{template_id}_{ts}_{idx}.jpg"
-                    template_img.save(os.path.join(GENERATED_FOLDER, jpg_name), "JPEG", quality=95)
+                    jpg_buffer = io.BytesIO()
+                    template_img.save(jpg_buffer, "JPEG", quality=95)
+                    jpg_buffer.seek(0)
+                    jpg_url = upload_image(jpg_buffer.getvalue(), folder='cards', resource_type='image')
 
                     # --- DATABASE INSERT (SQLAlchemy) ---
                     student = Student(
                         name=name, father_name=father_name, class_name=class_name,
                         dob=dob, address=address, phone=phone,
                         photo_filename=used_photo,
-                        generated_filename=jpg_name,
+                        image_url=jpg_url,  # Store Cloudinary URL
                         created_at=datetime.now(timezone.utc),
                         data_hash=data_hash, template_id=template_id,
                         school_name=template_obj.school_name,
@@ -4491,8 +4692,8 @@ def bulk_generate():
         excel_path = os.path.join(app.root_path, UPLOAD_FOLDER, f"temp_{uuid.uuid4().hex}_{filename}")
         excel_file.save(excel_path)
 
-        # 2. Process & Save Photos + Apply Background Removal
-        photo_map = {}
+        # 2. Process & Save Photos to Cloudinary + Apply Background Removal
+        photo_map = {}  # Maps name → Cloudinary URL
         if 'bulk_photos' in request.files:
             photos = request.files.getlist('bulk_photos')
             _, photo_settings, _, _ = get_template_settings(template_id)  # Fixed: renamed p_settings → photo_settings
@@ -4504,30 +4705,46 @@ def bulk_generate():
                         continue
                     
                     ts = datetime.now().strftime("%Y%m%d%H%M%S")
-                    unique_name = f"bulk_{ts}_{original_name}"
-                    save_path = os.path.join(UPLOAD_FOLDER, unique_name)
                     
-                    p.save(save_path)
+                    # Read photo to bytes
+                    photo_bytes = io.BytesIO()
+                    p.save(photo_bytes)
+                    photo_bytes.seek(0)
                     
-                    # === APPLY AI BACKGROUND REMOVAL + CUSTOM COLOR ===
+                    # Process photo (crop + optional background removal)
                     try:
+                        pil_img = Image.open(photo_bytes)
+                        pil_img = ImageOps.exif_transpose(pil_img)  # Fix orientation
+                        pil_img = pil_img.convert("RGB")
+                        
                         bg_color = photo_settings.get("bg_remove_color", "#ffffff")
                         remove_bg_flag = photo_settings.get("remove_background", False)
                         
-                        auto_crop_face_photo(
-                            save_path,  # ← FIXED: Use save_path, not photo_path
+                        # Process in-memory
+                        pil_img = _process_photo_pil(
+                            pil_img,
                             target_width=photo_settings.get("photo_width", 260),
                             target_height=photo_settings.get("photo_height", 313),
                             remove_background=remove_bg_flag,
                             bg_color=bg_color
                         )
-                    except Exception as crop_error:
-                        logger.warning(f"Failed to process photo {unique_name}: {crop_error}")
-                        # Continue — photo is still saved, just without removal/crop
+                        
+                        # Convert to bytes
+                        photo_bytes = io.BytesIO()
+                        pil_img.save(photo_bytes, format="JPEG", quality=95)
+                        photo_bytes.seek(0)
+                    except Exception as e:
+                        logger.warning(f"Failed to process photo {original_name}: {e}, using original")
+                        photo_bytes.seek(0)
                     
-                    # Map: lowercase filename without extension → saved unique name
-                    key = os.path.splitext(p.filename)[0].lower().strip()
-                    photo_map[key] = unique_name
+                    # Upload to Cloudinary
+                    try:
+                        cloud_url = upload_image(photo_bytes.getvalue(), folder='bulk-photos')
+                        # Map: lowercase filename without extension → Cloudinary URL
+                        key = os.path.splitext(p.filename)[0].lower().strip()
+                        photo_map[key] = cloud_url
+                    except Exception as e:
+                        logger.warning(f"Failed to upload photo {original_name} to Cloudinary: {e}")
 
         # 3. Start Background Thread
         task_id = uuid.uuid4().hex

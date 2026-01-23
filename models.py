@@ -72,9 +72,10 @@ class Student(db.Model):
     address = Column(Text)
     phone = Column(String(50))
     
-    # Files
-    photo_filename = Column(String(255))
-    generated_filename = Column(String(255)) # Points to individual card image (JPG)
+    # Files (store URLs instead of local filenames)
+    photo_url = Column(String(1024))
+    image_url = Column(String(1024))  # Points to individual card image (JPG) stored on Cloudinary
+    pdf_url = Column(String(1024))
     
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     data_hash = Column(String(255), unique=True)

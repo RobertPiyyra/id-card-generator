@@ -2,6 +2,7 @@ import os
 import io
 import json
 import math
+import requests
 from flask import Blueprint, send_file, session, redirect, url_for, current_app
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4, landscape
@@ -171,37 +172,59 @@ def download_compiled_vector_pdf(template_id):
                     print(f"Draw BG Error: {e}")
 
             # --- B. PHOTO ---
-            if student.photo_filename:
+            # Support photo stored as Cloudinary URL (`photo_url`) or legacy local filename
+            photo_bytes_io = None
+            if getattr(student, 'photo_url', None):
+                photo_url = student.photo_url
+                try:
+                    if photo_url.startswith('http'):
+                        resp = requests.get(photo_url, timeout=10)
+                        if resp.status_code == 200:
+                            photo_bytes_io = io.BytesIO(resp.content)
+                except Exception:
+                    photo_bytes_io = None
+
+            if photo_bytes_io is None and getattr(student, 'photo_filename', None):
                 p_path = os.path.join(UPLOAD_FOLDER, student.photo_filename)
                 if os.path.exists(p_path):
-                    px_px = photo_settings.get('photo_x', 0)
-                    py_px = photo_settings.get('photo_y', 0)
-                    pw_px = photo_settings.get('photo_width', 100)
-                    ph_px = photo_settings.get('photo_height', 100)
-                    
-                    photo_x = card_x + (px_px * scale)
-                    photo_y = card_bottom_y + (card_h_pt - (py_px * scale) - (ph_px * scale))
-                    photo_w = pw_px * scale
-                    photo_h = ph_px * scale
+                    try:
+                        with open(p_path, 'rb') as fh:
+                            photo_bytes_io = io.BytesIO(fh.read())
+                    except Exception:
+                        photo_bytes_io = None
 
-                    r_tl = float(photo_settings.get('photo_border_top_left', 0)) * scale
-                    r_tr = float(photo_settings.get('photo_border_top_right', 0)) * scale
-                    r_br = float(photo_settings.get('photo_border_bottom_right', 0)) * scale
-                    r_bl = float(photo_settings.get('photo_border_bottom_left', 0)) * scale
-                    radii = [r_tl, r_tr, r_br, r_bl]
+            if photo_bytes_io:
+                px_px = photo_settings.get('photo_x', 0)
+                py_px = photo_settings.get('photo_y', 0)
+                pw_px = photo_settings.get('photo_width', 100)
+                ph_px = photo_settings.get('photo_height', 100)
+                
+                photo_x = card_x + (px_px * scale)
+                photo_y = card_bottom_y + (card_h_pt - (py_px * scale) - (ph_px * scale))
+                photo_w = pw_px * scale
+                photo_h = ph_px * scale
 
-                    c.saveState() 
-                    if all(r == r_tl for r in radii) and r_tl > 0:
-                        path = c.beginPath()
-                        path.roundRect(photo_x, photo_y, photo_w, photo_h, r_tl)
-                        c.clipPath(path, stroke=0)
-                    elif any(r > 0 for r in radii):
-                        path = draw_custom_rounded_rect(c, photo_x, photo_y, photo_w, photo_h, radii)
-                        c.clipPath(path, stroke=0)
+                r_tl = float(photo_settings.get('photo_border_top_left', 0)) * scale
+                r_tr = float(photo_settings.get('photo_border_top_right', 0)) * scale
+                r_br = float(photo_settings.get('photo_border_bottom_right', 0)) * scale
+                r_bl = float(photo_settings.get('photo_border_bottom_left', 0)) * scale
+                radii = [r_tl, r_tr, r_br, r_bl]
 
-                    try: c.drawImage(p_path, photo_x, photo_y, width=photo_w, height=photo_h)
-                    except: pass
-                    c.restoreState() 
+                c.saveState()
+                if all(r == r_tl for r in radii) and r_tl > 0:
+                    path = c.beginPath()
+                    path.roundRect(photo_x, photo_y, photo_w, photo_h, r_tl)
+                    c.clipPath(path, stroke=0)
+                elif any(r > 0 for r in radii):
+                    path = draw_custom_rounded_rect(c, photo_x, photo_y, photo_w, photo_h, radii)
+                    c.clipPath(path, stroke=0)
+
+                try:
+                    reader = ImageReader(photo_bytes_io)
+                    c.drawImage(reader, photo_x, photo_y, width=photo_w, height=photo_h)
+                except Exception:
+                    pass
+                c.restoreState()
 
             # --- C. QR CODE ---
             if qr_settings.get("enable_qr", False):

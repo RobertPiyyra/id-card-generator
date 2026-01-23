@@ -52,3 +52,5 @@ python-bidi==0.4.2
 # Security
 # -------------------------
 cryptography==43.0.1
+
+cloudinary>=1.39.0

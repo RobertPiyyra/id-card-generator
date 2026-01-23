@@ -542,10 +542,14 @@ def generate_qr_code(data, qr_settings, size=120):
             return fallback
 
 
-def generate_data_hash(form_data, photo_filename=None):
-    data_string = f"{form_data['name']}{form_data['father_name']}{form_data['class_name']}{form_data['dob']}{form_data['address']}{form_data['phone']}"
-    if photo_filename:
-        data_string += photo_filename
+def generate_data_hash(form_data, photo_identifier=None):
+    """
+    Generate a deterministic hash for the student data.
+    Accepts either a photo filename or a photo URL as `photo_identifier` for backward compatibility.
+    """
+    data_string = f"{form_data.get('name','')}{form_data.get('father_name','')}{form_data.get('class_name','')}{form_data.get('dob','')}{form_data.get('address','')}{form_data.get('phone','')}"
+    if photo_identifier:
+        data_string += str(photo_identifier)
     return hashlib.md5(data_string.encode()).hexdigest()
 
 from bidi.algorithm import get_display
