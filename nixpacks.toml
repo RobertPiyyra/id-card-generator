@@ -1,8 +1,13 @@
 [phases.setup]
-nixPkgs = ["libGL", "mesa"]
+nixPkgs = ["python311", "python311Packages.pip", "libGL", "mesa"]
 
 [phases.install]
-cmds = ["pip install -r requirements.txt"]
+cmds = [
+  "python -m venv /opt/venv",
+  ". /opt/venv/bin/activate",
+  "pip install --upgrade pip",
+  "pip install -r requirements.txt"
+]
 
 [start]
 cmd = "gunicorn --workers=1 --threads=1 --timeout 120 --bind 0.0.0.0:$PORT app:app"
