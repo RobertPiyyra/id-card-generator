@@ -1959,7 +1959,11 @@ def index():
             font_settings, photo_settings, qr_settings, card_orientation = get_template_settings(template_id)
             template_path = get_template_path(template_id)
             
-            if not template_path or not os.path.exists(template_path):
+            if not template_path:
+                raise ValueError("Template file not found")
+            
+            # Check if local file (os.path.exists) or Cloudinary URL (starts with http)
+            if not template_path.startswith('http') and not os.path.exists(template_path):
                 raise ValueError("Template file not found")
 
             # Capture Form Data
@@ -2034,9 +2038,16 @@ def index():
                 raise ValueError("Photo is required")
 
             # === CARD GENERATION LOGIC ===
-            card_width, card_height = get_card_size(template_id)
-            template_path = get_template_path(template_id)
-            template_img = load_template_smart(template_path).resize((card_width, card_height))
+            try:
+                card_width, card_height = get_card_size(template_id)
+                template_path = get_template_path(template_id)
+                template_img = load_template_smart(template_path).resize((card_width, card_height))
+            except Exception as e:
+                logger.error(f"Error loading template {template_id} from {template_path}: {e}")
+                return render_template("index.html", error=f"Failed to load template: {str(e)}", 
+                                       templates=templates, form_data=request.form,
+                                       selected_template_id=template_id, deadline_info=deadline_info), 500
+            
             draw = ImageDraw.Draw(template_img)
             
             FONT_BOLD = os.path.join(FONTS_FOLDER, font_settings["font_bold"])
@@ -3925,10 +3936,15 @@ def admin_preview_card():
         # 2. Load Template
         template_path = get_template_path(template_id)
         if not template_path:
-            return jsonify({"success": False, "error": "Template file not found"}), 404
-            
-        card_width, card_height = get_card_size(template_id)
-        template_img = load_template_smart(template_path).resize((card_width, card_height))
+            return jsonify({"success": False, "error": "Template not found in database"}), 404
+        
+        try:
+            card_width, card_height = get_card_size(template_id)
+            template_img = load_template_smart(template_path).resize((card_width, card_height))
+        except Exception as e:
+            logger.error(f"Error loading template {template_id} from {template_path}: {e}")
+            return jsonify({"success": False, "error": f"Failed to load template: {str(e)}"}), 500
+        
         draw = ImageDraw.Draw(template_img)
         
         # --- NEW: ROBUST FONT LOADING LOGIC ---
@@ -4537,7 +4553,14 @@ def background_bulk_generate(task_id, template_id, excel_path, photo_map):
                         continue 
 
                     # --- DRAW ID CARD IMAGE ---
-                    template_img = load_template_smart(template_path).resize((card_width, card_height))
+                    try:
+                        template_img = load_template_smart(template_path).resize((card_width, card_height))
+                    except Exception as e:
+                        logger.error(f"Error loading template {template_id} in visual editor: {e}")
+                        error_count += 1
+                        errors.append(f"Row {idx+1}: Failed to load template - {str(e)}")
+                        continue
+                    
                     draw = ImageDraw.Draw(template_img)
                     text_case = font_settings.get("text_case", "normal")
 

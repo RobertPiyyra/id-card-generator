@@ -461,6 +461,7 @@ def load_template_from_url(url):
     except Exception as e:
         logger.error(f"Error loading template from Cloudinary URL {url}: {e}")
         raise
+        raise
 
       
 def load_template_smart(path_or_url):
