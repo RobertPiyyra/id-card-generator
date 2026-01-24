@@ -127,23 +127,23 @@ import os
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 
-# Fix for Railway / Heroku style postgres URLs
+# Fix old Railway / Heroku postgres:// URLs
 if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
-app.config['SQLALCHEMY_DATABASE_URI'] = (
-    DATABASE_URL
-    or f"sqlite:///{os.path.join(os.path.dirname(os.path.abspath(__file__)), 'students_alchemy.db')}"
-)
+if not DATABASE_URL:
+    raise RuntimeError("DATABASE_URL is not set. Check Railway Variables.")
 
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config["SQLALCHEMY_DATABASE_URI"] = DATABASE_URL
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
-app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
     "pool_pre_ping": True,
     "pool_recycle": 300,
 }
 
 db.init_app(app)
+
 
 
 
