@@ -366,6 +366,11 @@ def migrate_database():
                     conn.execute(text("ALTER TABLE templates ADD COLUMN text_direction VARCHAR(10) DEFAULT 'ltr'"))
                     logger.info("Added 'text_direction' column to templates")
                 
+                # 3. Add Template URL Column (for Cloudinary storage)
+                if 'template_url' not in t_columns:
+                    conn.execute(text("ALTER TABLE templates ADD COLUMN template_url TEXT"))
+                    logger.info("Added 'template_url' column to templates")
+                
                 # List of new columns to check and add
                 new_cols = [
                     ('deadline', 'DATETIME'),
