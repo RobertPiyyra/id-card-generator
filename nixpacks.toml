@@ -1,8 +1,10 @@
 # nixpacks.toml
+# Simplified for Flask + Cloudinary (no local image processing needed)
 
 [phases.setup]
-# CHANGED 'libglu' -> 'libGLU' (Case sensitive!)
-nixPkgs = ["python311", "libglvnd", "glib", "gcc", "gnumake", "mesa", "libGLU", "opencv"]
+# Only essential build tools and Python
+# OpenCV/OpenGL dependencies removed - all image processing done via Cloudinary
+nixPkgs = ["python311", "gcc", "gnumake"]
 
 [phases.install]
 cmds = [

@@ -68,8 +68,12 @@ def upload_image(file_bytes, folder='generated', resource_type='image', format=N
             upload_options['format'] = format
         
         # Upload to Cloudinary
+        # Wrap bytes in BytesIO for cloudinary.uploader.upload()
+        import io
+        file_obj = io.BytesIO(file_bytes)
+        
         result = cloudinary.uploader.upload(
-            file_bytes,
+            file_obj,
             public_id=public_id,
             **upload_options
         )
