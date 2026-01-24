@@ -356,6 +356,15 @@ def migrate_database():
                 # --- Migrate TEMPLATES table ---
                 t_columns = [c['name'] for c in inspector.get_columns('templates')]
 
+                # 0. Remove NOT NULL constraint from filename (allow Cloudinary-only templates)
+                try:
+                    # For PostgreSQL
+                    conn.execute(text("ALTER TABLE templates ALTER COLUMN filename DROP NOT NULL"))
+                    logger.info("Removed NOT NULL constraint from templates.filename")
+                except:
+                    # SQLite doesn't support this easily, skip
+                    pass
+                
                 # 1. Add Language Column
                 if 'language' not in t_columns:
                     conn.execute(text("ALTER TABLE templates ADD COLUMN language VARCHAR(20) DEFAULT 'english'"))
