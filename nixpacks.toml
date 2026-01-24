@@ -1,5 +1,7 @@
 [phases.setup]
-nixPkgs = ["python311", "python311Packages.pip"]
+# Added 'libglvnd' (for libGL.so.1) and 'glib' (for OpenCV/MediaPipe)
+# Added 'gcc' and 'gnumake' to compile any necessary Python extensions
+nixPkgs = ["python311", "libglvnd", "glib", "gcc", "gnumake"]
 
 [phases.install]
 cmds = [
@@ -10,4 +12,5 @@ cmds = [
 ]
 
 [start]
-cmd = "gunicorn --workers=1 --threads=1 --timeout 120 --bind 0.0.0.0:$PORT app:app"
+# Activates venv and starts gunicorn
+cmd = ". /opt/venv/bin/activate && gunicorn --workers=1 --threads=4 --timeout 120 --bind 0.0.0.0:$PORT app:app"
