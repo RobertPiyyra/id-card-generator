@@ -123,13 +123,28 @@ def exempt_admins():
     return session.get("admin") is True
 
 # SQLAlchemy configuration
-app.config['SQLALCHEMY_DATABASE_URI'] = f"sqlite:///{os.path.join(os.path.dirname(os.path.abspath(__file__)), 'students_alchemy.db')}"
+import os
+
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+# Fix for Railway / Heroku style postgres URLs
+if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+
+app.config['SQLALCHEMY_DATABASE_URI'] = (
+    DATABASE_URL
+    or f"sqlite:///{os.path.join(os.path.dirname(os.path.abspath(__file__)), 'students_alchemy.db')}"
+)
+
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
 app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
-    'pool_recycle': 300,
-    'pool_pre_ping': True,
+    "pool_pre_ping": True,
+    "pool_recycle": 300,
 }
+
 db.init_app(app)
+
 
 
 

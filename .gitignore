@@ -42,6 +42,9 @@ desktop.ini
 # Database
 # =========================
 *.sqlite3
+students_alchemy.db
+*.db
+
 
 # =========================
 # Generated / Runtime Files
