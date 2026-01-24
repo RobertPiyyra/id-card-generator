@@ -1894,7 +1894,9 @@
                                                     <tr>
                                                         <td>{{ row.id }}</td>
                                                         <td>
-                                                            {% if row.generated_filename %}
+                                                            {% if row.image_url %}
+                                                                <img src="{{ row.image_url }}" alt="Preview" onerror="this.src='{{ url_for('static', filename='placeholder.jpg') }}'; this.alt='No preview available';">
+                                                            {% elif row.generated_filename %}
                                                                 <img src="{{ url_for('static', filename='generated/' + row.generated_filename.replace('.pdf','.jpg')) }}" alt="Preview" onerror="this.src='{{ url_for('static', filename='placeholder.jpg') }}'; this.alt='No preview available';">
                                                             {% else %}
                                                                 <img src="{{ url_for('static', filename='placeholder.jpg') }}" alt="No preview available">
@@ -3133,54 +3135,61 @@
             previewError.style.display = 'none';
             downloadBtn.disabled = true;
             
-            let previewSrc = '{{ url_for("static", filename="placeholder.jpg") }}';
-            let found = false;
-            
-            const table = document.querySelector(`.school-table[data-school-id="${templateId}"]`);
-            if (table) {
-                const rows = table.querySelectorAll('tbody tr');
-                for (let row of rows) {
-                    const idCell = row.querySelector('td:first-child');
-                    if (idCell && idCell.textContent.trim() === studentId) {
-                        const img = row.querySelector('td:nth-child(2) img');
-                        if (img && img.src && !img.src.includes('placeholder.jpg')) {
-                            previewSrc = img.src;
-                            found = true;
-                        }
-                        break;
+            // Fetch preview from API (which returns Cloudinary URLs if available)
+            fetch(`/admin/student_preview/${studentId}`)
+                .then(response => response.json())
+                .then(data => {
+                    previewLoading.style.display = 'none';
+                    if (data.success && data.preview_url) {
+                        previewImage.src = data.preview_url;
+                        previewImage.style.display = 'block';
+                        downloadBtn.disabled = false;
+                        showNotification('Preview loaded successfully!', 'success');
+                    } else {
+                        previewError.style.display = 'block';
+                        showNotification('No preview available. Generate ID card first.', 'warning');
                     }
-                }
-            }
-            
-            previewImage.src = previewSrc;
-            
-            previewLoading.style.display = 'none';
-            if (found) {
-                previewImage.style.display = 'block';
-                downloadBtn.disabled = false;
-                showNotification('Preview loaded successfully!', 'success');
-            } else {
-                previewError.style.display = 'block';
-                showNotification('No preview available. Generate ID card first.', 'warning');
-            }
+                })
+                .catch(error => {
+                    previewLoading.style.display = 'none';
+                    previewError.style.display = 'block';
+                    logger.error('Error loading preview:', error);
+                    showNotification('Error loading preview', 'error');
+                });
         }
 
         function downloadPreview() {
             const previewImage = document.getElementById('previewImage');
             const studentSelect = document.getElementById('previewStudent');
+            const selectedStudentId = studentSelect.value;
             const selectedOption = studentSelect.options[studentSelect.selectedIndex];
             
-            if (!previewImage.src.includes('placeholder.jpg')) {
-                const link = document.createElement('a');
-                link.href = previewImage.src;
-                link.download = `id_card_${selectedOption.text.replace(/[^a-zA-Z0-9]/g, '_')}.jpg`;
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-                showNotification('Preview downloaded successfully!', 'success');
-            } else {
-                showNotification('No preview available to download', 'error');
+            if (!selectedStudentId) {
+                showNotification('Please select a student first', 'error');
+                return;
             }
+            
+            // Fetch the PDF URL from the API
+            fetch(`/admin/student_preview/${selectedStudentId}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success && data.pdf_url) {
+                        // Download PDF (works with Cloudinary URLs)
+                        const link = document.createElement('a');
+                        link.href = data.pdf_url;
+                        link.download = `id_card_${selectedOption.text.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                        showNotification('PDF downloaded successfully!', 'success');
+                    } else {
+                        showNotification('No PDF available to download. Generate ID card first.', 'warning');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error downloading preview:', error);
+                    showNotification('Error downloading PDF', 'error');
+                });
         }
 
         function loadSamplePreview(templateId) {

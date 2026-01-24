@@ -1415,6 +1415,7 @@ def admin_student_preview(student_id):
             "name": student.name,
             "class_name": student.class_name,
             "preview_url": preview_url or url_for('static', filename='placeholder.jpg'),
+            "pdf_url": getattr(student, 'pdf_url', None),
             "has_preview": preview_url is not None
         })
     except Exception as e:
