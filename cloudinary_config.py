@@ -50,9 +50,9 @@ def upload_image(file_bytes, folder='generated', resource_type='image', format=N
         Exception: If upload fails
     """
     try:
-        # Generate unique public ID
+        # Generate unique public ID (without folder - folder is set separately)
         import uuid
-        public_id = f"{folder}/{uuid.uuid4().hex}"
+        public_id = uuid.uuid4().hex
         
         # Prepare upload options
         upload_options = {
