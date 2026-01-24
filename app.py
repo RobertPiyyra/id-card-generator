@@ -48,7 +48,7 @@ from utils import (
     get_template_settings, get_template_path, get_card_size, apply_text_case,
     get_default_font_config, get_default_photo_config, get_default_qr_config,
     get_photo_settings_for_orientation, get_font_settings_for_orientation,
-    get_template_orientation, load_template, round_photo, is_valid_font_file,
+    get_template_orientation, load_template, load_template_smart, round_photo, is_valid_font_file,
     get_available_fonts, load_font_dynamic, generate_qr_code, generate_data_hash,process_text_for_drawing
     ,trim_transparent_edges
 )
@@ -491,6 +491,59 @@ def add_template(filename, school_name, card_orientation='landscape', language='
         db.session.rollback()
         logger.error(f"Error adding template: {e}")
         raise
+
+
+def add_template_cloudinary(template_url, school_name, card_orientation='landscape', language='english', text_direction='ltr'):
+    """
+    Add a template with Cloudinary URL (no local file storage).
+    
+    Args:
+        template_url (str): Cloudinary secure URL for the template
+        school_name (str): School name
+        card_orientation (str): 'landscape' or 'portrait'
+        language (str): Language for labels
+        text_direction (str): 'ltr' or 'rtl'
+    
+    Returns:
+        int: Template ID
+    """
+    try:
+        # --- Default Dimensions based on Orientation ---
+        if card_orientation == 'portrait':
+            width, height = 661, 1015
+            rows, cols = 2, 5
+        else:
+            width, height = 1015, 661
+            rows, cols = 5, 2
+
+        template = Template(
+            filename=None,  # No local file
+            template_url=template_url,  # Store Cloudinary URL
+            school_name=school_name,
+            font_settings=get_default_font_config(),
+            photo_settings=get_default_photo_config(),
+            qr_settings=get_default_qr_config(),
+            card_orientation=card_orientation,
+            language=language,
+            text_direction=text_direction,
+            card_width=width,
+            card_height=height,
+            sheet_width=2480,
+            sheet_height=3508,
+            grid_rows=rows,
+            grid_cols=cols,
+            created_at=datetime.now(timezone.utc)
+        )
+        db.session.add(template)
+        db.session.commit()
+        
+        logger.info(f"Added Cloudinary template: {template_url[:50]}... ({width}x{height})")
+        return template.id
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error adding Cloudinary template: {e}")
+        raise
+
 # ================== Template Config ==================
 def get_templates():
     try:
@@ -1394,13 +1447,14 @@ def generate_student_preview(student_id):
         font_settings = get_font_settings_for_orientation(student.template_id, font_settings)
         
         # Generate preview
-        template_path = os.path.join(STATIC_DIR, template.filename) if template.filename else None
-        if not template_path or not os.path.exists(template_path):
+        # Get template path (Cloudinary URL or legacy local path)
+        template_path = get_template_path(student.template_id)
+        if not template_path:
             return jsonify({"success": False, "error": "Template not found"}), 404
         
         try:
             card_width, card_height = get_card_size(student.template_id)
-            template_img = load_template(template_path)
+            template_img = load_template_smart(template_path)
             template_img = template_img.resize((card_width, card_height))
             
             draw = ImageDraw.Draw(template_img)
@@ -1967,7 +2021,8 @@ def index():
 
             # === CARD GENERATION LOGIC ===
             card_width, card_height = get_card_size(template_id)
-            template_img = load_template(template_path).resize((card_width, card_height))
+            template_path = get_template_path(template_id)
+            template_img = load_template_smart(template_path).resize((card_width, card_height))
             draw = ImageDraw.Draw(template_img)
             
             FONT_BOLD = os.path.join(FONTS_FOLDER, font_settings["font_bold"])
@@ -2621,7 +2676,7 @@ def edit_student(student_id):
         data_hash = generate_data_hash(form_data, photo_stored)
       
         try:
-            template = load_template(template_path)
+            template = load_template_smart(template_path)
             template = template.resize((card_width, card_height))
             draw = ImageDraw.Draw(template)
           
@@ -3149,15 +3204,14 @@ def upload_template():
     if 'template' not in request.files or 'school_name' not in request.form:
         logger.error("Template file and school name are required")
         return redirect(url_for("admin", error="Template file and school name are required"))
+    
     file = request.files['template']
     school_name = request.form['school_name'].strip()
     card_orientation = request.form.get('card_orientation', 'landscape')
+    
     if file.filename == '' or not school_name:
         logger.error("No file selected or school name empty")
         return redirect(url_for("admin", error="No file selected or school name empty"))
-    
-    school_name = request.form['school_name'].strip()
-    card_orientation = request.form.get('card_orientation', 'landscape')
     
     # Capture Language Inputs
     language = request.form.get('language', 'english')
@@ -3165,14 +3219,23 @@ def upload_template():
 
     if file and file.filename.lower().endswith(('.pdf', '.jpg', '.jpeg', '.png')):
         filename = secure_filename(file.filename)
-        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-        stored_filename = f"{timestamp}_{filename}"
-        file_path = os.path.join(UPLOAD_FOLDER, stored_filename)
+        
         try:
-            file.save(file_path)
-            template_id = add_template(os.path.join("Uploads", stored_filename), school_name, card_orientation,language, 
-            text_direction)
-            logger.info(f"Template uploaded: {stored_filename} for school: {school_name} with orientation {card_orientation}")
+            # Read file to bytes
+            file_bytes = io.BytesIO()
+            file.save(file_bytes)
+            file_bytes.seek(0)
+            
+            # Upload to Cloudinary
+            template_url = upload_image(file_bytes.getvalue(), folder='id_card_templates', resource_type='raw' if filename.lower().endswith('.pdf') else 'image')
+            
+            if not template_url:
+                raise Exception("Failed to upload template to Cloudinary")
+            
+            # Create template record with Cloudinary URL (no local filename)
+            template_id = add_template_cloudinary(template_url, school_name, card_orientation, language, text_direction)
+            
+            logger.info(f"Template uploaded to Cloudinary: {filename} for school: {school_name} with orientation {card_orientation}")
             return redirect(url_for("admin", success="Template uploaded successfully"))
         except Exception as e:
             logger.error(f"Error uploading template: {e}")
@@ -3847,11 +3910,11 @@ def admin_preview_card():
         
         # 2. Load Template
         template_path = get_template_path(template_id)
-        if not template_path or not os.path.exists(template_path):
+        if not template_path:
             return jsonify({"success": False, "error": "Template file not found"}), 404
             
         card_width, card_height = get_card_size(template_id)
-        template_img = load_template(template_path).resize((card_width, card_height))
+        template_img = load_template_smart(template_path).resize((card_width, card_height))
         draw = ImageDraw.Draw(template_img)
         
         # --- NEW: ROBUST FONT LOADING LOGIC ---
@@ -4460,7 +4523,7 @@ def background_bulk_generate(task_id, template_id, excel_path, photo_map):
                         continue 
 
                     # --- DRAW ID CARD IMAGE ---
-                    template_img = load_template(template_path).resize((card_width, card_height))
+                    template_img = load_template_smart(template_path).resize((card_width, card_height))
                     draw = ImageDraw.Draw(template_img)
                     text_case = font_settings.get("text_case", "normal")
 

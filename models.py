@@ -15,7 +15,8 @@ class Template(db.Model):
     __tablename__ = 'templates'
     
     id = Column(Integer, primary_key=True)
-    filename = Column(String(255), nullable=False, unique=True)
+    filename = Column(String(255), nullable=True)  # Legacy: kept for backward compatibility
+    template_url = Column(Text, nullable=True)  # NEW: Cloudinary URL for the template image
     school_name = Column(String(255), nullable=False)
     created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
     

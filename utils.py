@@ -48,12 +48,28 @@ A4_LANDSCAPE_HEIGHT_PX = A4_WIDTH_PX
 
 
 def get_template_path(template_id):
+    """
+    Get the template Cloudinary URL for the given template ID.
+    Prefers template_url (Cloudinary), falls back to local filename for legacy templates.
+    
+    Args:
+        template_id (int): Template ID
+    
+    Returns:
+        str: Cloudinary URL or local file path (legacy)
+    """
     try:
         template = db.session.get(Template, template_id)
 
-
-        if template and template.filename:
-            return os.path.join(STATIC_DIR, template.filename)
+        if template:
+            # Use Cloudinary URL if available
+            if template.template_url:
+                return template.template_url
+            # Fallback to legacy local filename
+            if template.filename:
+                return os.path.join(STATIC_DIR, template.filename)
+        
+        logger.warning(f"No template found or no URL/filename for template ID {template_id}")
         return None
     except Exception as e:
         logger.error(f"Error fetching template path for ID {template_id}: {e}")
@@ -394,6 +410,84 @@ def load_font_dynamic(font_path, text, max_width, start_size):
     except Exception as e:
         logger.error(f"Unexpected error in load_font_dynamic: {e}")
         return ImageFont.load_default()
+
+
+def load_template_from_url(url):
+    """
+    Load a template image from Cloudinary URL.
+    Handles PDF and image formats.
+    
+    Args:
+        url (str): Cloudinary secure URL
+    
+    Returns:
+        PIL.Image: Template image in RGB mode
+    
+    Raises:
+        Exception: If URL is invalid or fetch fails
+    """
+    try:
+        import requests
+        
+        if not url:
+            raise ValueError("Template URL is required")
+        
+        # Fetch image from Cloudinary
+        response = requests.get(url, timeout=10)
+        response.raise_for_status()
+        
+        logger.info(f"Fetched template from Cloudinary: {url[:50]}...")
+        
+        # Determine format from URL or content
+        content_type = response.headers.get('Content-Type', '')
+        
+        if 'pdf' in content_type.lower() or url.lower().endswith('.pdf'):
+            # Handle PDF
+            import fitz  # PyMuPDF
+            pdf_doc = fitz.open(stream=response.content, filetype="pdf")
+            page = pdf_doc[0]
+            pix = page.get_pixmap(dpi=300)
+            img_data = pix.tobytes("png")
+            img = Image.open(io.BytesIO(img_data)).convert("RGB")
+            pdf_doc.close()
+            logger.info(f"PDF template loaded from Cloudinary: {img.size}")
+            return img
+        else:
+            # Handle image (JPG, PNG, etc.)
+            img = Image.open(io.BytesIO(response.content)).convert("RGB")
+            logger.info(f"Image template loaded from Cloudinary: {img.size}")
+            return img
+    
+    except Exception as e:
+        logger.error(f"Error loading template from Cloudinary URL {url}: {e}")
+        raise
+
+      
+def load_template_smart(path_or_url):
+    """
+    Smart template loader that handles both Cloudinary URLs and local file paths.
+    
+    Args:
+        path_or_url (str): Either a Cloudinary URL (starts with http) or local file path
+    
+    Returns:
+        PIL.Image: Template image in RGB mode
+    """
+    try:
+        if not path_or_url:
+            raise ValueError("Template path or URL is required")
+        
+        # Check if it's a Cloudinary URL
+        if path_or_url.startswith('http'):
+            return load_template_from_url(path_or_url)
+        else:
+            # Local file path (legacy)
+            return load_template(path_or_url)
+    
+    except Exception as e:
+        logger.error(f"Error loading template from {path_or_url}: {e}")
+        raise
+
       
 def load_template(path):
     try:
