@@ -31,8 +31,7 @@ flask_sqlalchemy==3.1.1
 Pillow==10.4.0
 opencv-python-headless==4.11.0.86
 mediapipe==0.10.32
-onnxruntime==1.16.3
-rembg==2.0.55   # 🔥 IMPORTANT downgrade
+
 
 # -------------------------
 # PDF / QR / Excel
