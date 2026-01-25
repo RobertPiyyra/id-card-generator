@@ -2660,7 +2660,7 @@ def edit_student(student_id):
       
         photo_fn = None
         photo_stored = existing_photo_filename
-        photo_url = None
+        photo_url = student.image_url # Existing Cloudinary URL 
       
         if 'photo' in request.files and request.files['photo'].filename:
             photo = request.files['photo']
@@ -2872,18 +2872,23 @@ def edit_student(student_id):
                         current_y += line_height
           
             try:
-                photo_img = Image.open(photo_path).convert("RGBA").resize(
-                    (photo_settings["photo_width"], photo_settings["photo_height"]),
-                    Image.LANCZOS
-                )
-                radii = [
-                    photo_settings.get("photo_border_top_left", 0),
-                    photo_settings.get("photo_border_top_right", 0),
-                    photo_settings.get("photo_border_bottom_right", 0),
-                    photo_settings.get("photo_border_bottom_left", 0)
-                ]
-                photo_img = round_photo(photo_img, radii)
-                template.paste(photo_img, (photo_settings["photo_x"], photo_settings["photo_y"]), photo_img)
+                if photo_url:
+                    import requests
+                    resp = requests.get(photo_url, timeout=8)
+                    if resp.status_code == 200:
+                        photo_img = Image.open(io.BytesIO(resp.content)).convert("RGBA").resize(
+                            (photo_settings["photo_width"], photo_settings["photo_height"]),
+                            Image.LANCZOS
+                        )
+                        radii = [
+                            photo_settings.get("photo_border_top_left", 0),
+                            photo_settings.get("photo_border_top_right", 0),
+                            photo_settings.get("photo_border_bottom_right", 0),
+                            photo_settings.get("photo_border_bottom_left", 0)
+                        ]
+                        photo_img = round_photo(photo_img, radii)
+                        template.paste(photo_img, (photo_settings["photo_x"], photo_settings["photo_y"]), photo_img)
+            
             except Exception as e:
                 error = f"Error processing photo: {str(e)}"
                 logger.error(error)
@@ -2897,7 +2902,7 @@ def edit_student(student_id):
                         "student_id": str(student_id),
                         "name": name,
                         "school_name": school_name,
-                        "photo_url": f"/static/uploads/{photo_stored}",
+                        "photo_url": photo_url,
                         "custom_data": custom_data # Include dynamic fields in QR
                     })
                 elif qr_settings.get("qr_data_type") == "url":
@@ -2910,7 +2915,7 @@ def edit_student(student_id):
                         "name": name,
                         "class": class_name,
                         "school_name": school_name,
-                        "photo_url": f"/static/uploads/{photo_stored}",
+                        "photo_url": photo_url,
                         "custom_data": custom_data 
                     })
                 else:
@@ -2932,7 +2937,8 @@ def edit_student(student_id):
             # Create unique filename: card_TEMPLATEID_STUDENTID_TIMESTAMP.jpg
             jpg_name = f"card_{template_id}_{student_id}_{timestamp}.jpg"
             pdf_name = f"card_{template_id}_{student_id}_{timestamp}.pdf" # Keep PDF name for legacy compatibility if needed
-            
+            student.generated_filename = jpg_name
+
             # Convert image to bytes and upload to Cloudinary
             jpg_buffer = io.BytesIO()
             template.save(jpg_buffer, "JPEG", quality=95)
@@ -2980,7 +2986,6 @@ def edit_student(student_id):
                 # Store Cloudinary URLs instead of local filenames
                 student.image_url = jpg_url
                 student.pdf_url = pdf_url
-                student.created_at = datetime.utcnow()
                 student.data_hash = data_hash
                 student.template_id = template_id
                 student.school_name = school_name
