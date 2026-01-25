@@ -2984,7 +2984,7 @@ def edit_student(student_id):
                 student.phone = phone
                 student.photo_filename = photo_stored
                 # Store Cloudinary URLs instead of local filenames
-                student.image_url = jpg_url
+                
                 student.pdf_url = pdf_url
                 student.data_hash = data_hash
                 student.template_id = template_id
