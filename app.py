@@ -2660,7 +2660,17 @@ def edit_student(student_id):
       
         photo_fn = None
         photo_stored = existing_photo_filename
-        photo_url = student.image_url # Existing Cloudinary URL 
+        photo_url = None
+        
+        # 1. Prefer Cloudinary photo if this edit uploaded one earlier
+        if student.photo_filename:
+            # photo_filename implies a real photo exists
+            photo_url = student.image_url
+        
+        # 2. Safety fallback
+        if not photo_url:
+            logger.warning(f"No valid photo found for student {student_id}")
+        
       
         if 'photo' in request.files and request.files['photo'].filename:
             photo = request.files['photo']
@@ -2984,7 +2994,7 @@ def edit_student(student_id):
                 student.phone = phone
                 student.photo_filename = photo_stored
                 # Store Cloudinary URLs instead of local filenames
-                
+                student.image_url = photo_url
                 student.pdf_url = pdf_url
                 student.data_hash = data_hash
                 student.template_id = template_id
