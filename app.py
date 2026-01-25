@@ -2597,8 +2597,10 @@ def edit_student(student_id):
         if not template_path:
             error = "No template found. Please contact administrator."
             logger.error(f"Template not found for ID {template_id}")
-            return render_template("edit.html", error=error, templates=templates), 400
-        
+                   
+            return render_template("edit.html", generated_url=generated_url, download_url=download_url,
+                                 form_data=form_data, error=error, templates=templates), 400
+      
         font_settings, photo_settings, qr_settings, card_orientation = get_template_settings(template_id)
         card_width, card_height = get_card_size(template_id)
       
@@ -2870,24 +2872,18 @@ def edit_student(student_id):
                         current_y += line_height
           
             try:
-                if photo_url:
-                    import requests
-                    resp = requests.get(photo_url, timeout=8)
-                    if resp.status_code == 200:
-                        photo_img = Image.open(io.BytesIO(resp.content)).convert("RGBA")
-                        photo_img = photo_img.resize(
-                            (photo_settings["photo_width"], photo_settings["photo_height"]),
-                            Image.LANCZOS
-                        )
-                        radii = [
-                            photo_settings.get("photo_border_top_left", 0),
-                            photo_settings.get("photo_border_top_right", 0),
-                            photo_settings.get("photo_border_bottom_right", 0),
-                            photo_settings.get("photo_border_bottom_left", 0)
-                        ]
-                        photo_img = round_photo(photo_img, radii)
-                        template.paste(photo_img, (photo_settings["photo_x"], photo_settings["photo_y"]), photo_img)
-                
+                photo_img = Image.open(photo_path).convert("RGBA").resize(
+                    (photo_settings["photo_width"], photo_settings["photo_height"]),
+                    Image.LANCZOS
+                )
+                radii = [
+                    photo_settings.get("photo_border_top_left", 0),
+                    photo_settings.get("photo_border_top_right", 0),
+                    photo_settings.get("photo_border_bottom_right", 0),
+                    photo_settings.get("photo_border_bottom_left", 0)
+                ]
+                photo_img = round_photo(photo_img, radii)
+                template.paste(photo_img, (photo_settings["photo_x"], photo_settings["photo_y"]), photo_img)
             except Exception as e:
                 error = f"Error processing photo: {str(e)}"
                 logger.error(error)
