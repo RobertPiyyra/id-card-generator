@@ -715,6 +715,7 @@ def trim_transparent_edges(pil_img):
     return pil_img
 
 def ensure_rgb(img):
+    """Force PIL image into RGB safely (JPEG compatible)."""
     if img.mode in ("RGBA", "LA"):
         bg = Image.new("RGB", img.size, (255, 255, 255))
         bg.paste(img, mask=img.split()[-1])

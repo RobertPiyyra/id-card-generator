@@ -1561,15 +1561,15 @@ def generate_student_preview(student_id):
             except Exception as e:
                 logger.error(f"Error adding photo to preview: {e}")
             
-            # Add QR Code if enabled
+            # ---------------- QR CODE ----------------
             if qr_settings.get("enable_qr", False):
-                qr_data = "SAMPLE_PREVIEW_DATA" 
+                qr_data = "SAMPLE_PREVIEW_DATA"
+            
                 if qr_settings.get("qr_data_type") == "student_id":
                     qr_data = json.dumps({
                         "student_id": str(student_id),
                         "name": student.name,
-                        "school_name": student.school_name,
-                        "photo_url": f"/static/uploads/{student.photo_filename}" if student.photo_filename else None
+                        "school_name": student.school_name
                     })
                 elif qr_settings.get("qr_data_type") == "url":
                     qr_data = qr_settings.get("qr_base_url", "") + str(student_id)
@@ -1580,26 +1580,41 @@ def generate_student_preview(student_id):
                         "student_id": student_id,
                         "name": student.name,
                         "class": student.class_name,
-                        "school_name": student.school_name,
-                        "photo_url": f"/static/uploads/{student.photo_filename}" if student.photo_filename else None
+                        "school_name": student.school_name
                     })
-                
+            
                 qr_size = qr_settings.get("qr_size", 120)
                 qr_img = generate_qr_code(qr_data, qr_settings, qr_size)
+            
+                # 🔐 FORCE QR TO RGB BEFORE PASTE
+                qr_img = ensure_rgb(qr_img)
+            
                 qr_x = qr_settings.get("qr_x", 50)
                 qr_y = qr_settings.get("qr_y", 50)
-                
+            
                 qr_img = qr_img.resize((qr_size, qr_size))
                 template_img.paste(qr_img, (qr_x, qr_y))
             
-            # Save preview to Cloudinary (in-memory)
-            # --- FIX: FORCE RGB BEFORE JPEG ---
+            
+            # =====================================================
+            # 🚨 FINAL JPEG SAFETY (ABSOLUTE LAST IMAGE OPERATION)
+            # =====================================================
             template_img = ensure_rgb(template_img)
             
+            logger.info(f"Preview image mode before save: {template_img.mode}")
+            
             buf = BytesIO()
-            template_img.save(buf, format="JPEG", quality=95, subsampling=0)
+            template_img.save(
+                buf,
+                format="JPEG",
+                quality=95,
+                subsampling=0,
+                optimize=True
+            )
             buf.seek(0)
+            
             img_bytes = buf.getvalue()
+            
 
             try:
                 uploaded = upload_image(img_bytes, folder='generated')
