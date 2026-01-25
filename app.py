@@ -4197,9 +4197,13 @@ def admin_preview_card():
                 qr_img = qr_img.resize((qr_settings.get("qr_size", 120),)*2)
                 template_img.paste(qr_img, (qr_settings.get("qr_x", 50), qr_settings.get("qr_y", 50)))
             except: pass
-        
+        template_img = ensure_rgb(template_img)
         buffer = io.BytesIO()
-        template_img.save(buffer, format="JPEG", quality=85)
+        template_img.save(buffer,
+                          format="JPEG",
+                          quality=95,
+                          subsampling=0,
+                          optimize=True)
         buffer.seek(0)
         img_data = base64.b64encode(buffer.getvalue()).decode('utf-8')
         
