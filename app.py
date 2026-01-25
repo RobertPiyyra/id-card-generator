@@ -51,7 +51,7 @@ from utils import (
     get_photo_settings_for_orientation, get_font_settings_for_orientation,
     get_template_orientation, load_template, load_template_smart, round_photo, is_valid_font_file,
     get_available_fonts, load_font_dynamic, generate_qr_code, generate_data_hash,process_text_for_drawing
-    ,trim_transparent_edges
+    ,trim_transparent_edges,ensure_rgb
 )
 from cloudinary_config import upload_image
 from models import db, Student, Template, TemplateField,ActivityLog
@@ -1593,10 +1593,14 @@ def generate_student_preview(student_id):
                 template_img.paste(qr_img, (qr_x, qr_y))
             
             # Save preview to Cloudinary (in-memory)
+            # --- FIX: FORCE RGB BEFORE JPEG ---
+            template_img = ensure_rgb(template_img)
+            
             buf = BytesIO()
-            template_img.save(buf, format='JPEG', quality=95)
+            template_img.save(buf, format="JPEG", quality=95, subsampling=0)
             buf.seek(0)
             img_bytes = buf.getvalue()
+
             try:
                 uploaded = upload_image(img_bytes, folder='generated')
                 preview_url = uploaded if isinstance(uploaded, str) else uploaded.get('url')

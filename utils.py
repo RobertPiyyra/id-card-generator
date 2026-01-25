@@ -508,7 +508,6 @@ def load_template_smart(path_or_url):
         logger.exception(f"❌ Template load failed: {path_or_url}")
         raise RuntimeError(f"Error loading template: {e}")
 
-
       
 def load_template(path):
     try:
@@ -715,3 +714,11 @@ def trim_transparent_edges(pil_img):
         return pil_img.crop(bbox)
     return pil_img
 
+def ensure_rgb(img):
+    if img.mode in ("RGBA", "LA"):
+        bg = Image.new("RGB", img.size, (255, 255, 255))
+        bg.paste(img, mask=img.split()[-1])
+        return bg
+    if img.mode != "RGB":
+        return img.convert("RGB")
+    return img
