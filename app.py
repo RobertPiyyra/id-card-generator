@@ -2660,7 +2660,7 @@ def edit_student(student_id):
       
         photo_fn = None
         photo_stored = existing_photo_filename
-        photo_url = None
+        photo_url = student.image_url
         
         # 1. Prefer Cloudinary photo if this edit uploaded one earlier
         if student.photo_filename:
