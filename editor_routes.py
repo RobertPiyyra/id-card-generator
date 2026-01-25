@@ -40,12 +40,12 @@ def get_template_image(template_id):
     if not session.get("admin"): return "Unauthorized", 403
     
     template_path = get_template_path(template_id)
-    if not template_path or not os.path.exists(template_path):
+    if not template_path:
         return "File not found", 404
 
     try:
         # 1. Load using robust utility (handles PDF conversion automatically)
-        img = load_template(template_path)
+        img = load_template_smart(template_path)
         
         # 2. Convert to RGB to ensure compatibility (drops Alpha channel)
         if img.mode != 'RGB':

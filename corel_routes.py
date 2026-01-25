@@ -20,7 +20,7 @@ from utils import (
     get_template_orientation, generate_qr_code, generate_data_hash,
     load_template
 )
-
+from utils import load_template_smart
 corel_bp = Blueprint('corel', __name__)
 
 def local_apply_text_case(text, case_type):
@@ -136,7 +136,7 @@ def download_compiled_vector_pdf(template_id):
         
         # PRELOAD BACKGROUND
         bg_image_reader = None
-        if template_path and os.path.exists(template_path):
+        if template_path:
             try:
                 bg_pil = load_template(template_path)
                 if bg_pil.mode != 'RGB':
