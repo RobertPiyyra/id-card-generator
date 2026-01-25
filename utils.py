@@ -467,27 +467,47 @@ def load_template_from_url(url):
 def load_template_smart(path_or_url):
     """
     Smart template loader that handles both Cloudinary URLs and local file paths.
-    
+
     Args:
-        path_or_url (str): Either a Cloudinary URL (starts with http) or local file path
-    
+        path_or_url (str): Cloudinary URL (http/https) or local filesystem path
+
     Returns:
-        PIL.Image: Template image in RGB mode
+        PIL.Image.Image: Template image in RGBA mode
     """
     try:
         if not path_or_url:
             raise ValueError("Template path or URL is required")
-        
-        # Check if it's a Cloudinary URL
-        if path_or_url.startswith('http'):
-            return load_template_from_url(path_or_url)
-        else:
-            # Local file path (legacy)
-            return load_template(path_or_url)
-    
+
+        # --------------------------------------------------
+        # CLOUDINARY / REMOTE TEMPLATE
+        # --------------------------------------------------
+        if path_or_url.startswith(("http://", "https://")):
+            import requests
+            import io
+            from PIL import Image
+
+            response = requests.get(path_or_url, timeout=10)
+            response.raise_for_status()
+
+            img = Image.open(io.BytesIO(response.content))
+            return img.convert("RGBA")
+
+        # --------------------------------------------------
+        # LOCAL TEMPLATE (LEGACY SUPPORT)
+        # --------------------------------------------------
+        import os
+        from PIL import Image
+
+        if not os.path.exists(path_or_url):
+            raise FileNotFoundError(f"Template file not found: {path_or_url}")
+
+        img = Image.open(path_or_url)
+        return img.convert("RGBA")
+
     except Exception as e:
-        logger.error(f"Error loading template from {path_or_url}: {e}")
-        raise
+        logger.exception(f"❌ Template load failed: {path_or_url}")
+        raise RuntimeError(f"Error loading template: {e}")
+
 
       
 def load_template(path):

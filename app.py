@@ -13,6 +13,7 @@ import hashlib
 import logging
 import re
 import smtplib
+import requests
 from email.mime.text import MIMEText
 import random
 import string

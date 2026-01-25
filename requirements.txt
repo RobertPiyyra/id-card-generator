@@ -55,4 +55,3 @@ cryptography==43.0.1
 
 cloudinary>=1.39.0
 psycopg2-binary==2.9.9
-requests
