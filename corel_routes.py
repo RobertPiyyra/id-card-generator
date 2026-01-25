@@ -138,11 +138,14 @@ def download_compiled_vector_pdf(template_id):
         bg_image_reader = None
         if template_path:
             try:
-                bg_pil = load_template(template_path)
-                if bg_pil.mode != 'RGB':
+                bg_pil = load_template_smart(template_path)
+                if bg_pil.mode in ("RGBA", "LA"):
                     bg_rgb = Image.new("RGB", bg_pil.size, (255, 255, 255))
-                    bg_rgb.paste(bg_pil, mask=bg_pil.split()[3] if bg_pil.mode == 'RGBA' else None)
+                    bg_rgb.paste(bg_pil, mask=bg_pil.split()[-1])
                     bg_pil = bg_rgb
+                elif bg_pil.mode != "RGB":
+                    bg_pil = bg_pil.convert("RGB")
+                
                 
                 bg_stream = io.BytesIO()
                 bg_pil.save(bg_stream, format="PNG")
@@ -174,24 +177,23 @@ def download_compiled_vector_pdf(template_id):
             # --- B. PHOTO ---
             # Support photo stored as Cloudinary URL (`photo_url`) or legacy local filename
             photo_bytes_io = None
-            if getattr(student, 'photo_url', None):
-                photo_url = student.photo_url
+
+            # 1️⃣ Prefer Cloudinary student photo (image_url)
+            if student.image_url:
                 try:
-                    if photo_url.startswith('http'):
-                        resp = requests.get(photo_url, timeout=10)
-                        if resp.status_code == 200:
-                            photo_bytes_io = io.BytesIO(resp.content)
+                    resp = requests.get(student.image_url, timeout=10)
+                    if resp.status_code == 200:
+                        photo_bytes_io = io.BytesIO(resp.content)
                 except Exception:
                     photo_bytes_io = None
-
-            if photo_bytes_io is None and getattr(student, 'photo_filename', None):
+            
+            # 2️⃣ Fallback: legacy local photo
+            if photo_bytes_io is None and student.photo_filename:
                 p_path = os.path.join(UPLOAD_FOLDER, student.photo_filename)
                 if os.path.exists(p_path):
-                    try:
-                        with open(p_path, 'rb') as fh:
-                            photo_bytes_io = io.BytesIO(fh.read())
-                    except Exception:
-                        photo_bytes_io = None
+                    with open(p_path, "rb") as fh:
+                        photo_bytes_io = io.BytesIO(fh.read())
+            
 
             if photo_bytes_io:
                 px_px = photo_settings.get('photo_x', 0)
@@ -234,7 +236,9 @@ def download_compiled_vector_pdf(template_id):
                         'class_name': student.class_name, 'dob': student.dob,
                         'address': student.address, 'phone': student.phone
                     }
-                    data_hash = generate_data_hash(form_data, student.photo_filename)
+                    photo_ref = student.image_url or student.photo_filename or ""
+                    data_hash = generate_data_hash(form_data, photo_ref)
+
                     qr_id = data_hash[:10]
                     
                     qr_type = qr_settings.get("qr_data_type", "student_id")
@@ -327,7 +331,7 @@ def download_compiled_vector_pdf(template_id):
                         val_text = val_text.title()
 
                     curr_font_size = val_size_pt
-                    min_font_size = 6 * scale # Minimum readable size
+                    min_font_size = 8 * scale # Minimum readable size
                     
                     # Initial check
                     lines = simpleSplit(val_text, reg_font_name, curr_font_size, max_width_pt)
@@ -386,6 +390,7 @@ def download_compiled_vector_pdf(template_id):
             card_count += 1
             if card_count % cards_per_sheet == 0:
                 c.showPage()
+                c.setFillColor(Color(0, 0, 0))
 
         c.save()
         buffer.seek(0)
