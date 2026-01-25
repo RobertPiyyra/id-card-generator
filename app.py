@@ -2452,210 +2452,566 @@ def edit_student(student_id):
     success = None
     error = None
     templates = get_templates()
-
-    # ==============================
-    # FETCH STUDENT (ONCE)
-    # ==============================
-    student = db.session.get(Student, student_id)
-    if not student:
-        return render_template(
-            "edit.html",
-            error=f"No student found with ID {student_id}",
-            templates=templates
-        ), 404
-
-    session_email = session.get("student_email")
-    admin_email = os.environ.get("EMAIL_FROM", "").lower()
-
-    is_admin = session.get("admin") or (
-        session_email and session_email.lower() == admin_email
-    )
-    is_owner = (
-        student.email
-        and session_email
-        and student.email.lower() == session_email.lower()
-    )
-
-    if not is_owner and not is_admin:
-        return render_template(
-            "edit.html",
-            error="You are not authorized to access this record.",
-            templates=templates
-        ), 403
-
-    # ==============================
-    # STRICT DEADLINE CHECK
-    # ==============================
-    if student.template_id:
-        is_passed, deadline_date = check_deadline_passed(student.template_id)
-        if is_passed:
-            msg = f"⛔ Editing deadline passed on {deadline_date}."
-            if request.method == "POST":
-                return render_template("edit.html", error=msg, templates=templates), 403
-            flash(msg, "error")
-
-    # ==============================
-    # TEMPLATE (LOCKED)
-    # ==============================
-    template_id = student.template_id  # 🔒 NEVER CHANGE IN EDIT
-    template_path = get_template_path(template_id)
-
-    if not template_path:
-        logger.error(f"Template not found for ID {template_id}")
-        return render_template(
-            "edit.html",
-            error="Template not found. Please contact administrator.",
-            templates=templates
-        ), 400
-
-    font_settings, photo_settings, qr_settings, _ = get_template_settings(template_id)
-    card_width, card_height = get_card_size(template_id)
-
-    FONT_BOLD_PATH = os.path.join(FONTS_FOLDER, font_settings["font_bold"])
-    FONT_REG_PATH = os.path.join(FONTS_FOLDER, font_settings["font_regular"])
-
-    # ==============================
-    # GET REQUEST (LOAD FORM)
-    # ==============================
-    if request.method == "GET":
-        form_data = {
-            "id": student.id,
-            "name": student.name,
-            "father_name": student.father_name,
-            "class_name": student.class_name,
-            "dob": student.dob,
-            "address": student.address,
-            "phone": student.phone,
-            "template_id": template_id,
-            "school_name": student.school_name,
-            "custom_data": student.custom_data or {}
-        }
-
-        generated_url = student.image_url
-        download_url = student.pdf_url
-
-        return render_template(
-            "edit.html",
-            form_data=form_data,
-            generated_url=generated_url,
-            download_url=download_url,
-            templates=templates
-        )
-
-    # ==============================
-    # POST REQUEST (SAVE)
-    # ==============================
+    
+    # 1. GET Request
     try:
+        student = db.session.get(Student, student_id)
+        
+        if not student:
+            error = f"No student found with ID {student_id}"
+            logger.error(error)
+            return render_template("edit.html", error=error, templates=templates, form_data=form_data,
+                                 generated_url=generated_url, download_url=download_url, success=success), 404
+        
+        # Handle cases where email might be missing
+        student_email = student.email
+        session_email = session.get('student_email')
+        
+        logger.info(f"Authorization check - Student ID: {student_id}")
+        logger.info(f"Database email: {student_email}")
+        logger.info(f"Session email: {session_email}")
+
+        # --- STRICT DEADLINE CHECK ---
+        if student and student.template_id:
+            is_passed, deadline_date = check_deadline_passed(student.template_id)
+            
+            if is_passed:
+                error = f"⛔ The deadline for editing this ID card passed on {deadline_date}. Updates are disabled."
+                # If it's a POST (trying to save), block strictly
+                if request.method == "POST":
+                    return render_template("edit.html", error=error, templates=templates, form_data=form_data), 403
+                else:
+                    # If it's a GET (just viewing), show flash error but maybe allow read-only
+                    flash(error, 'error')                    # ---
+        
+        # If student record has no email, check if we can associate it with current session
+        if not student_email:
+            logger.warning(f"Student record {student_id} has no email associated")
+            
+            # If user is logged in, check if this is their only record without email
+            if session_email:
+                # Count how many records this user has
+                user_record_count = Student.query.filter_by(email=session_email).count()
+                
+                # If user has less than 3 records and this record has no email, allow association
+                if user_record_count < 3:
+                    # Update the record with current user's email
+                    student.email = session_email
+                    db.session.commit()
+                    student_email = session_email
+                    logger.info(f"Associated student {student_id} with email {session_email}")
+                else:
+                    error = "This record has no email associated and cannot be edited. Please contact administrator."
+                    return render_template("edit.html", error=error, templates=templates, form_data=form_data,
+                                         generated_url=generated_url, download_url=download_url, success=success), 403
+            else:
+                error = "This record has no email associated. Please login and try again."
+                return render_template("edit.html", error=error, templates=templates, form_data=form_data,
+                                     generated_url=generated_url, download_url=download_url, success=success), 403
+        
+        # Normal authorization check
+        # LOGIC UPDATE: Allow if owner OR if admin email matches
+        admin_email = os.environ.get("EMAIL_FROM", "").lower()
+        is_admin_user = session.get("admin") or (session_email and session_email.lower() == admin_email)
+        is_owner = student_email and session_email and (student_email.lower() == session_email.lower())
+
+        if not is_owner and not is_admin_user:
+            error = f"You are not authorized to access this record."
+            logger.warning(f"Authorization failed for student {student_id}")
+            return render_template("edit.html", error=error, templates=templates, form_data=form_data,
+                                 generated_url=generated_url, download_url=download_url, success=success), 403
+        # Authorization successful - populate form data
+        form_data = {
+            'id': student.id,
+            'name': student.name,
+            'father_name': student.father_name,
+            'class_name': student.class_name,
+            'dob': student.dob,
+            'address': student.address,
+            'phone': student.phone,
+            'photo_filename': student.photo_filename,
+            'generated_filename': student.generated_filename,
+            'template_id': student.template_id,
+            'school_name': student.school_name,
+            'custom_data': student.custom_data or {} # <--- CRITICAL: Send existing custom data to frontend
+        }
+        
+        # Use Cloudinary URLs if available
+        if student.image_url:
+            generated_url = student.image_url
+        elif student.generated_filename:
+            # Fallback to legacy local filename
+            preview_filename = student.generated_filename.replace(".pdf", ".jpg")
+            generated_url = url_for('static', filename=f'generated/{preview_filename}')
+        else:
+            generated_url = url_for('static', filename='placeholder.jpg')
+        
+        download_url = student.pdf_url if student.pdf_url else None
+    
+    except Exception as e:
+        error = f"Error fetching student data: {str(e)}"
+        logger.error(error)
+        return render_template("edit.html", error=error, templates=templates, form_data=form_data,
+                             generated_url=generated_url, download_url=download_url, success=success), 500
+  
+    if request.method == "POST":
+        try:
+            student = db.session.get(Student, student_id)
+            
+            if not student or not student.email:
+                # If still no email, use session email for authorization
+                session_email = session.get('student_email')
+                if not session_email:
+                    error = "You must be logged in to edit records."
+                    return render_template("edit.html", error=error, templates=templates, form_data=form_data,
+                                         generated_url=generated_url, download_url=download_url, success=success), 403
+                
+                # Update the record with session email
+                student.email = session_email
+                db.session.commit()
+                logger.info(f"Updated student {student_id} with email {session_email}")
+            else:
+                student_email = student.email
+                session_email = session.get('student_email')
+                
+                # LOGIC UPDATE: Check ownership OR admin status
+                admin_email = os.environ.get("EMAIL_FROM", "").lower()
+                is_admin_user = session.get("admin") or (session_email and session_email.lower() == admin_email)
+                is_owner = student_email and session_email and (student_email.lower() == session_email.lower())
+
+                if not is_owner and not is_admin_user:
+                    error = "You are not authorized to access this record."
+                    logger.warning(f"POST Authorization failed for student {student_id}")
+                    return render_template("edit.html", error=error, templates=templates, form_data=form_data,
+                                         generated_url=generated_url, download_url=download_url, success=success), 403
+        except Exception as e:
+            error = f"Database error: {str(e)}"
+            logger.error(error)
+            return render_template("edit.html", error=error, templates=templates, form_data=form_data,
+                                 generated_url=generated_url, download_url=download_url, success=success), 500
+      
+        existing_photo_filename = form_data.get('photo_filename', '')
+        template_id = student.template_id
+        school_name = next((t['school_name'] for t in templates if t['id'] == template_id), None)
+        template_path = get_template_path(template_id)
+        if not template_path:
+            error = "No template found. Please contact administrator."
+            logger.error(f"Template not found for ID {template_id}")
+            return render_template("edit.html", error=error, templates=templates), 400
+        
+        font_settings, photo_settings, qr_settings, card_orientation = get_template_settings(template_id)
+        card_width, card_height = get_card_size(template_id)
+      
+        FONT_BOLD_PATH = os.path.join(FONTS_FOLDER, font_settings["font_bold"])
+        FONT_REGULAR_PATH = os.path.join(FONTS_FOLDER, font_settings["font_regular"])
+      
+        if not is_valid_font_file(FONT_BOLD_PATH) or not is_valid_font_file(FONT_REGULAR_PATH):
+            error = f"Invalid font file: {font_settings['font_bold']} or {font_settings['font_regular']}"
+            logger.error(error)
+            return render_template("edit.html", generated_url=generated_url, download_url=download_url,
+                                 form_data=form_data, error=error, templates=templates), 500
+      
+        # FIXED: Get font colors from settings
+        label_font_color = font_settings.get("label_font_color", [0, 0, 0])
+        value_font_color = font_settings.get("value_font_color", [0, 0, 0])
+      
+        # Convert colors to tuples for PIL
+        try:
+            LABEL_FONT_COLOR = tuple(label_font_color)
+            logger.info(f"Label font color: {LABEL_FONT_COLOR}")
+        except Exception as e:
+            logger.error(f"Error converting label font color: {label_font_color}, error: {e}")
+            LABEL_FONT_COLOR = (0, 0, 0)
+      
+        try:
+            VALUE_FONT_COLOR = tuple(value_font_color)
+            logger.info(f"Value font color: {VALUE_FONT_COLOR}")
+        except Exception as e:
+            logger.error(f"Error converting value font color: {value_font_color}, error: {e}")
+            VALUE_FONT_COLOR = (0, 0, 0)
+      
         name = request.form.get("name", "").strip()
         father_name = request.form.get("father_name", "").strip()
         class_name = request.form.get("class_name", "").strip()
         dob = request.form.get("dob", "").strip()
         address = request.form.get("address", "").strip()
         phone = request.form.get("phone", "").strip()
-
-        # --------------------------
-        # PHOTO (CLOUDINARY ONLY)
-        # --------------------------
-        photo_url = student.photo_url
-        if "photo" in request.files and request.files["photo"].filename:
-            img = Image.open(request.files["photo"].stream).convert("RGB")
-            buf = io.BytesIO()
-            img.save(buf, format="JPEG", quality=95)
-            buf.seek(0)
-            photo_url = upload_image(buf.getvalue(), folder="photos")
-
-        # --------------------------
-        # LOAD TEMPLATE
-        # --------------------------
-        template_img = load_template_smart(template_path)
-        template_img = template_img.resize((card_width, card_height))
-        draw = ImageDraw.Draw(template_img)
-
-        l_font = ImageFont.truetype(FONT_BOLD_PATH, font_settings["label_font_size"])
-        v_font = ImageFont.truetype(FONT_REG_PATH, font_settings["value_font_size"])
-
-        label_x = font_settings["label_x"]
-        value_x = font_settings["value_x"]
-        current_y = font_settings["start_y"]
-        line_height = font_settings["line_height"]
-
-        fields = [
-            ("NAME", name),
-            ("F.NAME", father_name),
-            ("CLASS", class_name),
-            ("D.O.B", dob),
-            ("MOBILE", phone),
-            ("ADDRESS", address),
-        ]
-
-        for lbl, val in fields:
-            draw.text((label_x, current_y), f"{lbl}:", font=l_font, fill=(0, 0, 0))
-            draw.text((value_x, current_y), val, font=v_font, fill=(0, 0, 0))
-            current_y += line_height
-
-        # --------------------------
-        # PHOTO PASTE (REMOTE)
-        # --------------------------
-        if photo_url:
-            import requests
-            r = requests.get(photo_url, timeout=8)
-            if r.status_code == 200:
-                ph = Image.open(io.BytesIO(r.content)).convert("RGBA")
-                ph = ph.resize(
-                    (photo_settings["photo_width"], photo_settings["photo_height"])
+      
+        form_data = {
+            'id': student_id,
+            'name': name,
+            'father_name': father_name,
+            'class_name': class_name,
+            'dob': dob,
+            'address': address,
+            'phone': phone,
+            'template_id': template_id,
+            'school_name': school_name
+        }
+      
+        is_duplicate, duplicate_message = check_duplicate_student(form_data, None, student_id)
+        if is_duplicate:
+            logger.warning(f"Duplicate student detected: {duplicate_message}")
+            return render_template("edit.html", generated_url=generated_url,
+                                 download_url=download_url, form_data=form_data,
+                                 error=duplicate_message, templates=templates), 400
+      
+        photo_fn = None
+        photo_stored = existing_photo_filename
+        photo_url = None
+      
+        if 'photo' in request.files and request.files['photo'].filename:
+            photo = request.files['photo']
+            photo_fn = secure_filename(photo.filename)
+            timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+            photo_stored = f"{timestamp}_{photo_fn}"
+            
+            try:
+                # Read photo to bytes
+                photo_bytes = io.BytesIO()
+                photo.save(photo_bytes)
+                photo_bytes.seek(0)
+                
+                # Process photo (crop if needed)
+                pil_img = Image.open(photo_bytes)
+                pil_img = ImageOps.exif_transpose(pil_img)  # Fix orientation
+                pil_img = pil_img.convert("RGB")
+                
+                # Auto-crop face using AI
+                photo_settings = photo_settings or {}
+                bg_color = photo_settings.get("bg_remove_color", "#ffffff")
+                remove_bg_flag = photo_settings.get("remove_background", False)
+                
+                # Process the PIL image directly (in-memory crop)
+                pil_img = _process_photo_pil(
+                    pil_img,
+                    target_width=photo_settings.get("photo_width", 260),
+                    target_height=photo_settings.get("photo_height", 313),
+                    remove_background=remove_bg_flag,
+                    bg_color=bg_color
                 )
-                template_img.paste(
-                    ph,
-                    (photo_settings["photo_x"], photo_settings["photo_y"]),
-                    ph
-                )
+                
+                # Convert processed image to bytes
+                photo_bytes = io.BytesIO()
+                pil_img.save(photo_bytes, format="JPEG", quality=95)
+                photo_bytes.seek(0)
+                
+                # Upload to Cloudinary
+                photo_url = upload_image(photo_bytes.getvalue(), folder='photos')
+            except Exception as e:
+                error = f"Error processing photo: {str(e)}"
+                logger.error(error)
+                return render_template("edit.html", generated_url=generated_url, download_url=download_url,
+                                     form_data=form_data, error=error, templates=templates), 500
+        else:
+            if not photo_stored and not photo_url:
+                error = "No photo provided and no existing photo found"
+                logger.error(error)
+                return render_template("edit.html", generated_url=generated_url, download_url=download_url,
+                                     form_data=form_data, error=error, templates=templates), 400
+      
+        data_hash = generate_data_hash(form_data, photo_stored)
+      
+        try:
+            template = load_template_smart(template_path)
+            template = template.resize((card_width, card_height))
+            draw = ImageDraw.Draw(template)
+          
+            # Apply text case transformation
+            text_case = font_settings.get("text_case", "normal")
+            
+            # --- DYNAMIC FIELDS HANDLING ---
+            # 1. Capture dynamic values from the form
+            custom_data = {}
+            dynamic_display = []
+            
+            # Fetch field definitions for this template
+            db_fields = TemplateField.query.filter_by(template_id=template_id).all()
+            
+            for field in db_fields:
+                val = request.form.get(field.field_name, "").strip()
+                custom_data[field.field_name] = val
+                
+                dynamic_display.append({
+                    'label': field.field_label.upper(),
+                    'value': val,
+                    'order': field.display_order
+                })
+            
+            # 2. Combine with Standard Fields
+            all_fields = [
+                {'label': "NAME", 'value': apply_text_case(name, text_case), 'order': 10},
+                {'label': "F.NAME", 'value': apply_text_case(father_name, text_case), 'order': 20},
+                {'label': "CLASS", 'value': apply_text_case(class_name, text_case), 'order': 30},
+                {'label': "D.O.B.", 'value': dob, 'order': 40},
+                {'label': "MOBILE", 'value': phone, 'order': 50},
+                {'label': "ADDRESS", 'value': apply_text_case(address, text_case), 'order': 60}
+            ]
+            
+            # Add dynamic fields to the list for drawing
+            for d in dynamic_display:
+                all_fields.append({
+                    'label': d['label'],
+                    'value': apply_text_case(d['value'], text_case),
+                    'order': d['order']
+                })
 
-        # --------------------------
-        # UPLOAD CARD
-        # --------------------------
-        img_buf = io.BytesIO()
-        template_img.save(img_buf, "JPEG", quality=95)
-        img_buf.seek(0)
-        image_url = upload_image(img_buf.getvalue(), folder="cards")
+                
+            
+            # 3. Sort by display order
+            all_fields.sort(key=lambda x: x['order'])
+            # -------------------------------
 
-        pdf_buf = io.BytesIO()
-        template_img.save(pdf_buf, "PDF", resolution=300)
-        pdf_buf.seek(0)
-        pdf_url = upload_image(pdf_buf.getvalue(), folder="cards", resource_type="raw")
+            # --- PRE-CALCULATE PHOTO BOUNDARIES ---
+            p_x = photo_settings.get("photo_x", 0)
+            p_y = photo_settings.get("photo_y", 0)
+            p_h = photo_settings.get("photo_height", 0)
+            p_bottom = p_y + p_h
 
-        # --------------------------
-        # DATABASE UPDATE (SAFE)
-        # --------------------------
-        student.name = name
-        student.father_name = father_name
-        student.class_name = class_name
-        student.dob = dob
-        student.address = address
-        student.phone = phone
-        student.photo_url = photo_url
-        student.image_url = image_url
-        student.pdf_url = pdf_url
-        student.created_at = datetime.utcnow()
+            # Layout Settings
+            label_x = font_settings["label_x"]
+            value_x = font_settings["value_x"]
+            current_y = font_settings["start_y"]
+            line_height = font_settings["line_height"]
+            
+            # Draw Loop
+            for item in all_fields:
+                lbl = item['label']
+                val = item['value'] 
+                
+                # Stop if we ran out of vertical space
+                if current_y > card_height - 20: break
+                
+                try:
+                    l_font = ImageFont.truetype(FONT_BOLD_PATH, font_settings["label_font_size"])
+                except:
+                    l_font = ImageFont.load_default()
 
-        db.session.commit()
+                # --- DYNAMIC WIDTH CALCULATION ---
+                # Check vertical overlap
+                is_vertically_overlapping = (current_y < p_bottom) and ((current_y + line_height) > p_y)
 
-        success = "ID card updated successfully."
-        generated_url = image_url
-        download_url = pdf_url
+                if is_vertically_overlapping and (p_x > value_x):
+                     max_w = p_x - value_x - 15
+                else:
+                     max_w = card_width - value_x - 20
+                
+                # --- ADDRESS LOGIC (PIXEL-ACCURATE, MAX 2 LINES) ---
+                if lbl == "ADDRESS":
+                    draw.text((label_x, current_y), f"{lbl}:", font=l_font, fill=LABEL_FONT_COLOR)
+                
+                    curr_size = font_settings["value_font_size"]
+                    min_size = 12
+                    wrapped_addr = []
+                
+                    while curr_size >= min_size:
+                        # Load font at this size
+                        try:
+                            addr_font = ImageFont.truetype(FONT_REGULAR_PATH, curr_size)
+                        except:
+                            addr_font = ImageFont.load_default()
+                
+                        # Pixel-based wrapping
+                        words = val.split()
+                        lines = []
+                        current_line = ""
+                
+                        for word in words:
+                            test_line = current_line + (" " if current_line else "") + word
+                            if draw.textlength(test_line, font=addr_font) <= max_w:
+                                current_line = test_line
+                            else:
+                                if current_line:
+                                    lines.append(current_line)
+                                current_line = word
+                
+                        if current_line:
+                            lines.append(current_line)
+                
+                        # Stop if it fits in 2 lines
+                        if len(lines) <= 2:
+                            wrapped_addr = lines
+                            break
+                
+                        curr_size -= 2
+                
+                    # Fallback if still too long
+                    if not wrapped_addr:
+                        wrapped_addr = lines[:2]
+                
+                    # Draw address lines
+                    for line in wrapped_addr[:2]:
+                        draw.text((value_x, current_y), line, font=addr_font, fill=VALUE_FONT_COLOR)
+                        current_y += curr_size + 6
+                
+                    continue
+                
 
-    except Exception as e:
-        logger.error(f"Edit error: {e}")
-        error = str(e)
+                # --- STANDARD FIELDS ---
+                else:
+                    test_font = ImageFont.truetype(FONT_REGULAR_PATH, font_settings["value_font_size"])
+                    text_len = test_font.getlength(val)
 
-    return render_template(
-        "edit.html",
-        success=success,
-        error=error,
-        form_data=form_data,
-        generated_url=generated_url,
-        download_url=download_url,
-        templates=templates
-    )
+                    if text_len > max_w:
+                        avg_char_w = font_settings["value_font_size"] * 0.55
+                        chars_limit = int(max_w / avg_char_w)
+                        wrapped = textwrap.wrap(val, width=chars_limit, break_long_words=True)
+                        
+                        draw.text((label_x, current_y), f"{lbl}:", font=l_font, fill=LABEL_FONT_COLOR)
+                        v_font = load_font_dynamic(FONT_REGULAR_PATH, max(wrapped, key=len), max_w, font_settings["value_font_size"])
+                        
+                        for line in wrapped:
+                            draw.text((value_x, current_y), line, font=v_font, fill=VALUE_FONT_COLOR)
+                            current_y += line_height
+                    else:
+                        v_font = load_font_dynamic(FONT_REGULAR_PATH, val, max_w, font_settings["value_font_size"])
+                        draw.text((label_x, current_y), f"{lbl}:", font=l_font, fill=LABEL_FONT_COLOR)
+                        draw.text((value_x, current_y), val, font=v_font, fill=VALUE_FONT_COLOR)
+                        current_y += line_height
+          
+            try:
+                if photo_url:
+                    import requests
+                    resp = requests.get(photo_url, timeout=8)
+                    if resp.status_code == 200:
+                        photo_img = Image.open(io.BytesIO(resp.content)).convert("RGBA")
+                        photo_img = photo_img.resize(
+                            (photo_settings["photo_width"], photo_settings["photo_height"]),
+                            Image.LANCZOS
+                        )
+                        radii = [
+                            photo_settings.get("photo_border_top_left", 0),
+                            photo_settings.get("photo_border_top_right", 0),
+                            photo_settings.get("photo_border_bottom_right", 0),
+                            photo_settings.get("photo_border_bottom_left", 0)
+                        ]
+                        photo_img = round_photo(photo_img, radii)
+                        template.paste(photo_img, (photo_settings["photo_x"], photo_settings["photo_y"]), photo_img)
+                
+            except Exception as e:
+                error = f"Error processing photo: {str(e)}"
+                logger.error(error)
+                return render_template("edit.html", generated_url=generated_url, download_url=download_url,
+                                     form_data=form_data, error=error, templates=templates), 500
+          
+            # Add QR Code if enabled
+            if qr_settings.get("enable_qr", False):
+                if qr_settings.get("qr_data_type") == "student_id":
+                    qr_data = json.dumps({
+                        "student_id": str(student_id),
+                        "name": name,
+                        "school_name": school_name,
+                        "photo_url": f"/static/uploads/{photo_stored}",
+                        "custom_data": custom_data # Include dynamic fields in QR
+                    })
+                elif qr_settings.get("qr_data_type") == "url":
+                    qr_data = qr_settings.get("qr_base_url", "") + str(student_id)
+                elif qr_settings.get("qr_data_type") == "text":
+                    qr_data = qr_settings.get("qr_custom_text", "Sample Text")
+                elif qr_settings.get("qr_data_type") == "json":
+                    qr_data = json.dumps({
+                        "student_id": student_id,
+                        "name": name,
+                        "class": class_name,
+                        "school_name": school_name,
+                        "photo_url": f"/static/uploads/{photo_stored}",
+                        "custom_data": custom_data 
+                    })
+                else:
+                    qr_data = str(student_id)
+                
+                qr_size = qr_settings.get("qr_size", 120)
+                qr_img = generate_qr_code(qr_data, qr_settings, qr_size)
+                qr_x = qr_settings.get("qr_x", 50)
+                qr_y = qr_settings.get("qr_y", 50)
+                
+                # Resize QR if needed and paste
+                qr_img = qr_img.resize((qr_size, qr_size))
+                template.paste(qr_img, (qr_x, qr_y))
+          
+            # =========================================================
+            # CONCURRENCY FIX: SAVE INDIVIDUAL CARD IMAGE TO CLOUDINARY
+            # =========================================================
+            timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+            # Create unique filename: card_TEMPLATEID_STUDENTID_TIMESTAMP.jpg
+            jpg_name = f"card_{template_id}_{student_id}_{timestamp}.jpg"
+            pdf_name = f"card_{template_id}_{student_id}_{timestamp}.pdf" # Keep PDF name for legacy compatibility if needed
+            
+            # Convert image to bytes and upload to Cloudinary
+            jpg_buffer = io.BytesIO()
+            template.save(jpg_buffer, "JPEG", quality=95)
+            jpg_buffer.seek(0)
+            jpg_url = upload_image(jpg_buffer.getvalue(), folder='cards', resource_type='image')
+            
+            # Clean up old file if it exists
+            if student.generated_filename:
+                old_path = os.path.join(GENERATED_FOLDER, student.generated_filename)
+                if os.path.exists(old_path):
+                    os.remove(old_path)
+            
+            # Update URLs for frontend display
+            generated_url = jpg_url  # Use Cloudinary URL
+            # Upload PDF to Cloudinary as well
+            pdf_buffer = io.BytesIO()
+            template.save(pdf_buffer, "PDF", resolution=300)
+            pdf_buffer.seek(0)
+            pdf_url = upload_image(pdf_buffer.getvalue(), folder='cards', resource_type='raw')
+            download_url = pdf_url  # Use Cloudinary URL
+          
+            try:
+                # Delete old photo if changed
+                if student.photo_filename and student.photo_filename != photo_stored:
+                    old_photo_path = os.path.join(UPLOAD_FOLDER, student.photo_filename)
+                    if os.path.exists(old_photo_path):
+                        os.remove(old_photo_path)
+                
+                # Delete old generated files
+                if student.generated_filename and student.generated_filename != pdf_name:
+                     # Check if old filename stored was PDF or JPG and clean up both variants
+                    base_old = os.path.splitext(student.generated_filename)[0]
+                    for ext in ['.pdf', '.jpg']:
+                        old_file_path = os.path.join(GENERATED_FOLDER, base_old + ext)
+                        if os.path.exists(old_file_path):
+                            os.remove(old_file_path)
+                
+                student.name = name
+                student.father_name = father_name
+                student.class_name = class_name
+                student.dob = dob
+                student.address = address
+                student.phone = phone
+                student.photo_filename = photo_stored
+                # Store Cloudinary URLs instead of local filenames
+                student.image_url = jpg_url
+                student.pdf_url = pdf_url
+                student.created_at = datetime.utcnow()
+                student.data_hash = data_hash
+               
+                student.school_name = school_name
+                student.custom_data = custom_data # <--- SAVE DYNAMIC FIELDS
+                
+                db.session.commit()
+                
+                success = "ID card updated successfully"
+                form_data['photo_filename'] = photo_stored
+                form_data['generated_filename'] = jpg_name
+                form_data['custom_data'] = custom_data
+                
+            except Exception as e:
+                error = f"Database error: {str(e)}"
+                logger.error(error)
+                return render_template("edit.html", generated_url=generated_url, download_url=download_url,
+                                     form_data=form_data, error=error, templates=templates), 500
+      
+        except Exception as e:
+            error = f"Error generating ID card: {str(e)}"
+            logger.error(error)
+            return render_template("edit.html", generated_url=generated_url, download_url=download_url,
+                                 form_data=form_data, error=error, templates=templates), 500
+  
+    return render_template("edit.html", generated_url=generated_url, download_url=download_url,
+                          form_data=form_data, success=success, error=error, templates=templates)
+
 
 @app.route("/admin", methods=["GET"])
 def admin():
