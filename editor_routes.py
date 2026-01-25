@@ -117,10 +117,19 @@ def save_field_settings():
     
     data = request.json
     template_id = data.get('template_id')
+
+    if not template_id:
+        return jsonify({"error": "template_id missing"}), 400
+    
+    try:
+        template_id = int(template_id)
+    except ValueError:
+        return jsonify({"error": "invalid template_id"}), 400
+    
     
     # 1. Fetch Template
     template = db.session.get(Template, template_id)
-    if not template: return jsonify({"error": "Template not found"}), 404
+    return jsonify({"error": f"Template not found for ID {template_id}"}), 404
 
     try:
         # --- A. Save Photo Settings ---
