@@ -2986,7 +2986,7 @@ def edit_student(student_id):
                 student.pdf_url = pdf_url
                 student.created_at = datetime.utcnow()
                 student.data_hash = data_hash
-               
+                student.template_id = template_id
                 student.school_name = school_name
                 student.custom_data = custom_data # <--- SAVE DYNAMIC FIELDS
                 
