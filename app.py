@@ -3152,107 +3152,104 @@ def download_compiled_school_pdf(template_id):
         if not students:
             return redirect(url_for("admin", error="No students found"))
 
-        # Setup PDF Buffer
         buffer = io.BytesIO()
-        
+
         # =========================================================
-        # DYNAMIC SIZE CALCULATION
+        # DYNAMIC SIZE CALCULATION (UNCHANGED)
         # =========================================================
-        # 1. Get dimensions from DB (Pixels @ 300 DPI)
         sheet_w_px = template.sheet_width if template.sheet_width else 2480
         sheet_h_px = template.sheet_height if template.sheet_height else 3508
         
         card_w_px = template.card_width if template.card_width else 1015
         card_h_px = template.card_height if template.card_height else 661
 
-        # 2. Convert Pixels to PDF Points (72 DPI)
         scale = 72 / 300
-        
         sheet_w_pt = sheet_w_px * scale
         sheet_h_pt = sheet_h_px * scale
         card_w_pt = card_w_px * scale
         card_h_pt = card_h_px * scale
-        gap = 10 * scale # 10px gap converted to points
+        gap = 10 * scale
 
-        # 3. Create Canvas with CUSTOM page size
         c = canvas.Canvas(buffer, pagesize=(sheet_w_pt, sheet_h_pt))
-        
-        # 4. Get Grid Layout from DB (Respects User Settings)
-        # --- CHANGED: Use DB values instead of calculating ---
+
         cols = template.grid_cols if template.grid_cols else 2
         rows = template.grid_rows if template.grid_rows else 5
-        
         cards_per_sheet = cols * rows
 
-        # 5. Center the grid on the sheet
-        # We assume even spacing between cards using the fixed gap
         total_grid_w = (cols * card_w_pt) + ((cols - 1) * gap)
         total_grid_h = (rows * card_h_pt) + ((rows - 1) * gap)
-        
-        # Calculate start positions to perfectly center the block
-        start_x = (sheet_w_pt - total_grid_w) / 2
-        start_y = (sheet_h_pt - total_grid_h) / 2 # Bottom margin
-        
-        # =========================================================
 
+        start_x = (sheet_w_pt - total_grid_w) / 2
+        start_y = (sheet_h_pt - total_grid_h) / 2
+
+        # =========================================================
         card_count = 0
 
+        from reportlab.lib.utils import ImageReader
+
         for student in students:
-            # Use Cloudinary URL if available, otherwise skip (legacy files no longer exist)
-            if not student.image_url: 
+            if not student.image_url:
                 continue
-            
-            # Fetch image from Cloudinary URL
+
             try:
                 response = requests.get(student.image_url, timeout=10)
-                img = Image.open(io.BytesIO(response.content))
+                response.raise_for_status()
+
+                pil_img = Image.open(io.BytesIO(response.content)).convert("RGB")
+
+                img_buffer = io.BytesIO()
+                pil_img.save(img_buffer, format="PNG")
+                img_buffer.seek(0)
+
+                img_reader = ImageReader(img_buffer)
+
             except Exception as e:
-                logger.warning(f"Failed to fetch image for student {student.id} from Cloudinary: {e}")
+                logger.warning(
+                    f"Failed to fetch image for student {student.id} from Cloudinary: {e}"
+                )
                 continue
 
-            # Save image to BytesIO for ReportLab
-            img_buffer = io.BytesIO()
-            img.save(img_buffer, format="PNG")
-            img_buffer.seek(0)
-            
-            # Grid Position
             idx = card_count % cards_per_sheet
             col = idx % cols
-            row = idx // cols 
+            row = idx // cols
 
-            # Coord Calculation (Top-Down Y calculation)
-            # X = Start + (ColIndex * (CardWidth + Gap))
             x = start_x + (col * (card_w_pt + gap))
-            
-            # Y = (BottomMargin + GridHeight) - (RowIndex+1)*Height - RowIndex*Gap
-            # This ensures we start drawing from the TOP-LEFT of the calculated grid block
             grid_top_y = start_y + total_grid_h
             y = grid_top_y - ((row + 1) * card_h_pt) - (row * gap)
 
             try:
-                from reportlab.platypus import Image as RLImage
-                rl_img = RLImage(img_buffer, width=card_w_pt, height=card_h_pt)
-                c.drawImage(img_buffer, x, y, width=card_w_pt, height=card_h_pt)
+                c.drawImage(
+                    img_reader,
+                    x,
+                    y,
+                    width=card_w_pt,
+                    height=card_h_pt,
+                    preserveAspectRatio=True,
+                    mask="auto"
+                )
             except Exception as e:
-                print(f"Error drawing card {student.id}: {e}")
+                logger.error(f"Error drawing card {student.id}: {e}")
 
             card_count += 1
-            
-            # New Page Logic
+
             if card_count % cards_per_sheet == 0:
                 c.showPage()
 
         c.save()
         buffer.seek(0)
-        
+
         filename = f"FULL_EXPORT_{secure_filename(template.school_name)}_{datetime.now().strftime('%Y%m%d')}.pdf"
-        return send_file(buffer, as_attachment=True, download_name=filename, mimetype='application/pdf')
+        return send_file(
+            buffer,
+            as_attachment=True,
+            download_name=filename,
+            mimetype="application/pdf"
+        )
 
     except Exception as e:
-        import traceback
-        traceback.print_exc()
+        logger.exception("Compile PDF failed")
         return redirect(url_for("admin", error=f"Compile Error: {str(e)}"))
-    
+
 @app.route("/upload_template", methods=["POST"])
 def upload_template():
     if 'template' not in request.files or 'school_name' not in request.form:
