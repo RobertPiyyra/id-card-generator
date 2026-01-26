@@ -1495,132 +1495,156 @@
 
                         <div class="settings-section">
                             <h4><i class="fas fa-qrcode"></i> QR Code Settings</h4>
-                        
+                            
                             <div class="form-group">
                                 <div class="checkbox-container">
-                                    <input type="checkbox" id="enable_qr" name="enable_qr" class="checkbox"
+                                    <input type="checkbox" id="enable_qr" name="enable_qr" class="checkbox" 
                                            {% if templates and templates[0].qr_settings and templates[0].qr_settings.enable_qr %}checked{% endif %}
                                            onchange="toggleQRSettings()">
                                     <label for="enable_qr">
                                         <i class="fas fa-toggle-on"></i> Enable QR Code on ID Cards
                                     </label>
                                 </div>
-                                <small class="hint-text">
+                                <small style="color: #666; font-size: 0.8rem;">
                                     <i class="fas fa-info-circle"></i> Enable QR code generation for student verification
                                 </small>
                             </div>
-                        
-                            <div id="qrSettingsContainer"
-                                 style="display:{% if templates and templates[0].qr_settings and templates[0].qr_settings.enable_qr %}block{% else %}none{% endif %};">
-                        
-                                <!-- POSITION & SIZE -->
+                            
+                            <div id="qrSettingsContainer" style="display: {% if templates and templates[0].qr_settings and templates[0].qr_settings.enable_qr %}block{% else %}none{% endif %};">
                                 <div class="form-row">
                                     <div class="form-group">
-                                        <label>X Position</label>
-                                        <input type="number" name="qr_x"
-                                               value="{{ templates[0].qr_settings.qr_x if templates and templates[0].qr_settings else 50 }}">
+                                        <label><i class="fas fa-arrows-alt-h"></i> X Position</label>
+                                        <input type="number" name="qr_x" id="qrX" 
+                                               value="{{ templates[0].qr_settings.qr_x if templates and templates[0].qr_settings else 50 }}" 
+                                               min="0" max="1000" step="1">
+                                        <small style="color: #666; font-size: 0.8rem;">Horizontal position in pixels</small>
                                     </div>
                                     <div class="form-group">
-                                        <label>Y Position</label>
-                                        <input type="number" name="qr_y"
-                                               value="{{ templates[0].qr_settings.qr_y if templates and templates[0].qr_settings else 50 }}">
+                                        <label><i class="fas fa-arrows-alt-v"></i> Y Position</label>
+                                        <input type="number" name="qr_y" id="qrY" 
+                                               value="{{ templates[0].qr_settings.qr_y if templates and templates[0].qr_settings else 50 }}" 
+                                               min="0" max="1000" step="1">
+                                        <small style="color: #666; font-size: 0.8rem;">Vertical position in pixels</small>
                                     </div>
                                     <div class="form-group">
-                                        <label>QR Size</label>
-                                        <input type="number" name="qr_size"
-                                               value="{{ templates[0].qr_settings.qr_size if templates and templates[0].qr_settings else 120 }}">
+                                        <label><i class="fas fa-expand-alt"></i> QR Size</label>
+                                        <input type="number" name="qr_size" id="qrSize" 
+                                               value="{{ templates[0].qr_settings.qr_size if templates and templates[0].qr_settings else 120 }}" 
+                                               min="50" max="300" step="5">
+                                        <small style="color: #666; font-size: 0.8rem;">Size in pixels (50-300)</small>
                                     </div>
                                 </div>
-                        
-                                <!-- STYLE -->
+                                
                                 <div class="form-row">
                                     <div class="form-group">
-                                        <label>QR Style</label>
-                                        <select name="qr_style" class="form-control">
-                                            <option value="square" {% if templates[0].qr_settings.qr_style == 'square' %}selected{% endif %}>Square</option>
-                                            <option value="rounded" {% if templates[0].qr_settings.qr_style == 'rounded' %}selected{% endif %}>Rounded</option>
-                                            <option value="circle" {% if templates[0].qr_settings.qr_style == 'circle' %}selected{% endif %}>Circle</option>
-                                            <option value="gapped" {% if templates[0].qr_settings.qr_style == 'gapped' %}selected{% endif %}>Gapped</option>
+                                        <label><i class="fas fa-brush"></i> QR Style</label>
+                                        <select name="qr_style" id="qrStyle" class="form-control">
+                                            <option value="square" {% if templates and templates[0].qr_settings and templates[0].qr_settings.qr_style == 'square' %}selected{% endif %}>Square Dots</option>
+                                            <option value="rounded" {% if templates and templates[0].qr_settings and templates[0].qr_settings.qr_style == 'rounded' %}selected{% endif %}>Rounded Dots</option>
+                                            <option value="circle" {% if templates and templates[0].qr_settings and templates[0].qr_settings.qr_style == 'circle' %}selected{% endif %}>Circular Dots</option>
+                                            <option value="gapped" {% if templates and templates[0].qr_settings and templates[0].qr_settings.qr_style == 'gapped' %}selected{% endif %}>Gapped Square</option>
                                         </select>
                                     </div>
-                        
                                     <div class="form-group">
-                                        <label>Border</label>
-                                        <input type="range" name="qr_border"
-                                               value="{{ templates[0].qr_settings.qr_border if templates and templates[0].qr_settings else 2 }}"
-                                               min="0" max="10">
+                                        <label><i class="fas fa-border-style"></i> Border Size</label>
+                                        <input type="range" name="qr_border" id="qrBorder" class="range-slider" 
+                                               value="{{ templates[0].qr_settings.qr_border if templates and templates[0].qr_settings else 2 }}" 
+                                               min="0" max="10" step="1">
+                                        <div style="display: flex; justify-content: space-between; font-size: 0.8rem; color: #666;">
+                                            <span>0</span>
+                                            <span id="qrBorderValue">{{ templates[0].qr_settings.qr_border if templates and templates[0].qr_settings else 2 }}</span>
+                                            <span>10</span>
+                                        </div>
                                     </div>
                                 </div>
-                        
-                                <!-- COLORS -->
+                                
                                 <div class="form-group">
-                                    <label>QR Color</label>
-                                    <input type="color" name="qr_fill_color"
-                                           value="{{ templates[0].qr_settings.qr_fill_color | rgb_to_hex if templates and templates[0].qr_settings else '#000000' }}">
+                                    <label><i class="fas fa-fill-drip"></i> QR Color</label>
+                                    <div class="color-input-group">
+                                        <input type="color" name="qr_fill_color" id="qrFillColor" class="color-picker"
+                                               value="{{ templates[0].qr_settings.qr_fill_color | rgb_to_hex if templates and templates[0].qr_settings and templates[0].qr_settings.qr_fill_color else '#000000' }}">
+                                        <span class="color-value" id="qrFillColorValue">{{ templates[0].qr_settings.qr_fill_color | rgb_to_hex if templates and templates[0].qr_settings and templates[0].qr_settings.qr_fill_color else '#000000' }}</span>
+                                    </div>
+                                    <small style="color: #666; font-size: 0.8rem;">Main QR code color</small>
                                 </div>
-                        
+                                
                                 <div class="form-group">
-                                    <label>Background Color</label>
-                                    <input type="color" name="qr_back_color"
-                                           value="{{ templates[0].qr_settings.qr_back_color | rgb_to_hex if templates and templates[0].qr_settings else '#ffffff' }}">
+                                    <label><i class="fas fa-fill"></i> Background Color</label>
+                                    <div class="color-input-group">
+                                        <input type="color" name="qr_back_color" id="qrBackColor" class="color-picker"
+                                               value="{{ templates[0].qr_settings.qr_back_color | rgb_to_hex if templates and templates[0].qr_settings and templates[0].qr_settings.qr_back_color else '#ffffff' }}">
+                                        <span class="color-value" id="qrBackColorValue">{{ templates[0].qr_settings.qr_back_color | rgb_to_hex if templates and templates[0].qr_settings and templates[0].qr_settings.qr_back_color else '#ffffff' }}</span>
+                                    </div>
+                                    <small style="color: #666; font-size: 0.8rem;">QR code background</small>
                                 </div>
-                        
-                                <!-- DATA TYPE -->
-                                <div class="form-group">
-                                    <label>QR Content Type</label>
-                                    <select name="qr_data_type" onchange="toggleQRContentFields()">
-                                        <option value="student_id">Student ID</option>
-                                        <option value="url">Verification URL</option>
-                                        <option value="text">Custom Text</option>
-                                        <option value="json">Student Data (JSON)</option>
-                                    </select>
+                                
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label><i class="fas fa-link"></i> QR Content Type</label>
+                                        <select name="qr_data_type" id="qrDataType" class="form-control" onchange="toggleQRContentFields()">
+                                            <option value="student_id" {% if templates and templates[0].qr_settings and templates[0].qr_settings.qr_data_type == 'student_id' %}selected{% endif %}>Student ID</option>
+                                            <option value="url" {% if templates and templates[0].qr_settings and templates[0].qr_settings.qr_data_type == 'url' %}selected{% endif %}>Verification URL</option>
+                                            <option value="text" {% if templates and templates[0].qr_settings and templates[0].qr_settings.qr_data_type == 'text' %}selected{% endif %}>Custom Text</option>
+                                            <option value="json" {% if templates and templates[0].qr_settings and templates[0].qr_settings.qr_data_type == 'json' %}selected{% endif %}>Student Data (JSON)</option>
+                                        </select>
+                                    </div>
                                 </div>
-                        
-                                <!-- LOGO ENABLE -->
-                                <div class="form-group">
-                                    <input type="checkbox" id="qr_include_logo" name="qr_include_logo"
-                                           {% if templates and templates[0].qr_settings and templates[0].qr_settings.qr_include_logo %}checked{% endif %}
-                                           onchange="toggleQRLogoField()">
-                                    <label for="qr_include_logo">
-                                        <i class="fas fa-image"></i> Include Logo in QR Center
-                                    </label>
-                                </div>
-                        
-                                <!-- ✅ CLOUDINARY LOGO UPLOAD -->
-                                <div class="form-group" id="logoPathContainer"
-                                     style="display:{% if templates and templates[0].qr_settings and templates[0].qr_settings.qr_include_logo %}block{% else %}none{% endif %};">
-                        
-                                    <label><i class="fas fa-cloud-upload-alt"></i> Upload QR Logo</label>
-                        
-                                    <input type="file"
-                                           id="qrLogoUpload"
-                                           accept="image/png,image/svg+xml"
-                                           onchange="uploadQRLogoToCloudinary(this)">
-                        
-                                    <!-- Stores Cloudinary URL -->
-                                    <input type="hidden"
-                                           name="qr_logo_url"
-                                           id="qrLogoUrl"
-                                           value="{{ templates[0].qr_settings.qr_logo_url if templates and templates[0].qr_settings else '' }}">
-                        
-                                    <small>
-                                        PNG / SVG • Transparent background recommended
+                                
+                                <div class="form-group" id="customTextContainer" style="display: {% if templates and templates[0].qr_settings and templates[0].qr_settings.qr_data_type == 'text' %}block{% else %}none{% endif %};">
+                                    <label><i class="fas fa-font"></i> Custom Text</label>
+                                    <input type="text" name="qr_custom_text" id="qrCustomText" 
+                                           value="{{ templates[0].qr_settings.qr_custom_text if templates and templates[0].qr_settings else '' }}"
+                                           placeholder="Enter custom text for QR code">
+                                    <small style="color: #666; font-size: 0.8rem;">
+                                        <i class="fas fa-info-circle"></i> This text will be encoded in the QR code
                                     </small>
                                 </div>
-                        
-                                <!-- PREVIEW -->
-                                <div class="qr-preview-container">
-                                    <img id="qrPreviewImage"
-                                         src="{{ templates[0].qr_settings.qr_logo_url
-                                                if templates and templates[0].qr_settings and templates[0].qr_settings.qr_logo_url
-                                                else 'https://res.cloudinary.com/demo/image/upload/v1690000000/qr_placeholder.png' }}"
-                                         alt="QR Preview"
-                                         style="max-width:120px;">
+                                
+                                <div class="form-group" id="urlContainer" style="display: {% if templates and templates[0].qr_settings and templates[0].qr_settings.qr_data_type == 'url' %}block{% else %}none{% endif %};">
+                                    <label><i class="fas fa-globe"></i> Base URL</label>
+                                    <input type="url" name="qr_base_url" id="qrBaseUrl" 
+                                           value="{{ templates[0].qr_settings.qr_base_url if templates and templates[0].qr_settings else 'https://example.com/verify/' }}"
+                                           placeholder="https://example.com/verify/">
+                                    <small style="color: #666; font-size: 0.8rem;">
+                                        <i class="fas fa-info-circle"></i> URL will be appended with student ID (e.g., https://example.com/verify/12345)
+                                    </small>
                                 </div>
-                        
+                                
+                                <div class="form-group">
+                                    <div class="checkbox-container">
+                                        <input type="checkbox" id="qr_include_logo" name="qr_include_logo" class="checkbox" 
+                                               {% if templates and templates[0].qr_settings and templates[0].qr_settings.qr_include_logo %}checked{% endif %}
+                                               onchange="toggleQRLogoField()">
+                                        <label for="qr_include_logo">
+                                            <i class="fas fa-image"></i> Include Logo in QR Center
+                                        </label>
+                                    </div>
+                                </div>
+                                
+                                <div class="form-group" id="logoPathContainer" style="display: {% if templates and templates[0].qr_settings and templates[0].qr_settings.qr_include_logo %}block{% else %}none{% endif %};">
+                                    <label><i class="fas fa-folder"></i> Logo Path</label>
+                                    <input type="text" name="qr_logo_path" id="qrLogoPath" 
+                                           value="{{ templates[0].qr_settings.qr_logo_path if templates and templates[0].qr_settings else '' }}"
+                                           placeholder="logos/school_logo.png">
+                                    <small style="color: #666; font-size: 0.8rem;">
+                                        <i class="fas fa-info-circle"></i> Path to logo file in static folder (PNG with transparency recommended)
+                                    </small>
+                                </div>
+                                
+                                <div class="qr-preview-container">
+                                    <div class="qr-preview" id="qrPreview">
+                                        <img src="{{ url_for('static', filename='logos/qr_placeholder.png' if templates and templates[0].qr_settings and templates[0].qr_settings.qr_logo_path else 'logos/qr_placeholder.png') }}" 
+                                             alt="QR Preview" id="qrPreviewImage">
+                                    </div>
+                                    <div class="qr-preview-info">
+                                        <p><i class="fas fa-info-circle"></i> Preview of QR code with current settings</p>
+                                        <button type="button" class="btn btn-sm" onclick="updateQRPreview()" style="margin-top: 10px;">
+                                            <i class="fas fa-sync-alt"></i> Update Preview
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
                         </div>
-
 
                         <button type="button" class="btn btn-upload" id="saveSettingsBtn" onclick="saveTemplateSettings()" disabled>
                             <i class="fas fa-save"></i> Save Template Settings
@@ -3168,29 +3192,6 @@
                 });
         }
 
-
-
-        function uploadQRLogoToCloudinary(input) {
-            if (!input.files.length) return;
-        
-            const file = input.files[0];
-            const formData = new FormData();
-            formData.append("file", file);
-            formData.append("upload_preset", "YOUR_UPLOAD_PRESET");
-        
-            fetch("https://api.cloudinary.com/v1_1/YOUR_CLOUD_NAME/image/upload", {
-                method: "POST",
-                body: formData
-            })
-            .then(res => res.json())
-            .then(data => {
-                document.getElementById("qrLogoUrl").value = data.secure_url;
-                document.getElementById("qrPreviewImage").src = data.secure_url;
-            })
-            .catch(() => alert("Logo upload failed"));
-        }
-        
-        
         function loadSamplePreview(templateId) {
             document.getElementById('previewTemplate').value = templateId;
             updateStudentDropdown();
