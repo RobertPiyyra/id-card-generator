@@ -1019,6 +1019,8 @@ def _process_photo_pil(pil_img, target_width=260, target_height=313, remove_back
 
 
 
+import socket
+
 def send_email(to, subject, body):
     msg = MIMEText(body)
     msg['Subject'] = subject
@@ -1029,37 +1031,39 @@ def send_email(to, subject, body):
     try:
         # Load Config
         smtp_server = os.environ.get("SMTP_SERVER", "smtp.gmail.com")
+        # Default to 587 if not set
         smtp_port = int(os.environ.get("SMTP_PORT", 587))
         password = os.environ.get("EMAIL_PASSWORD")
 
         # --- NETWORK FIX: FORCE IPv4 ---
-        # Railway/Docker sometimes fails on IPv6 (Errno 101). 
-        # We resolve the Gmail address to an IPv4 IP manually.
+        # Resolves Gmail IP manually to avoid IPv6 timeouts
         addr_info = socket.getaddrinfo(smtp_server, smtp_port, socket.AF_INET, socket.SOCK_STREAM)
         family, socktype, proto, canonname, sa = addr_info[0]
         target_ip = sa[0] 
         # -------------------------------
 
-        # Connect using the IPv4 IP, but use original hostname for SSL verification
+        # Connect using IPv4
         server = smtplib.SMTP(target_ip, smtp_port)
         server.ehlo()
         
-        # Upgrade to Secure Connection (TLS)
+        # Upgrade to Secure Connection (TLS) - Required for Port 587
         if smtp_port == 587:
             server.starttls()
             server.ehlo()
 
         server.login(msg['From'], password)
         server.send_message(msg)
-        server.quit()
-        
-        # RETURN TRUE tells the app: "It worked!"
-        return True
+        return True  # <--- SUCCESS
 
     except Exception as e:
-        logger.error(f"❌ Failed to send email: {e}")
-        # RETURN FALSE tells the app: "It failed!"
-        return False
+        logger.error(f"❌ Failed to send email to {to}: {e}")
+        return False # <--- FAILURE
+    finally:
+        if server:
+            try:
+                server.quit()
+            except:
+                pass
 # ================== Landing Page Routes ==================
 @app.route("/")
 def landing():
@@ -1246,13 +1250,14 @@ You requested to reset your password. Please click the link below to set a new o
 This link is valid for 1 hour.
 If you did not request this, please ignore this email.
 """
-            try:
-                send_email(email, subject, body)
+            # --- UPDATE: Check return value of send_email ---
+            if send_email(email, subject, body):
                 logger.info(f"Password reset link sent to {email}")
                 flash("A reset link has been sent to your email. Please check your inbox.", "success")
-            except Exception as e:
-                logger.error(f"Failed to send reset email: {e}")
+            else:
+                logger.error(f"Failed to send reset email to {email}")
                 flash("Error sending email. Please try again later.", "error")
+            # -----------------------------------------------
         else:
             # Security: Generic message to prevent email enumeration
             flash("If an account exists with that email, a reset link has been sent.", "info")
@@ -1261,7 +1266,6 @@ If you did not request this, please ignore this email.
         
     # Render the form where they type their email
     return render_template("forgot_password.html")
-
 
 # -------------------------------------------------------------------------
 # 2. SET NEW PASSWORD (User clicks link -> Enters new password)
