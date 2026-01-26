@@ -13,6 +13,7 @@ import hashlib
 import logging
 import re
 import smtplib
+import socket  # <--- Make sure this is imported at the top
 import requests
 from email.mime.text import MIMEText
 import random
@@ -1014,7 +1015,9 @@ def _process_photo_pil(pil_img, target_width=260, target_height=313, remove_back
         return pil_img
 
           
-import socket
+# app.py
+
+
 
 def send_email(to, subject, body):
     msg = MIMEText(body)
@@ -1024,40 +1027,39 @@ def send_email(to, subject, body):
 
     server = None
     try:
+        # Load Config
         smtp_server = os.environ.get("SMTP_SERVER", "smtp.gmail.com")
-        port = int(os.environ.get("SMTP_PORT", 587)) # Default to 587 now
+        smtp_port = int(os.environ.get("SMTP_PORT", 587))
         password = os.environ.get("EMAIL_PASSWORD")
 
-        # --- FIX: FORCE IPv4 (Fixes [Errno 101] Network is unreachable) ---
-        # We manually resolve the address to an IPv4 IP before connecting
-        # This prevents the app from trying IPv6 which fails on Railway
-        addr_info = socket.getaddrinfo(smtp_server, port, socket.AF_INET, socket.SOCK_STREAM)
+        # --- NETWORK FIX: FORCE IPv4 ---
+        # Railway/Docker sometimes fails on IPv6 (Errno 101). 
+        # We resolve the Gmail address to an IPv4 IP manually.
+        addr_info = socket.getaddrinfo(smtp_server, smtp_port, socket.AF_INET, socket.SOCK_STREAM)
         family, socktype, proto, canonname, sa = addr_info[0]
-        # ------------------------------------------------------------------
+        target_ip = sa[0] 
+        # -------------------------------
 
-        if port == 465:
-            # SSL Connection
-            server = smtplib.SMTP_SSL(smtp_server, port)
-        else:
-            # TLS Connection (Recommended for Railway)
-            server = smtplib.SMTP(smtp_server, port)
+        # Connect using the IPv4 IP, but use original hostname for SSL verification
+        server = smtplib.SMTP(target_ip, smtp_port)
+        server.ehlo()
+        
+        # Upgrade to Secure Connection (TLS)
+        if smtp_port == 587:
             server.starttls()
+            server.ehlo()
 
         server.login(msg['From'], password)
         server.send_message(msg)
-        logger.info(f"✅ Email sent successfully to {to}")
-        return True  # Tell the main app it worked
+        server.quit()
+        
+        # RETURN TRUE tells the app: "It worked!"
+        return True
 
     except Exception as e:
         logger.error(f"❌ Failed to send email: {e}")
-        return False  # Tell the main app it FAILED
-    finally:
-        if server:
-            try:
-                server.quit()
-            except:
-                pass
-
+        # RETURN FALSE tells the app: "It failed!"
+        return False
 # ================== Landing Page Routes ==================
 @app.route("/")
 def landing():
@@ -2427,13 +2429,17 @@ Regards,
 ID Card Admin
 NOOR GRAPHICS AND PRINTERS
 """
-                        send_email(student.email, email_subject, email_body)
-                        logger.info(f"Email success confirmed for {student.email}")
+                        # --- UPDATED: Check if email sent successfully ---
+                        if send_email(student.email, email_subject, email_body):
+                            logger.info(f"Email success confirmed for {student.email}")
+                        else:
+                            logger.error(f"Email FAILED for {student.email} (Check server logs for details)")
+                        # -------------------------------------------------
+
                 except Exception as email_err:
-                    logger.error(f"Failed to send success email: {email_err}")
+                    logger.error(f"Crash in email logic: {email_err}")
 
                 success = f"Card Generated Successfully! (ID: {unique_edit_id}). \n An email with this ID has been sent to you."
-
             # Clear Form
             form_data = { 'template_id': template_id }
 
