@@ -51,7 +51,7 @@ from utils import (
     get_photo_settings_for_orientation, get_font_settings_for_orientation,
     get_template_orientation, load_template, load_template_smart, round_photo, is_valid_font_file,
     get_available_fonts, load_font_dynamic, generate_qr_code, generate_data_hash,process_text_for_drawing
-    ,trim_transparent_edges,ensure_rgb
+    ,trim_transparent_edges, force_rgb
 )
 from cloudinary_config import upload_image
 from models import db, Student, Template, TemplateField,ActivityLog
@@ -1587,7 +1587,7 @@ def generate_student_preview(student_id):
                 qr_img = generate_qr_code(qr_data, qr_settings, qr_size)
             
                 # 🔐 FORCE QR TO RGB BEFORE PASTE
-                qr_img = ensure_rgb(qr_img)
+                qr_img = force_rgb(qr_img)
             
                 qr_x = qr_settings.get("qr_x", 50)
                 qr_y = qr_settings.get("qr_y", 50)
@@ -1599,7 +1599,7 @@ def generate_student_preview(student_id):
             # =====================================================
             # 🚨 FINAL JPEG SAFETY (ABSOLUTE LAST IMAGE OPERATION)
             # =====================================================
-            template_img = ensure_rgb(template_img)
+            template_img = force_rgb(template_img)
             
             logger.info(f"Preview image mode before save: {template_img.mode}")
             
@@ -4197,7 +4197,7 @@ def admin_preview_card():
                 qr_img = qr_img.resize((qr_settings.get("qr_size", 120),)*2)
                 template_img.paste(qr_img, (qr_settings.get("qr_x", 50), qr_settings.get("qr_y", 50)))
             except: pass
-        template_img = ensure_rgb(template_img)
+        template_img = force_rgb(template_img)
         buffer = io.BytesIO()
         template_img.save(buffer,
                           format="JPEG",

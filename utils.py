@@ -714,12 +714,20 @@ def trim_transparent_edges(pil_img):
         return pil_img.crop(bbox)
     return pil_img
 
-def ensure_rgb(img):
-    """Force PIL image into RGB safely (JPEG compatible)."""
+from PIL import Image
+
+def force_rgb(img, bg_color=(255, 255, 255)):
+    """
+    Ensures image is RGB-safe for JPEG export.
+    Handles RGBA / LA / P modes safely.
+    """
+    if img.mode == "RGB":
+        return img
+
     if img.mode in ("RGBA", "LA"):
-        bg = Image.new("RGB", img.size, (255, 255, 255))
+        bg = Image.new("RGB", img.size, bg_color)
         bg.paste(img, mask=img.split()[-1])
         return bg
-    if img.mode != "RGB":
-        return img.convert("RGB")
-    return img
+
+    return img.convert("RGB")
+
