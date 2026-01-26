@@ -23,6 +23,7 @@ from utils import (
 from utils import load_template_smart
 corel_bp = Blueprint('corel', __name__)
 
+
 def local_apply_text_case(text, case_type):
     if not text: return ""
     text = str(text)

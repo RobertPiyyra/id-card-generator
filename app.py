@@ -147,7 +147,25 @@ app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
 db.init_app(app)
 
 
+def get_cloudinary_face_crop_url(original_url, width, height):
+    """
+    Rewrites a Cloudinary URL to use server-side Face Detection (g_face).
+    Returns a URL that delivers a perfectly cropped face image.
+    """
+    if not original_url or "cloudinary.com" not in original_url:
+        return original_url
 
+    # c_thumb: Crop mode that respects gravity
+    # g_face: Gravity set to 'face' (Automatically detects face)
+    # w_, h_: Target dimensions
+    transformation = f"c_thumb,g_face,w_{width},h_{height}"
+
+    # Inject transformation into the URL
+    parts = original_url.split("/upload/")
+    if len(parts) == 2:
+        return f"{parts[0]}/upload/{transformation}/{parts[1]}"
+    
+    return original_url
 
 
 @app.errorhandler(RateLimitExceeded)
@@ -2308,6 +2326,18 @@ def index():
                 if photo_url:
                     # Download photo from Cloudinary
                     import requests
+                    # 1. Get Target Dimensions
+                    req_w = photo_settings.get("photo_width", 260)
+                    req_h = photo_settings.get("photo_height", 313)
+                    
+                    # 2. Get the Smart URL (Face Detection)
+                    # This tells Cloudinary to find the face and crop BEFORE downloading
+                    processed_url = get_cloudinary_face_crop_url(photo_url, req_w, req_h)
+                    
+                    logger.info(f"Fetching face-cropped photo from: {processed_url}")
+
+                    # 3. Download the processed image
+                    resp = requests.get(processed_url, timeout=10)
                     resp = requests.get(photo_url, timeout=8)
                     if resp.status_code == 200:
                         ph = Image.open(io.BytesIO(resp.content)).convert("RGBA")
@@ -2969,6 +2999,15 @@ def edit_student(student_id):
             try:
                 if photo_url:
                     import requests
+                    # 1. Get Target Size
+                    req_w = photo_settings.get("photo_width", 260)
+                    req_h = photo_settings.get("photo_height", 313)
+
+                    # 2. Get Smart URL
+                    processed_url = get_cloudinary_face_crop_url(photo_url, req_w, req_h)
+                    
+                    # 3. Download
+                    resp = requests.get(processed_url, timeout=10)
                     resp = requests.get(photo_url, timeout=8)
                     if resp.status_code == 200:
                         photo_img = Image.open(io.BytesIO(resp.content)).convert("RGBA").resize(
