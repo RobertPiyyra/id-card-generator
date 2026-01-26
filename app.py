@@ -5208,11 +5208,11 @@ def manage_single_field(field_id):
         return jsonify({"success": False, "message": f"Server Error: {str(e)}"}), 500
     
 # ================== Versatile Verification Route ==================
-@app.route("/verify/<student_identifier>") # <--- CHANGED to accept text/hashes
+@app.route("/verify/<student_identifier>")
 def verify_student(student_identifier):
     """
     Public route to verify student details via QR code scan.
-    Works with both Database IDs (Numbers) and Generated Hashes (Text).
+    Prioritizes Cloudinary URLs over local files.
     """
     try:
         # Clean the input
@@ -5227,12 +5227,30 @@ def verify_student(student_identifier):
         if not student:
             return render_template("verify.html", error="Student record not found.", valid=False)
         
+        # --- FIX: LOGIC TO CHOOSE THE CORRECT PHOTO URL ---
+        final_photo_url = None
+
+        # 1. Check Cloudinary URL first (New System)
+        if getattr(student, 'photo_url', None):
+            final_photo_url = student.photo_url
+        
+        # 2. Fallback to Local File (Old System)
+        elif student.photo_filename and student.photo_filename != "placeholder.jpg":
+            final_photo_url = url_for('static', filename=f"Uploads/{student.photo_filename}")
+            
+        # 3. Default to Placeholder if nothing else exists
+        else:
+            final_photo_url = url_for('static', filename="placeholder.jpg")
+        # --------------------------------------------------
+
         # Prepare data object
         student_data = {
             "name": student.name,
             "father_name": student.father_name,
             "school_name": student.school_name,
-            "photo_url": url_for('static', filename=f"Uploads/{student.photo_filename}") if student.photo_filename else url_for('static', filename="placeholder.jpg"),
+            "photo_url": final_photo_url,  # <--- Using the fixed URL
+            "class_name": student.class_name, # Added class name for better verification
+            "status": "Verified"
         }
         
         return render_template("verify.html", student=student_data, valid=True)
@@ -5240,7 +5258,6 @@ def verify_student(student_identifier):
     except Exception as e:
         logger.error(f"Database error during verification: {e}")
         return render_template("verify.html", error="System error.", valid=False), 500
-
 
 
 @app.route('/download_school_excel/<int:template_id>')
