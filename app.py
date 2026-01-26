@@ -1027,6 +1027,7 @@ logger = logging.getLogger(__name__)
 
 import socket
 import smtplib
+import ssl
 from email.mime.text import MIMEText
 import logging
 
@@ -1041,44 +1042,27 @@ def send_email(to, subject, body):
 
     server = None
     try:
-        # 1. Configuration (Keep using Port 587)
+        # 1. Configuration (Force Port 465 for SSL)
         smtp_server = "smtp.gmail.com"
-        smtp_port = 587
+        smtp_port = 465
         password = os.environ.get("EMAIL_PASSWORD")
         
-        logger.info(f"📧 Preparing email to {to}...")
+        logger.info(f"📧 Sending email to {to} via {smtp_server}:{smtp_port}...")
 
-        # 2. RESOLVE ALL IPv4 ADDRESSES (IP Rotation Strategy)
-        # Instead of picking just one, we get a list of all Google IPs
+        # 2. FORCE IPv4 (Fixes 'Network is unreachable')
+        # We manually resolve the IP to ensure we don't accidentally use IPv6
         addr_info = socket.getaddrinfo(smtp_server, smtp_port, socket.AF_INET, socket.SOCK_STREAM)
+        family, socktype, proto, canonname, sa = addr_info[0]
+        target_ip = sa[0]
         
-        connected = False
-        last_error = None
+        logger.info(f"🔗 Connecting to Gmail IPv4: {target_ip}")
 
-        # 3. Try connecting to each IP until one works
-        for family, socktype, proto, canonname, sa in addr_info:
-            target_ip = sa[0]
-            try:
-                logger.info(f"🔄 Trying connection to {target_ip}...")
-                server = smtplib.SMTP(target_ip, smtp_port, timeout=10) # 10s timeout per IP
-                connected = True
-                logger.info(f"✅ Connected to {target_ip}")
-                break # We found a working IP!
-            except Exception as e:
-                logger.warning(f"⚠️ Failed to connect to {target_ip}: {e}")
-                last_error = e
-                continue
+        # 3. Connect via SMTP_SSL (Implicit SSL)
+        # We increase timeout to 30s to handle network lag
+        context = ssl.create_default_context()
+        server = smtplib.SMTP_SSL(target_ip, smtp_port, context=context, timeout=30)
         
-        if not connected:
-            raise last_error or Exception("No Google IPs accepted the connection")
-
-        # 4. Secure the connection
-        server.set_debuglevel(1) 
-        server.ehlo()
-        server.starttls() # Upgrade to TLS
-        server.ehlo()
-        
-        # 5. Login & Send
+        # 4. Login & Send
         logger.info("🔑 Logging in...")
         server.login(msg['From'], password)
         server.send_message(msg)
