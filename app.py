@@ -1014,8 +1014,8 @@ def _process_photo_pil(pil_img, target_width=260, target_height=313, remove_back
         logger.warning(f"Photo processing failed: {e}, returning original")
         return pil_img
 
-          
-
+# Ensure logger is defined
+logger = logging.getLogger(__name__)
 
 def send_email(to, subject, body):
     msg = MIMEText(body)
@@ -1025,30 +1025,32 @@ def send_email(to, subject, body):
 
     server = None
     try:
-        # Load Config - Force Default to 587
-        smtp_server = os.environ.get("SMTP_SERVER", "smtp.gmail.com")
-        smtp_port = int(os.environ.get("SMTP_PORT", 587))
+        # 1. Load Config (Hardcode Google Settings to eliminate variable errors)
+        smtp_server = "smtp.gmail.com"
+        smtp_port = 465  # We are switching back to 465 (SSL)
         password = os.environ.get("EMAIL_PASSWORD")
+        
+        logger.info(f"📧 Attempting email to {to} via {smtp_server}:{smtp_port} (Force IPv4)")
 
-        # 1. Force IPv4 Resolution (Fixes [Errno 101] Network Unreachable)
-        # Railway IPv6 routing can be flaky; this forces the app to find the IPv4 address.
+        # 2. FORCE IPv4 (Crucial Step)
+        # This fixes "[Errno 101] Network is unreachable" on Railway
         addr_info = socket.getaddrinfo(smtp_server, smtp_port, socket.AF_INET, socket.SOCK_STREAM)
         family, socktype, proto, canonname, sa = addr_info[0]
         target_ip = sa[0]
-
-        # 2. Connect via Plain Socket first (Fixes [Errno 110] Timeout on Port 587)
-        # We connect to the IP directly with a 10-second timeout.
-        server = smtplib.SMTP(target_ip, smtp_port, timeout=10)
-        server.set_debuglevel(1) # Optional: Prints conversation to logs for debugging
-        server.ehlo()
         
-        # 3. Upgrade to SSL/TLS (STARTTLS)
-        if smtp_port == 587:
-            server.starttls()
-            server.ehlo()
+        logger.info(f"🔗 Resolved Gmail to IPv4: {target_ip}")
 
-        # 4. Login and Send
+        # 3. Connect using SSL (SMTP_SSL)
+        # We connect directly to the IPv4 IP with a 30-second timeout
+        server = smtplib.SMTP_SSL(target_ip, smtp_port, timeout=30)
+        server.set_debuglevel(1)  # Prints connection details to logs
+        
+        # 4. Login
+        logger.info("🔑 Logging in...")
         server.login(msg['From'], password)
+        
+        # 5. Send
+        logger.info("📤 Sending message...")
         server.send_message(msg)
         server.quit()
         
@@ -1058,6 +1060,12 @@ def send_email(to, subject, body):
     except Exception as e:
         logger.error(f"❌ Failed to send email: {e}")
         return False
+    finally:
+        if server:
+            try:
+                server.quit()
+            except:
+                pass
 # ================== Landing Page Routes ==================
 @app.route("/")
 def landing():
