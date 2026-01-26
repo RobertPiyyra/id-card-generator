@@ -4850,6 +4850,18 @@ def background_bulk_generate(task_id, template_id, excel_path, photo_map):
                         if used_photo.startswith('http'):
                             # Fetch from Cloudinary
                             try:
+                                # --- FIX: USE CLOUDINARY SMART CROP ---
+                                # 1. Get dimensions from settings
+                                req_w = photo_settings.get("photo_width", 260)
+                                req_h = photo_settings.get("photo_height", 313)
+                                
+                                # 2. Generate the Smart URL (Face Detection)
+                                smart_url = get_cloudinary_face_crop_url(used_photo, req_w, req_h)
+                                
+                                # 3. Download the ALREADY CROPPED image
+                                response = requests.get(smart_url, timeout=10)
+                                ph = Image.open(io.BytesIO(response.content)).convert("RGBA")
+                                # ---
                                 response = requests.get(used_photo, timeout=10)
                                 ph = Image.open(io.BytesIO(response.content)).convert("RGBA")
                             except Exception as e:
