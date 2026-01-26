@@ -194,7 +194,7 @@ logger = logging.getLogger(__name__)
 EMAIL_FROM = os.environ.get("EMAIL_FROM")
 EMAIL_PASSWORD = os.environ.get("EMAIL_PASSWORD")
 SMTP_SERVER = os.environ.get("SMTP_SERVER", "smtp.gmail.com")
-SMTP_PORT = int(os.environ.get("SMTP_PORT", 587))
+SMTP_PORT = int(os.environ.get("SMTP_PORT", 465))
 ADMIN_USERNAME = os.environ.get("ADMIN_USERNAME", "admin")  # Change in production
 ADMIN_PASSWORD_HASH = os.environ.get("ADMIN_PASSWORD_HASH")  # MUST be a pbkdf2:sha256 hash
 
