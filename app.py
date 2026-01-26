@@ -3621,7 +3621,7 @@ def update_template_settings_route():
                 
                 qr_settings["qr_include_logo"] = bool(qr_data.get("qr_include_logo", False))
                 if qr_settings["qr_include_logo"]:
-                    qr_settings["qr_logo_path"] = qr_data.get("qr_logo_path", "")
+                    qr_settings["qr_logo_url"] = qr_data.get("qr_logo_url", "")
         else:
             if request.form.get("enable_qr"):
                 qr_settings["enable_qr"] = True
@@ -3643,7 +3643,7 @@ def update_template_settings_route():
                     qr_settings["qr_base_url"] = request.form.get("qr_base_url", "https://example.com/verify/")
                 if request.form.get("qr_include_logo"):
                     qr_settings["qr_include_logo"] = True
-                    qr_settings["qr_logo_path"] = request.form.get("qr_logo_path", "")
+                    qr_settings["qr_logo_url"] = request.form.get("qr_logo_url", "")
         
         # Merge defaults
         default_font = get_default_font_config()
