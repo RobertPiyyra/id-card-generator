@@ -1025,6 +1025,14 @@ import logging
 # Ensure logger is defined
 logger = logging.getLogger(__name__)
 
+import socket
+import smtplib
+from email.mime.text import MIMEText
+import logging
+
+# Ensure logger is defined
+logger = logging.getLogger(__name__)
+
 def send_email(to, subject, body):
     msg = MIMEText(body)
     msg['Subject'] = subject
@@ -1033,29 +1041,42 @@ def send_email(to, subject, body):
 
     server = None
     try:
-        # 1. Configuration (Force Port 587)
+        # 1. Configuration (Keep using Port 587)
         smtp_server = "smtp.gmail.com"
-        smtp_port = 587 
+        smtp_port = 587
         password = os.environ.get("EMAIL_PASSWORD")
         
-        logger.info(f"📧 Sending email to {to} via {smtp_server}:{smtp_port}...")
+        logger.info(f"📧 Preparing email to {to}...")
 
-        # 2. FORCE IPv4 (Fixes 'Network is unreachable')
+        # 2. RESOLVE ALL IPv4 ADDRESSES (IP Rotation Strategy)
+        # Instead of picking just one, we get a list of all Google IPs
         addr_info = socket.getaddrinfo(smtp_server, smtp_port, socket.AF_INET, socket.SOCK_STREAM)
-        family, socktype, proto, canonname, sa = addr_info[0]
-        target_ip = sa[0]
         
-        logger.info(f"🔗 Resolved IP: {target_ip}")
+        connected = False
+        last_error = None
 
-        # 3. Connect via Standard SMTP (Not SSL)
-        # We connect to the IP directly.
-        server = smtplib.SMTP(target_ip, smtp_port, timeout=30)
-        server.set_debuglevel(1) # See logs for details
+        # 3. Try connecting to each IP until one works
+        for family, socktype, proto, canonname, sa in addr_info:
+            target_ip = sa[0]
+            try:
+                logger.info(f"🔄 Trying connection to {target_ip}...")
+                server = smtplib.SMTP(target_ip, smtp_port, timeout=10) # 10s timeout per IP
+                connected = True
+                logger.info(f"✅ Connected to {target_ip}")
+                break # We found a working IP!
+            except Exception as e:
+                logger.warning(f"⚠️ Failed to connect to {target_ip}: {e}")
+                last_error = e
+                continue
         
-        # 4. Start Encryption (TLS)
-        server.ehlo() # Say hello
-        server.starttls() # Upgrade connection to secure
-        server.ehlo() # Say hello again (encrypted this time)
+        if not connected:
+            raise last_error or Exception("No Google IPs accepted the connection")
+
+        # 4. Secure the connection
+        server.set_debuglevel(1) 
+        server.ehlo()
+        server.starttls() # Upgrade to TLS
+        server.ehlo()
         
         # 5. Login & Send
         logger.info("🔑 Logging in...")
