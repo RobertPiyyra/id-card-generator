@@ -1015,11 +1015,7 @@ def _process_photo_pil(pil_img, target_width=260, target_height=313, remove_back
         return pil_img
 
           
-# app.py
 
-
-
-import socket
 
 def send_email(to, subject, body):
     msg = MIMEText(body)
@@ -1029,41 +1025,39 @@ def send_email(to, subject, body):
 
     server = None
     try:
-        # Load Config
+        # Load Config - Force Default to 587
         smtp_server = os.environ.get("SMTP_SERVER", "smtp.gmail.com")
-        # Default to 587 if not set
         smtp_port = int(os.environ.get("SMTP_PORT", 587))
         password = os.environ.get("EMAIL_PASSWORD")
 
-        # --- NETWORK FIX: FORCE IPv4 ---
-        # Resolves Gmail IP manually to avoid IPv6 timeouts
+        # 1. Force IPv4 Resolution (Fixes [Errno 101] Network Unreachable)
+        # Railway IPv6 routing can be flaky; this forces the app to find the IPv4 address.
         addr_info = socket.getaddrinfo(smtp_server, smtp_port, socket.AF_INET, socket.SOCK_STREAM)
         family, socktype, proto, canonname, sa = addr_info[0]
-        target_ip = sa[0] 
-        # -------------------------------
+        target_ip = sa[0]
 
-        # Connect using IPv4
-        server = smtplib.SMTP(target_ip, smtp_port)
+        # 2. Connect via Plain Socket first (Fixes [Errno 110] Timeout on Port 587)
+        # We connect to the IP directly with a 10-second timeout.
+        server = smtplib.SMTP(target_ip, smtp_port, timeout=10)
+        server.set_debuglevel(1) # Optional: Prints conversation to logs for debugging
         server.ehlo()
         
-        # Upgrade to Secure Connection (TLS) - Required for Port 587
+        # 3. Upgrade to SSL/TLS (STARTTLS)
         if smtp_port == 587:
             server.starttls()
             server.ehlo()
 
+        # 4. Login and Send
         server.login(msg['From'], password)
         server.send_message(msg)
-        return True  # <--- SUCCESS
+        server.quit()
+        
+        logger.info(f"✅ Email sent successfully to {to}")
+        return True
 
     except Exception as e:
-        logger.error(f"❌ Failed to send email to {to}: {e}")
-        return False # <--- FAILURE
-    finally:
-        if server:
-            try:
-                server.quit()
-            except:
-                pass
+        logger.error(f"❌ Failed to send email: {e}")
+        return False
 # ================== Landing Page Routes ==================
 @app.route("/")
 def landing():
