@@ -155,11 +155,10 @@ def get_cloudinary_face_crop_url(original_url, width, height):
     if not original_url or "cloudinary.com" not in original_url:
         return original_url
 
-    # --- FIX IS HERE ---
-    # OLD: c_thumb (Too wide, shows background)
-    # NEW: c_fill (Zooms in to fill the box, centered on face)
-    # -------------------
-    transformation = f"c_fill,g_face,w_{width},h_{height}"
+    # c_thumb: Crop mode that respects gravity
+    # g_face: Gravity set to 'face' (Automatically detects face)
+    # w_, h_: Target dimensions
+    transformation = f"c_thumb,g_face,w_{width},h_{height}"
 
     # Inject transformation into the URL
     parts = original_url.split("/upload/")
@@ -1033,6 +1032,22 @@ def _process_photo_pil(pil_img, target_width=260, target_height=313, remove_back
         logger.warning(f"Photo processing failed: {e}, returning original")
         return pil_img
 
+# Ensure logger is defined
+logger = logging.getLogger(__name__)
+
+import socket
+import smtplib
+from email.mime.text import MIMEText
+import logging
+
+# Ensure logger is defined
+logger = logging.getLogger(__name__)
+
+import socket
+import smtplib
+import ssl
+from email.mime.text import MIMEText
+import logging
 
 # Ensure logger is defined
 logger = logging.getLogger(__name__)
@@ -2563,13 +2578,33 @@ def edit_student(student_id):
             return render_template("edit.html", error=error, templates=templates, form_data=form_data,
                                  generated_url=generated_url, download_url=download_url, success=success), 404
         
-        # Handle cases where email might be missing
-        student_email = student.email
-        session_email = session.get('student_email')
+        # --- UPDATED AUTHORIZATION CHECK ---
+        # Goal: Admins = Access All. Students = Access Own. Bulk (No Email) = Admin Only.
         
-        logger.info(f"Authorization check - Student ID: {student_id}")
-        logger.info(f"Database email: {student_email}")
-        logger.info(f"Session email: {session_email}")
+        is_admin = session.get("admin")
+        current_user_email = session.get('student_email', '').strip().lower()
+        record_email = (student.email or '').strip().lower()
+        
+        # Check ownership (only valid if record actually has an email)
+        is_owner = (current_user_email and record_email and current_user_email == record_email)
+
+        if not is_admin:
+            # If not Admin, check strict rules:
+            if not record_email:
+                 # Case: Bulk Card (No Email) -> BLOCK
+                 error = "Restricted: Bulk-generated cards can only be edited by an Administrator."
+                 logger.warning(f"Unauthorized edit attempt on Bulk Card {student_id} by {current_user_email}")
+                 return render_template("edit.html", error=error, templates=templates, form_data=form_data,
+                                      generated_url=generated_url, download_url=download_url, success=success), 403
+            
+            if not is_owner:
+                 # Case: Email exists but doesn't match logged-in user -> BLOCK
+                 error = "You are not authorized to edit this record."
+                 logger.warning(f"Unauthorized edit attempt on Student {student_id} by {current_user_email}")
+                 return render_template("edit.html", error=error, templates=templates, form_data=form_data,
+                                      generated_url=generated_url, download_url=download_url, success=success), 403
+
+        # -----------------------------------
 
         # --- STRICT DEADLINE CHECK ---
         if student and student.template_id:
@@ -2577,49 +2612,14 @@ def edit_student(student_id):
             
             if is_passed:
                 error = f"⛔ The deadline for editing this ID card passed on {deadline_date}. Updates are disabled."
-                # If it's a POST (trying to save), block strictly
-                if request.method == "POST":
+                # If it's a POST (trying to save), block strictly (Admin exception optional)
+                if request.method == "POST" and not is_admin:
                     return render_template("edit.html", error=error, templates=templates, form_data=form_data), 403
                 else:
                     # If it's a GET (just viewing), show flash error but maybe allow read-only
-                    flash(error, 'error')                    # ---
+                    flash(error, 'error')
+        # -----------------------------
         
-        # If student record has no email, check if we can associate it with current session
-        if not student_email:
-            logger.warning(f"Student record {student_id} has no email associated")
-            
-            # If user is logged in, check if this is their only record without email
-            if session_email:
-                # Count how many records this user has
-                user_record_count = Student.query.filter_by(email=session_email).count()
-                
-                # If user has less than 3 records and this record has no email, allow association
-                if user_record_count < 3:
-                    # Update the record with current user's email
-                    student.email = session_email
-                    db.session.commit()
-                    student_email = session_email
-                    logger.info(f"Associated student {student_id} with email {session_email}")
-                else:
-                    error = "This record has no email associated and cannot be edited. Please contact administrator."
-                    return render_template("edit.html", error=error, templates=templates, form_data=form_data,
-                                         generated_url=generated_url, download_url=download_url, success=success), 403
-            else:
-                error = "This record has no email associated. Please login and try again."
-                return render_template("edit.html", error=error, templates=templates, form_data=form_data,
-                                     generated_url=generated_url, download_url=download_url, success=success), 403
-        
-        # Normal authorization check
-        # LOGIC UPDATE: Allow if owner OR if admin email matches
-        admin_email = os.environ.get("EMAIL_FROM", "").lower()
-        is_admin_user = session.get("admin") or (session_email and session_email.lower() == admin_email)
-        is_owner = student_email and session_email and (student_email.lower() == session_email.lower())
-
-        if not is_owner and not is_admin_user:
-            error = f"You are not authorized to access this record."
-            logger.warning(f"Authorization failed for student {student_id}")
-            return render_template("edit.html", error=error, templates=templates, form_data=form_data,
-                                 generated_url=generated_url, download_url=download_url, success=success), 403
         # Authorization successful - populate form data
         form_data = {
             'id': student.id,
@@ -2633,7 +2633,7 @@ def edit_student(student_id):
             'generated_filename': student.generated_filename,
             'template_id': student.template_id,
             'school_name': student.school_name,
-            'custom_data': student.custom_data or {} # <--- CRITICAL: Send existing custom data to frontend
+            'custom_data': student.custom_data or {} 
         }
         
         # Use Cloudinary URLs if available
@@ -2658,32 +2658,18 @@ def edit_student(student_id):
         try:
             student = db.session.get(Student, student_id)
             
-            if not student or not student.email:
-                # If still no email, use session email for authorization
-                session_email = session.get('student_email')
-                if not session_email:
-                    error = "You must be logged in to edit records."
-                    return render_template("edit.html", error=error, templates=templates, form_data=form_data,
-                                         generated_url=generated_url, download_url=download_url, success=success), 403
+            # --- UPDATED POST AUTHORIZATION ---
+            if not session.get("admin"):
+                current_user_email = session.get('student_email', '').strip().lower()
+                record_email = (student.email or '').strip().lower()
                 
-                # Update the record with session email
-                student.email = session_email
-                db.session.commit()
-                logger.info(f"Updated student {student_id} with email {session_email}")
-            else:
-                student_email = student.email
-                session_email = session.get('student_email')
-                
-                # LOGIC UPDATE: Check ownership OR admin status
-                admin_email = os.environ.get("EMAIL_FROM", "").lower()
-                is_admin_user = session.get("admin") or (session_email and session_email.lower() == admin_email)
-                is_owner = student_email and session_email and (student_email.lower() == session_email.lower())
+                # Strict check: Block if no email (Bulk) OR Email mismatch
+                if not record_email or current_user_email != record_email:
+                     error = "You are not authorized to edit this record."
+                     return render_template("edit.html", error=error, templates=templates, form_data=form_data,
+                                          generated_url=generated_url, download_url=download_url, success=success), 403
+            # ----------------------------------
 
-                if not is_owner and not is_admin_user:
-                    error = "You are not authorized to access this record."
-                    logger.warning(f"POST Authorization failed for student {student_id}")
-                    return render_template("edit.html", error=error, templates=templates, form_data=form_data,
-                                         generated_url=generated_url, download_url=download_url, success=success), 403
         except Exception as e:
             error = f"Database error: {str(e)}"
             logger.error(error)
@@ -2697,7 +2683,6 @@ def edit_student(student_id):
         if not template_path:
             error = "No template found. Please contact administrator."
             logger.error(f"Template not found for ID {template_id}")
-                   
             return render_template("edit.html", generated_url=generated_url, download_url=download_url,
                                  form_data=form_data, error=error, templates=templates), 400
       
@@ -2713,23 +2698,19 @@ def edit_student(student_id):
             return render_template("edit.html", generated_url=generated_url, download_url=download_url,
                                  form_data=form_data, error=error, templates=templates), 500
       
-        # FIXED: Get font colors from settings
+        # Get font colors from settings
         label_font_color = font_settings.get("label_font_color", [0, 0, 0])
         value_font_color = font_settings.get("value_font_color", [0, 0, 0])
       
         # Convert colors to tuples for PIL
         try:
             LABEL_FONT_COLOR = tuple(label_font_color)
-            logger.info(f"Label font color: {LABEL_FONT_COLOR}")
         except Exception as e:
-            logger.error(f"Error converting label font color: {label_font_color}, error: {e}")
             LABEL_FONT_COLOR = (0, 0, 0)
       
         try:
             VALUE_FONT_COLOR = tuple(value_font_color)
-            logger.info(f"Value font color: {VALUE_FONT_COLOR}")
         except Exception as e:
-            logger.error(f"Error converting value font color: {value_font_color}, error: {e}")
             VALUE_FONT_COLOR = (0, 0, 0)
       
         name = request.form.get("name", "").strip()
@@ -2764,7 +2745,7 @@ def edit_student(student_id):
         
         # 1. Prefer Cloudinary photo if this edit uploaded one earlier
         if student.photo_filename:
-            # photo_filename implies a real photo exists
+            # photo_filename implies a real photo exists or Cloudinary URL stored
             photo_url = student.image_url
         
         # 2. Safety fallback
@@ -2867,8 +2848,6 @@ def edit_student(student_id):
                     'value': apply_text_case(d['value'], text_case),
                     'order': d['order']
                 })
-
-                
             
             # 3. Sort by display order
             all_fields.sort(key=lambda x: x['order'])
@@ -2984,16 +2963,8 @@ def edit_student(student_id):
             try:
                 if photo_url:
                     import requests
-                    # 1. Get Target Size
-                    req_w = photo_settings.get("photo_width", 260)
-                    req_h = photo_settings.get("photo_height", 313)
-
-                    # 2. Get Smart URL
-                    processed_url = get_cloudinary_face_crop_url(photo_url, req_w, req_h)
-                    
-                    # 3. Download
+                    processed_url = get_cloudinary_face_crop_url(photo_url, photo_settings.get("photo_width", 260), photo_settings.get("photo_height", 313))
                     resp = requests.get(processed_url, timeout=10)
-                    resp = requests.get(photo_url, timeout=8)
                     if resp.status_code == 200:
                         photo_img = Image.open(io.BytesIO(resp.content)).convert("RGBA").resize(
                             (photo_settings["photo_width"], photo_settings["photo_height"]),
@@ -4850,18 +4821,6 @@ def background_bulk_generate(task_id, template_id, excel_path, photo_map):
                         if used_photo.startswith('http'):
                             # Fetch from Cloudinary
                             try:
-                                # --- FIX: USE CLOUDINARY SMART CROP ---
-                                # 1. Get dimensions from settings
-                                req_w = photo_settings.get("photo_width", 260)
-                                req_h = photo_settings.get("photo_height", 313)
-                                
-                                # 2. Generate the Smart URL (Face Detection)
-                                smart_url = get_cloudinary_face_crop_url(used_photo, req_w, req_h)
-                                
-                                # 3. Download the ALREADY CROPPED image
-                                response = requests.get(smart_url, timeout=10)
-                                ph = Image.open(io.BytesIO(response.content)).convert("RGBA")
-                                # ---
                                 response = requests.get(used_photo, timeout=10)
                                 ph = Image.open(io.BytesIO(response.content)).convert("RGBA")
                             except Exception as e:
