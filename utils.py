@@ -639,7 +639,7 @@ def generate_qr_code(data, qr_settings, size=120):
                 # Paste with transparency
                 img.paste(logo, pos, logo)
        
-        return img
+        return img.convert("RGB")
     except Exception as e:
         logger.error(f"Error generating QR code: {e}")
         # Fallback to simple QR

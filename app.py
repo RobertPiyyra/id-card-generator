@@ -1602,7 +1602,7 @@ def generate_student_preview(student_id):
             template_img = force_rgb(template_img)
             
             logger.info(f"Preview image mode before save: {template_img.mode}")
-            
+            logger.warning(f"FINAL IMAGE MODE BEFORE SAVE: {template_img.mode}")
             buf = BytesIO()
             template_img.save(
                 buf,
@@ -4198,6 +4198,7 @@ def admin_preview_card():
                 template_img.paste(qr_img, (qr_settings.get("qr_x", 50), qr_settings.get("qr_y", 50)))
             except: pass
         template_img = force_rgb(template_img)
+        logger.warning(f"FINAL IMAGE MODE BEFORE SAVE: {template_img.mode}")
         buffer = io.BytesIO()
         template_img.save(buffer,
                           format="JPEG",
