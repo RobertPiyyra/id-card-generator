@@ -1017,19 +1017,31 @@ def _process_photo_pil(pil_img, target_width=260, target_height=313, remove_back
 def send_email(to, subject, body):
     msg = MIMEText(body)
     msg['Subject'] = subject
-    msg['From'] = EMAIL_FROM
+    msg['From'] = os.environ.get("EMAIL_FROM")
     msg['To'] = to
+    
+    server = None
     try:
-        if SMTP_PORT == 465:
-            server = smtplib.SMTP_SSL(SMTP_SERVER, SMTP_PORT)
+        # Check port to decide SSL vs TLS
+        port = int(os.environ.get("SMTP_PORT", 465))
+        smtp_server = os.environ.get("SMTP_SERVER", "smtp.gmail.com")
+        password = os.environ.get("EMAIL_PASSWORD")
+        
+        if port == 465:
+            server = smtplib.SMTP_SSL(smtp_server, port)
         else:
-            server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
-            server.starttls()
-        server.login(EMAIL_FROM, EMAIL_PASSWORD)
+            server = smtplib.SMTP(smtp_server, port)
+            server.starttls() # Upgrade to secure connection
+            
+        server.login(msg['From'], password)
         server.send_message(msg)
-        server.quit()
+        print(f"✅ Email sent successfully to {to}")
+        
     except Exception as e:
-        logger.error(f"Failed to send email to {to}: {e}")
+        print(f"❌ Failed to send email: {e}")
+    finally:
+        if server:
+            server.quit()
 
 # ================== Landing Page Routes ==================
 @app.route("/")
