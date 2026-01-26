@@ -193,7 +193,7 @@ logger = logging.getLogger(__name__)
 EMAIL_FROM = os.environ.get("EMAIL_FROM")
 EMAIL_PASSWORD = os.environ.get("EMAIL_PASSWORD")
 SMTP_SERVER = os.environ.get("SMTP_SERVER", "smtp.gmail.com")
-SMTP_PORT = int(os.environ.get("SMTP_PORT", 465))
+SMTP_PORT = int(os.environ.get("SMTP_PORT", 587))
 ADMIN_USERNAME = os.environ.get("ADMIN_USERNAME", "admin")  # Change in production
 ADMIN_PASSWORD_HASH = os.environ.get("ADMIN_PASSWORD_HASH")  # MUST be a pbkdf2:sha256 hash
 
@@ -1014,34 +1014,49 @@ def _process_photo_pil(pil_img, target_width=260, target_height=313, remove_back
         return pil_img
 
           
+import socket
+
 def send_email(to, subject, body):
     msg = MIMEText(body)
     msg['Subject'] = subject
     msg['From'] = os.environ.get("EMAIL_FROM")
     msg['To'] = to
-    
+
     server = None
     try:
-        # Check port to decide SSL vs TLS
-        port = int(os.environ.get("SMTP_PORT", 465))
         smtp_server = os.environ.get("SMTP_SERVER", "smtp.gmail.com")
+        port = int(os.environ.get("SMTP_PORT", 587)) # Default to 587 now
         password = os.environ.get("EMAIL_PASSWORD")
-        
+
+        # --- FIX: FORCE IPv4 (Fixes [Errno 101] Network is unreachable) ---
+        # We manually resolve the address to an IPv4 IP before connecting
+        # This prevents the app from trying IPv6 which fails on Railway
+        addr_info = socket.getaddrinfo(smtp_server, port, socket.AF_INET, socket.SOCK_STREAM)
+        family, socktype, proto, canonname, sa = addr_info[0]
+        # ------------------------------------------------------------------
+
         if port == 465:
+            # SSL Connection
             server = smtplib.SMTP_SSL(smtp_server, port)
         else:
+            # TLS Connection (Recommended for Railway)
             server = smtplib.SMTP(smtp_server, port)
-            server.starttls() # Upgrade to secure connection
-            
+            server.starttls()
+
         server.login(msg['From'], password)
         server.send_message(msg)
-        print(f"✅ Email sent successfully to {to}")
-        
+        logger.info(f"✅ Email sent successfully to {to}")
+        return True  # Tell the main app it worked
+
     except Exception as e:
-        print(f"❌ Failed to send email: {e}")
+        logger.error(f"❌ Failed to send email: {e}")
+        return False  # Tell the main app it FAILED
     finally:
         if server:
-            server.quit()
+            try:
+                server.quit()
+            except:
+                pass
 
 # ================== Landing Page Routes ==================
 @app.route("/")
@@ -2413,7 +2428,7 @@ ID Card Admin
 NOOR GRAPHICS AND PRINTERS
 """
                         send_email(student.email, email_subject, email_body)
-                        logger.info(f"ID Card success email sent to {student.email}")
+                        logger.info(f"Email success confirmed for {student.email}")
                 except Exception as email_err:
                     logger.error(f"Failed to send success email: {email_err}")
 
