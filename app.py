@@ -2293,6 +2293,18 @@ def index():
             # =========================================================
             # UPLOAD TO CLOUDINARY (NOT LOCAL SAVE)
             # =========================================================
+            
+            # --- FIX: Convert to RGB before saving as JPEG ---
+            # This fixes "cannot write mode RGBA as JPEG"
+            if template_img.mode == 'RGBA':
+                # Create a white background for transparency
+                background = Image.new("RGB", template_img.size, (255, 255, 255))
+                background.paste(template_img, mask=template_img.split()[3])
+                template_img = background
+            else:
+                template_img = template_img.convert("RGB")
+            # -------------------------------------------------
+
             # Save image to bytes for Cloudinary upload
             jpg_buf = io.BytesIO()
             template_img.save(jpg_buf, format='JPEG', quality=95)
@@ -2963,11 +2975,15 @@ def edit_student(student_id):
             # =========================================================
             # CONCURRENCY FIX: SAVE INDIVIDUAL CARD IMAGE TO CLOUDINARY
             # =========================================================
-            timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-            # Create unique filename: card_TEMPLATEID_STUDENTID_TIMESTAMP.jpg
+            timestamp = datetime.now().strftime("%Y%m%d%H%M%S%f")
             jpg_name = f"card_{template_id}_{student_id}_{timestamp}.jpg"
-            pdf_name = f"card_{template_id}_{student_id}_{timestamp}.pdf" # Keep PDF name for legacy compatibility if needed
+            pdf_name = f"card_{template_id}_{student_id}_{timestamp}.pdf" 
             student.generated_filename = jpg_name
+
+            # --- FIX: Convert to RGB before saving as JPEG ---
+            # Uses your existing force_rgb helper function
+            template = force_rgb(template) 
+            # -------------------------------------------------
 
             # Convert image to bytes and upload to Cloudinary
             jpg_buffer = io.BytesIO()
@@ -4779,16 +4795,29 @@ def background_bulk_generate(task_id, template_id, excel_path, photo_map):
 
                     # Generate QR
                     if qr_settings.get("enable_qr"):
-                        qr_str = data_hash[:10] # Use unique hash part
+                        qr_str = data_hash[:10] 
                         qr_img = generate_qr_code(qr_str, qr_settings, qr_settings.get("qr_size", 120))
                         qr_img = qr_img.resize((qr_settings.get("qr_size", 120),)*2)
                         template_img.paste(qr_img, (qr_settings.get("qr_x", 50), qr_settings.get("qr_y", 50)))
+
+                    # --- FIX: Convert to RGB before saving as JPEG ---
+                    # Create a temporary RGB version just for saving
+                    if template_img.mode == 'RGBA':
+                        bg = Image.new("RGB", template_img.size, (255, 255, 255))
+                        bg.paste(template_img, mask=template_img.split()[3])
+                        save_img = bg
+                    else:
+                        save_img = template_img.convert("RGB")
+                    # -------------------------------------------------
 
                     # Upload Card Image to Cloudinary
                     ts = datetime.now().strftime("%Y%m%d%H%M%S%f")
                     jpg_name = f"card_{template_id}_{ts}_{idx}.jpg"
                     jpg_buffer = io.BytesIO()
-                    template_img.save(jpg_buffer, "JPEG", quality=95)
+                    
+                    # Save the converted image (save_img), NOT the original RGBA (template_img)
+                    save_img.save(jpg_buffer, "JPEG", quality=95) 
+                    
                     jpg_buffer.seek(0)
                     jpg_url = upload_image(jpg_buffer.getvalue(), folder='cards', resource_type='image')
 
