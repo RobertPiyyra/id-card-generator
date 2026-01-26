@@ -155,10 +155,11 @@ def get_cloudinary_face_crop_url(original_url, width, height):
     if not original_url or "cloudinary.com" not in original_url:
         return original_url
 
-    # c_thumb: Crop mode that respects gravity
-    # g_face: Gravity set to 'face' (Automatically detects face)
-    # w_, h_: Target dimensions
-    transformation = f"c_thumb,g_face,w_{width},h_{height}"
+    # --- FIX IS HERE ---
+    # OLD: c_thumb (Too wide, shows background)
+    # NEW: c_fill (Zooms in to fill the box, centered on face)
+    # -------------------
+    transformation = f"c_fill,g_face,w_{width},h_{height}"
 
     # Inject transformation into the URL
     parts = original_url.split("/upload/")
@@ -1032,22 +1033,6 @@ def _process_photo_pil(pil_img, target_width=260, target_height=313, remove_back
         logger.warning(f"Photo processing failed: {e}, returning original")
         return pil_img
 
-# Ensure logger is defined
-logger = logging.getLogger(__name__)
-
-import socket
-import smtplib
-from email.mime.text import MIMEText
-import logging
-
-# Ensure logger is defined
-logger = logging.getLogger(__name__)
-
-import socket
-import smtplib
-import ssl
-from email.mime.text import MIMEText
-import logging
 
 # Ensure logger is defined
 logger = logging.getLogger(__name__)
