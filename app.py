@@ -1141,11 +1141,7 @@ def login():
         if username_input == env_user and check_password_hash(env_hash, password_input):
             session["admin"] = True
             logger.info("Admin logged in successfully")
-            # Admin bypass: Set temporary student email to allow access to index page
-            session["student_email"] = "admin_user"
-            session["student_school_name"] = "All Schools"
-            logger.info("Admin redirected to index page to generate ID cards for all schools")
-            return redirect(url_for("index"))
+            return redirect("/admin")
         else:
             logger.warning("Failed login attempt: Invalid credentials")
             return render_template("login.html", error="Invalid login credentials"), 401
@@ -1205,18 +1201,6 @@ def register():
         confirm_password = request.form.get("confirm_password", "").strip()
         school_name = request.form.get("school_name", "").strip()
         name = request.form.get("name", "").strip()
-        
-        # Check if trying to register with admin credentials
-        env_user = os.environ.get("ADMIN_USERNAME")
-        env_hash = os.environ.get("ADMIN_PASSWORD_HASH")
-        
-        if email == env_user and env_hash and check_password_hash(env_hash, password):
-            # Admin detected - bypass registration and redirect to index
-            session["admin"] = True
-            session["student_email"] = "admin_user"
-            session["student_school_name"] = "All Schools"
-            logger.info("Admin accessed registration page and was redirected to index")
-            return redirect(url_for("index"))
       
         if not all([email, password, confirm_password, school_name, name]):
             error = "All fields (name, email, password, confirm password, school name) are required."
@@ -1966,7 +1950,6 @@ def index():
     templates = get_templates()
     show_fetch = True
     unique_edit_id = None
-    is_admin = session.get("admin", False)  # Check if user is admin
     
     # --- ADDED: Deadline Info Variable ---
     deadline_info = None
@@ -1975,18 +1958,11 @@ def index():
     # Auto-select template based on school name
     school_name = session.get("student_school_name")
     selected_template_id = None
-    
-    # For admins, show all schools; for students, auto-select their school
-    if is_admin:
-        # Admin: No auto-selection, allow choosing from all schools
-        selected_template_id = None
-    else:
-        # Student: Auto-select template based on school name
-        if school_name:
-            for t in templates:
-                if t['school_name'] == school_name:
-                    selected_template_id = t['id']
-                    break
+    if school_name:
+        for t in templates:
+            if t['school_name'] == school_name:
+                selected_template_id = t['id']
+                break
 
     # --- ADDED: Calculate Deadline Info for Display ---
     # Determine which template is active (from form POST or default selection)
