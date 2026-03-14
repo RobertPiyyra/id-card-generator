@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Verification</title>
+    <link rel="icon" href="data:,">
+    <style>
+        body {
+            font-family: Helvetica, Arial, sans-serif;
+            background-color: #eef2f3;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+        }
+        .card {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            width: 100%;
+            max-width: 350px;
+            text-align: center;
+            overflow: hidden;
+            position: relative;
+        }
+        .status-bar {
+            background-color: #27ae60;
+            color: white;
+            padding: 15px;
+            font-weight: bold;
+            font-size: 1.1em;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+        .status-bar.invalid {
+            background-color: #c0392b;
+        }
+        .photo-area {
+            margin-top: 25px;
+            margin-bottom: 15px;
+        }
+        .student-photo {
+            width: 150px;
+            height: 150px;
+            border-radius: 50%; /* Makes photo circular */
+            object-fit: cover;
+            border: 5px solid #f0f0f0;
+        }
+        .info-container {
+            padding: 0 30px 40px 30px;
+        }
+        .student-name {
+            font-size: 1.6em;
+            color: #2c3e50;
+            margin: 10px 0 5px 0;
+            font-weight: 700;
+        }
+        .school-name {
+            color: #7f8c8d;
+            font-size: 0.9em;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 25px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 15px;
+        }
+        .detail-box {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 10px;
+        }
+        .label {
+            display: block;
+            font-size: 0.75em;
+            color: #95a5a6;
+            text-transform: uppercase;
+            margin-bottom: 3px;
+        }
+        .value {
+            font-size: 1.1em;
+            color: #34495e;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="card">
+        {% if valid %}
+            <div class="status-bar">
+                ✓ Verified Student
+            </div>
+
+            <div class="photo-area">
+                <img src="{{ student.photo_url }}" alt="Student Photo" class="student-photo">
+            </div>
+
+            <div class="info-container">
+                <h1 class="student-name">{{ student.name }}</h1>
+                
+                <div class="school-name">{{ student.school_name }}</div>
+
+                <div class="detail-box">
+                    <span class="label">Father's Name</span>
+                    <span class="value">{{ student.father_name }}</span>
+                </div>
+            </div>
+        {% else %}
+            <div class="status-bar invalid">
+                ✕ Record Not Found
+            </div>
+            <div class="info-container">
+                <p style="margin-top: 30px; color: #555;">{{ error }}</p>
+            </div>
+        {% endif %}
+    </div>
+
+</body>
+</html>

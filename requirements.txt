@@ -1,0 +1,68 @@
+# -------------------------
+# Core
+# -------------------------
+numpy==1.26.4
+# Python 3.13 is not compatible with pandas 2.1.x
+pandas==2.1.4; python_version < "3.13"
+pandas>=2.2.3; python_version >= "3.13"
+python-dateutil==2.9.0.post0
+
+# -------------------------
+# Flask
+# -------------------------
+Flask==2.3.3
+Werkzeug==3.0.4
+Flask-Login==0.6.3
+Flask-WTF==1.2.1
+Flask-Limiter==4.1.1
+Flask-Talisman==1.1.0
+itsdangerous==2.2.0
+email-validator==2.1.1
+gunicorn==21.2.0
+python-dotenv==1.2.1
+
+# -------------------------
+# Database
+# -------------------------
+SQLAlchemy==2.0.29
+flask_sqlalchemy==3.1.1
+
+# -------------------------
+# Image / ML
+# -------------------------
+# Pillow >=11 is required for reliable Python 3.13 builds
+Pillow==10.4.0; python_version < "3.13"
+Pillow>=11.0.0; python_version >= "3.13"
+opencv-python-headless==4.11.0.86
+mediapipe==0.10.32
+onnxruntime==1.16.3
+requests
+
+# -------------------------
+# PDF / QR / Excel
+# -------------------------
+PyMuPDF==1.26.4
+reportlab==4.4.6
+qrcode==7.4.2
+openpyxl==3.1.5
+python-barcode==0.15.1
+
+# -------------------------
+# Text shaping
+# -------------------------
+arabic-reshaper>=3.0.0
+python-bidi>=0.4.2
+
+# -------------------------
+# Security
+# -------------------------
+cryptography==43.0.1
+
+cloudinary>=1.39.0
+psycopg2-binary==2.9.9
+
+# -------------------------
+# Notifications (Email & SMS)
+# -------------------------
+twilio>=9.2.4,<10
+APScheduler==3.10.4
