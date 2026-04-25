@@ -13,6 +13,7 @@ import hashlib
 import logging
 import re
 import smtplib
+from urllib.parse import urlparse
 
 import requests
 from email.mime.text import MIMEText
@@ -33,6 +34,7 @@ import time
 from flask_wtf.csrf import CSRFProtect 
 from reportlab.pdfgen import canvas
 from redis import Redis
+from redis.exceptions import RedisError
 from rq import Queue, get_current_job
 from reportlab.lib.pagesizes import A4, landscape
 # Ensure fitz is available (it was used in load_template)
@@ -89,11 +91,96 @@ import warnings
 import time
 from types import SimpleNamespace
 warnings.filterwarnings("ignore", message="SymbolDatabase.GetPrototype() is deprecated")
+logger = logging.getLogger(__name__)
 
-REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
+REDIS_URL = (os.environ.get("REDIS_URL") or "").strip()
 REDIS_CACHE_TTL = int(os.environ.get("REDIS_CACHE_TTL", "86400"))
-redis_client = Redis.from_url(REDIS_URL, decode_responses=False)
-task_queue = Queue("id_card_bulk", connection=redis_client)
+REDIS_CONNECT_TIMEOUT = float(os.environ.get("REDIS_CONNECT_TIMEOUT", "2"))
+REDIS_SOCKET_TIMEOUT = float(os.environ.get("REDIS_SOCKET_TIMEOUT", "2"))
+REDIS_RETRY_SECONDS = int(os.environ.get("REDIS_RETRY_SECONDS", "30"))
+redis_client = None
+task_queue = None
+_redis_last_error_at = 0
+_redis_warned_missing_url = False
+
+
+def _redis_url_hostname():
+    try:
+        return urlparse(REDIS_URL).hostname or ""
+    except Exception:
+        return ""
+
+
+def _redis_connection_hint():
+    hostname = _redis_url_hostname()
+    if hostname.endswith(".railway.internal"):
+        return (
+            " Railway private Redis hosts are reachable only from Railway services "
+            "in the same project/environment. Use REDIS_PUBLIC_URL for local tests."
+        )
+    return ""
+
+
+def get_redis_client():
+    """
+    Lazily connect to Redis using Railway's REDIS_URL.
+
+    Redis is optional: if the service is not attached, down, or temporarily
+    unreachable, the app skips caching/queueing and continues rendering.
+    """
+    global redis_client, _redis_last_error_at, _redis_warned_missing_url
+
+    if not REDIS_URL:
+        if not _redis_warned_missing_url:
+            logger.warning("REDIS_URL is not set; Redis cache and RQ queue are disabled.")
+            _redis_warned_missing_url = True
+        return None
+
+    now = time.time()
+    if redis_client is None and _redis_last_error_at and now - _redis_last_error_at < REDIS_RETRY_SECONDS:
+        return None
+
+    if redis_client is None:
+        try:
+            candidate = Redis.from_url(
+                REDIS_URL,
+                decode_responses=False,
+                socket_connect_timeout=REDIS_CONNECT_TIMEOUT,
+                socket_timeout=REDIS_SOCKET_TIMEOUT,
+                health_check_interval=30,
+                retry_on_timeout=True,
+            )
+            candidate.ping()
+            redis_client = candidate
+            logger.info("Connected to Redis using REDIS_URL.")
+        except Exception as exc:
+            _redis_last_error_at = now
+            logger.warning(
+                "Redis unavailable; continuing without Redis cache/queue: %s%s",
+                exc,
+                _redis_connection_hint(),
+            )
+            redis_client = None
+
+    return redis_client
+
+
+def _mark_redis_unavailable(exc):
+    global redis_client, task_queue, _redis_last_error_at
+    _redis_last_error_at = time.time()
+    redis_client = None
+    task_queue = None
+    logger.warning("Redis operation failed; continuing without Redis temporarily: %s", exc)
+
+
+def get_task_queue():
+    global task_queue
+    client = get_redis_client()
+    if client is None:
+        return None
+    if task_queue is None:
+        task_queue = Queue("id_card_bulk", connection=client)
+    return task_queue
 
 
 def _redis_cache_key(*parts):
@@ -113,18 +200,50 @@ def _redis_cache_key(*parts):
 
 
 def _redis_get(key):
+    client = get_redis_client()
+    if client is None:
+        return None
     try:
-        return redis_client.get(key)
-    except Exception as exc:
+        return client.get(key)
+    except RedisError as exc:
         logger.warning("Redis cache read failed for %s: %s", key, exc)
+        _mark_redis_unavailable(exc)
         return None
 
 
 def _redis_set(key, value, ttl=REDIS_CACHE_TTL):
+    client = get_redis_client()
+    if client is None:
+        return False
     try:
-        redis_client.set(key, value, ex=ttl)
-    except Exception as exc:
+        return bool(client.set(key, value, ex=ttl))
+    except RedisError as exc:
         logger.warning("Redis cache write failed for %s: %s", key, exc)
+        _mark_redis_unavailable(exc)
+        return False
+
+
+def _redis_delete(key):
+    client = get_redis_client()
+    if client is None:
+        return False
+    try:
+        client.delete(key)
+        return True
+    except RedisError as exc:
+        _mark_redis_unavailable(exc)
+        return False
+
+
+def _redis_acquire_lock(lock_key, ttl=5):
+    client = get_redis_client()
+    if client is None:
+        return True
+    try:
+        return bool(client.set(lock_key, b"1", nx=True, ex=ttl))
+    except RedisError as exc:
+        _mark_redis_unavailable(exc)
+        return True
 
 
 def fit_loaded_font_to_single_line(draw, font_loader, display_text, max_width, start_size, language="english", min_size=6):
@@ -189,14 +308,11 @@ def _get_cached_photo(student_like, photo_settings, photo_w, photo_h):
             return img.convert("RGB")
         except Exception as e:
             logger.warning(f"Photo cache decode failed for {cache_key}: {e}")
-            try:
-                redis_client.delete(cache_key)
-            except Exception:
-                pass
+            _redis_delete(cache_key)
 
     # 🚫 Stampede protection
     lock_key = cache_key + ":lock"
-    if not redis_client.set(lock_key, b"1", nx=True, ex=5):
+    if not _redis_acquire_lock(lock_key, ttl=5):
         time.sleep(0.05)
         cached = _redis_get(cache_key)
         if cached:
@@ -222,10 +338,7 @@ def _get_cached_photo(student_like, photo_settings, photo_w, photo_h):
         return img
 
     finally:
-        try:
-            redis_client.delete(lock_key)
-        except Exception:
-            pass
+        _redis_delete(lock_key)
 
 
 def _get_cached_final_card(
@@ -263,14 +376,11 @@ def _get_cached_final_card(
             return img.convert("RGB")
         except Exception as e:
             logger.warning(f"Final cache decode failed for {cache_key}: {e}")
-            try:
-                redis_client.delete(cache_key)
-            except Exception:
-                pass
+            _redis_delete(cache_key)
 
     # 🚫 Stampede protection
     lock_key = cache_key + ":lock"
-    if not redis_client.set(lock_key, b"1", nx=True, ex=5):
+    if not _redis_acquire_lock(lock_key, ttl=5):
         time.sleep(0.05)
         cached = _redis_get(cache_key)
         if cached:
@@ -307,10 +417,7 @@ def _get_cached_final_card(
         return img
 
     finally:
-        try:
-            redis_client.delete(lock_key)
-        except Exception:
-            pass
+        _redis_delete(lock_key)
 
 # Storage mode:
 # - local: store templates/photos/cards under `static/` (best for local development)
@@ -329,14 +436,11 @@ def _get_cached_media_image(key_prefix, buffer_bytes, generate_fn):
             return img.convert("RGBA")
         except Exception as e:
             logger.warning(f"Media cache decode failed for {cache_key}: {e}")
-            try:
-                redis_client.delete(cache_key)
-            except Exception:
-                pass
+            _redis_delete(cache_key)
 
     # 🚫 Stampede protection
     lock_key = cache_key + ":lock"
-    if not redis_client.set(lock_key, b"1", nx=True, ex=5):
+    if not _redis_acquire_lock(lock_key, ttl=5):
         time.sleep(0.05)
         cached = _redis_get(cache_key)
         if cached is not None:
@@ -358,10 +462,7 @@ def _get_cached_media_image(key_prefix, buffer_bytes, generate_fn):
                 logger.warning("Failed to cache media image %s: %s", cache_key, exc)
         return img
     finally:
-        try:
-            redis_client.delete(lock_key)
-        except Exception:
-            pass
+        _redis_delete(lock_key)
 
 
 def _get_cached_qr_image(payload, qr_settings, size):
@@ -3127,7 +3228,7 @@ try:
         min_detection_confidence=0.5
     )
 except Exception as e:
-    print("MediaPipe disabled:", e)
+    logger.warning("MediaPipe face detection disabled: %s", e)
     face_detector = None
 
 
@@ -8079,10 +8180,28 @@ def _format_bulk_generation_error(exc):
 
 
 def _set_bulk_job_state(task_id, **updates):
-    task = jobs.get(task_id)
-    if not task:
-        return
+    task = jobs.setdefault(task_id, {"task_id": task_id})
     task.update(updates)
+    try:
+        _redis_set(
+            _redis_cache_key("bulk_job", task_id),
+            json.dumps(task, default=str).encode("utf-8"),
+            ttl=86400,
+        )
+    except Exception as exc:
+        logger.warning("Failed to publish bulk job state for %s: %s", task_id, exc)
+
+
+def _get_bulk_job_state(task_id):
+    cached = _redis_get(_redis_cache_key("bulk_job", task_id))
+    if cached:
+        try:
+            if isinstance(cached, bytes):
+                cached = cached.decode("utf-8")
+            return json.loads(cached)
+        except Exception as exc:
+            logger.warning("Failed to decode cached bulk job state for %s: %s", task_id, exc)
+    return jobs.get(task_id)
 
 
 def _publish_bulk_job_errors(task_id, errors):
@@ -8545,10 +8664,34 @@ def bulk_generate():
                         except Exception as e:
                             logger.warning(f"Failed to upload photo {original_name} to Cloudinary: {e}")
 
-        # 3. Start Background Thread
-        # Use RQ instead of ThreadPoolExecutor for persistent, distributed background jobs
-        job = task_queue.enqueue(background_bulk_generate, args=(template_id, excel_path, photo_map), job_timeout='1h')
-        task_id = job.get_id()
+        # 3. Start background generation. Prefer RQ when Railway Redis is
+        # available, otherwise fall back to the local executor.
+        task_id = uuid.uuid4().hex
+        _set_bulk_job_state(
+            task_id,
+            state='PENDING',
+            current=0,
+            total=0,
+            status='Queued',
+            errors=[],
+            error_count=0,
+        )
+        queue = get_task_queue()
+        if queue is not None:
+            try:
+                job = queue.enqueue(
+                    background_bulk_generate,
+                    args=(task_id, template_id, excel_path, photo_map),
+                    job_id=task_id,
+                    job_timeout='1h',
+                )
+                task_id = job.get_id()
+            except Exception as queue_error:
+                logger.warning("RQ enqueue failed; using local executor: %s", queue_error)
+                executor.submit(background_bulk_generate, task_id, template_id, excel_path, photo_map)
+        else:
+            logger.warning("Redis/RQ unavailable; using local executor for bulk generation.")
+            executor.submit(background_bulk_generate, task_id, template_id, excel_path, photo_map)
 
         # Log Activity
         log_activity("Bulk Generation Started", 
@@ -8572,7 +8715,7 @@ def bulk_generate():
     
 @app.route('/taskstatus/<task_id>')
 def taskstatus(task_id):
-    task = jobs.get(task_id)
+    task = _get_bulk_job_state(task_id)
     if not task:
         return jsonify({'state': 'FAILURE', 'status': 'Task not found', 'errors': ['Task not found']}), 404
     return jsonify(task)
@@ -9142,7 +9285,10 @@ def health_check():
     try:
         # Check DB connection
         db.session.execute(text("SELECT 1"))
-        return jsonify({"status": "healthy", "db": "connected"}), 200
+        redis_status = "disabled"
+        if REDIS_URL:
+            redis_status = "connected" if get_redis_client() is not None else "unavailable"
+        return jsonify({"status": "healthy", "db": "connected", "redis": redis_status}), 200
     except Exception as e:
         return jsonify({"status": "unhealthy", "error": str(e)}), 500
 

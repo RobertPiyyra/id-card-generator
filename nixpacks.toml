@@ -1,10 +1,17 @@
 # nixpacks.toml
-# Simplified for Flask + Cloudinary (no local image processing needed)
+# Railway build config for Flask, MediaPipe, Cloudinary, and Redis/RQ.
 
 [phases.setup]
-# Only essential build tools and Python
-# OpenCV/OpenGL dependencies removed - all image processing done via Cloudinary
+# Python/build tools plus native libraries required by MediaPipe and image processing.
 nixPkgs = ["python311", "gcc", "gnumake"]
+aptPkgs = [
+  "libgl1",
+  "libglib2.0-0",
+  "libsm6",
+  "libxext6",
+  "libxrender1",
+  "libgomp1"
+]
 
 [phases.install]
 cmds = [

@@ -137,21 +137,53 @@ STATIC_DIR = os.path.join(APP_ROOT, "static")
 UPLOAD_FOLDER = os.path.join(STATIC_DIR, "Uploads")
 GENERATED_FOLDER = os.path.join(STATIC_DIR, "generated")
 FONTS_FOLDER = os.path.join(STATIC_DIR, "fonts")
+LOGOS_FOLDER = os.path.join(STATIC_DIR, "logos")
 TEMPLATES_CONFIG = os.path.join(APP_ROOT, "templates_config.json")
 FONT_CONFIG_PATH = os.path.join(APP_ROOT, "font_config.json")
 PHOTO_CONFIG_PATH = os.path.join(APP_ROOT, "photo_config.json")
 DUPLICATE_CONFIG_PATH = os.path.join(APP_ROOT, "duplicate_config.json")
 PLACEHOLDER_PATH = os.path.join(STATIC_DIR, "placeholder.jpg")
+PHOTO_PLACEHOLDER_PATH = os.path.join(STATIC_DIR, "photo_placeholder.png")
+QR_PLACEHOLDER_PATH = os.path.join(LOGOS_FOLDER, "qr_placeholder.png")
 DEFAULT_FONTS = ["arial.ttf", "arialbd.ttf"]
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(GENERATED_FOLDER, exist_ok=True)
 os.makedirs(FONTS_FOLDER, exist_ok=True)
+os.makedirs(LOGOS_FOLDER, exist_ok=True)
 
-# Create placeholder.jpg if not exists
-if not os.path.exists(PLACEHOLDER_PATH):
-    placeholder = Image.new("RGB", (100, 100), color="gray")
-    placeholder.save(PLACEHOLDER_PATH)
+def _ensure_static_placeholders():
+    """Create placeholder assets referenced by templates if they are missing."""
+    if not os.path.exists(PLACEHOLDER_PATH):
+        placeholder = Image.new("RGB", (320, 380), color="#e5e7eb")
+        draw = ImageDraw.Draw(placeholder)
+        draw.rectangle((12, 12, 308, 368), outline="#9ca3af", width=4)
+        draw.ellipse((110, 68, 210, 168), fill="#cbd5e1")
+        draw.rounded_rectangle((70, 208, 250, 318), radius=36, fill="#cbd5e1")
+        placeholder.save(PLACEHOLDER_PATH, quality=90)
+
+    if not os.path.exists(PHOTO_PLACEHOLDER_PATH):
+        photo = Image.new("RGBA", (320, 380), color="#f3f4f6")
+        draw = ImageDraw.Draw(photo)
+        draw.rectangle((12, 12, 308, 368), outline="#9ca3af", width=4)
+        draw.ellipse((110, 70, 210, 170), fill="#d1d5db")
+        draw.rounded_rectangle((70, 212, 250, 320), radius=36, fill="#d1d5db")
+        photo.save(PHOTO_PLACEHOLDER_PATH)
+
+    if not os.path.exists(QR_PLACEHOLDER_PATH):
+        qr = Image.new("RGBA", (240, 240), color="#ffffff")
+        draw = ImageDraw.Draw(qr)
+        draw.rectangle((8, 8, 232, 232), outline="#9ca3af", width=4)
+        for x, y in ((34, 34), (154, 34), (34, 154)):
+            draw.rectangle((x, y, x + 52, y + 52), outline="#111827", width=8)
+            draw.rectangle((x + 18, y + 18, x + 34, y + 34), fill="#111827")
+        draw.rectangle((150, 150, 174, 174), fill="#111827")
+        draw.rectangle((190, 150, 206, 206), fill="#111827")
+        draw.rectangle((150, 190, 182, 206), fill="#111827")
+        qr.save(QR_PLACEHOLDER_PATH)
+
+
+_ensure_static_placeholders()
 
 # ================== Print Sizes ==================
 DPI = 300
