@@ -1,0 +1,18 @@
+# nixpacks.toml
+# Simplified for Flask + Cloudinary (no local image processing needed)
+
+[phases.setup]
+# Only essential build tools and Python
+# OpenCV/OpenGL dependencies removed - all image processing done via Cloudinary
+nixPkgs = ["python311", "gcc", "gnumake"]
+
+[phases.install]
+cmds = [
+  "python -m venv /opt/venv",
+  ". /opt/venv/bin/activate",
+  "pip install --upgrade pip",
+  "pip install -r requirements.txt"
+]
+
+[start]
+cmd = ". /opt/venv/bin/activate && gunicorn --workers=1 --threads=4 --timeout 120 --bind 0.0.0.0:$PORT app:app"

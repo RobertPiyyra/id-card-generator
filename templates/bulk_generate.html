@@ -1,0 +1,171 @@
+{% extends "base.html" %}  <!-- or your main layout -->
+{% block title %}Bulk ID Card Generator{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2 class="mb-4"><i class="fas fa-file-excel"></i> Bulk ID Card Generator</h2>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+          </div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <form id="bulkForm" enctype="multipart/form-data" class="card p-4 shadow-sm">
+        <div class="row g-3">
+            <div class="col-md-6">
+                <label class="form-label"><i class="fas fa-clipboard-list"></i> Select Template</label>
+                <select name="template_id" class="form-select" required>
+                    <option value="">— Choose Template —</option>
+                    {% for t in templates %}
+                    <option value="{{ t.id }}">{{ t.school_name }} ({{ t.card_orientation|capitalize }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="col-md-6">
+                <label class="form-label"><i class="fas fa-file-excel"></i> Upload Excel File</label>
+                <input type="file" name="excel_file" class="form-control" accept=".xlsx,.xls" required>
+                <div class="form-text">
+                    Required columns: <code>name, father_name, class_name, dob, address, phone, blood_group, student_id_number, photo_filename</code>
+                </div>
+            </div>
+        </div>
+
+        <div class="mt-4">
+            <button type="submit" class="btn btn-success btn-lg" id="submitBtn">
+                <i class="fas fa-cogs"></i> Generate & Download ZIP
+            </button>
+        </div>
+
+        <!-- Progress -->
+        <div id="progressContainer" class="mt-4" style="display:none;">
+            <div class="progress" style="height: 20px;">
+                <div id="progressBar" class="progress-bar progress-bar-striped progress-bar-animated"
+                     role="progressbar" style="width: 0%">0%</div>
+            </div>
+            <p class="mt-2 text-center" id="progressText">Preparing...</p>
+            <div id="errorDetails" class="alert alert-warning mt-3" style="display:none; white-space: pre-line;"></div>
+        </div>
+
+        <!-- Download Link -->
+        <div id="downloadArea" class="mt-4 text-center" style="display:none;">
+            <a id="downloadLink" href="#" class="btn btn-primary btn-lg">
+                <i class="fas fa-download"></i> Download All ID Cards (ZIP)
+            </a>
+        </div>
+    </form>
+</div>
+
+<style>
+    .progress { border-radius: 10px; overflow: hidden; }
+    .progress-bar { background: linear-gradient(90deg, #0052cc, #00d4aa); }
+</style>
+
+<script>
+document.getElementById('bulkForm').onsubmit = async function(e) {
+    e.preventDefault();
+    const form = e.target;
+    const submitBtn = document.getElementById('submitBtn');
+    const progressContainer = document.getElementById('progressContainer');
+    const progressBar = document.getElementById('progressBar');
+    const progressText = document.getElementById('progressText');
+    const errorDetails = document.getElementById('errorDetails');
+    const downloadArea = document.getElementById('downloadArea');
+    const downloadLink = document.getElementById('downloadLink');
+
+    // UI: Disable button
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Processing...';
+    progressContainer.style.display = 'block';
+    downloadArea.style.display = 'none';
+    errorDetails.style.display = 'none';
+    errorDetails.textContent = '';
+
+    const formData = new FormData(form);
+
+    try {
+        const response = await fetch('{{ url_for("bulk_generate") }}', {
+            method: 'POST',
+            body: formData
+        });
+
+        const data = await response.json();
+        if (!response.ok || !data.success) {
+            throw new Error(data.error || ('Server error: ' + response.status));
+        }
+
+        const renderDetails = (payload, failed=false) => {
+            const lines = [];
+            if (payload.result) lines.push(payload.result);
+            if (Array.isArray(payload.errors) && payload.errors.length) {
+                lines.push('Details:');
+                payload.errors.slice(0, 5).forEach((msg, idx) => lines.push(`${idx + 1}. ${msg}`));
+                if (payload.error_count && payload.error_count > 5) {
+                    lines.push(`...and ${payload.error_count - 5} more`);
+                }
+            }
+            if (!lines.length) {
+                errorDetails.style.display = 'none';
+                errorDetails.textContent = '';
+                return;
+            }
+            errorDetails.className = failed ? 'alert alert-danger mt-3' : 'alert alert-warning mt-3';
+            errorDetails.textContent = lines.join('\n');
+            errorDetails.style.display = 'block';
+        };
+
+        const poller = setInterval(async () => {
+            try {
+                const statusResp = await fetch(`/taskstatus/${data.task_id}`);
+                const task = await statusResp.json();
+
+                if (!task.state) {
+                    clearInterval(poller);
+                    throw new Error('Task status missing');
+                }
+
+                let percent = 0;
+                if (task.total > 0) {
+                    percent = Math.floor((task.current / task.total) * 100);
+                }
+                progressBar.style.width = percent + '%';
+                progressBar.textContent = percent + '%';
+                progressText.textContent = `${task.status} (${percent}%)`;
+
+                if (task.state === 'FAILURE') {
+                    clearInterval(poller);
+                    progressBar.classList.remove('bg-success');
+                    progressBar.classList.add('bg-danger');
+                    renderDetails(task, true);
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = '<i class="fas fa-cogs"></i> Try Again';
+                    return;
+                }
+
+                if (task.state === 'SUCCESS') {
+                    clearInterval(poller);
+                    progressText.textContent = task.result || 'Completed';
+                    renderDetails(task, false);
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = '<i class="fas fa-cogs"></i> Generate & Download ZIP';
+                }
+            } catch (pollErr) {
+                clearInterval(poller);
+                throw pollErr;
+            }
+        }, 2000);
+
+    } catch (err) {
+        alert('Error: ' + err.message);
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<i class="fas fa-cogs"></i> Try Again';
+    }
+};
+</script>
+{% endblock %}

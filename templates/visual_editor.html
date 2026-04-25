@@ -1,0 +1,2767 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Visual Editor - {{ template.school_name }}</title>
+  <meta name="csrf-token" content="{{ csrf_token() }}">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    /* ═══════════════════════════════════════════
+       BASE
+    ═══════════════════════════════════════════ */
+    *, *::before, *::after { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", sans-serif;
+      background: radial-gradient(circle at top, #f8fbff 0%, #e2ebf5 42%, #d5dfec 100%);
+      overflow: hidden;
+      color: #18324d;
+    }
+
+    /* ═══════════════════════════════════════════
+       TOP BAR
+    ═══════════════════════════════════════════ */
+    .top {
+      height: 60px;
+      background: linear-gradient(135deg, #0f2f58 0%, #1b4f86 58%, #0f6aa8 100%);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 20px;
+      gap: 12px;
+      box-shadow: 0 4px 20px rgba(9,30,54,0.32);
+      position: relative;
+      z-index: 100;
+    }
+    .top-title { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+    .top-title strong { font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .top-title small { opacity: 0.75; font-size: 11px; letter-spacing: 0.05em; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .top-actions { display: flex; gap: 8px; align-items: center; flex-shrink: 0; }
+    .top-actions .btn { font-size: 13px; }
+
+    /* ═══════════════════════════════════════════
+       MAIN LAYOUT  — canvas left, panel right
+    ═══════════════════════════════════════════ */
+    .main {
+      display: flex;
+      height: calc(100vh - 60px);
+      overflow: hidden;
+    }
+
+    /* ── Canvas area ── */
+    .left {
+      flex: 1 1 0;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      background: linear-gradient(180deg, rgba(255,255,255,0.30), rgba(226,236,248,0.06));
+    }
+
+    /* ── Toolbar ── */
+    .toolbar {
+      flex-shrink: 0;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+      justify-content: center;
+      background: rgba(255,255,255,0.95);
+      border: 1px solid #d7e2ef;
+      border-radius: 0 0 18px 18px;
+      padding: 8px 14px;
+      box-shadow: 0 6px 18px rgba(20,41,68,0.09);
+      backdrop-filter: blur(10px);
+      position: relative;
+      z-index: 20;
+    }
+    .tool-group { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+    .tool-sep {
+      width: 1px; height: 26px;
+      background: linear-gradient(180deg, transparent, #d7e2ef 30%, #d7e2ef 70%, transparent);
+      margin: 0 2px;
+    }
+    .toolbar .btn {
+      border-radius: 10px;
+      font-weight: 600;
+      border-color: #d4deea;
+      font-size: 12px;
+      padding: 4px 10px;
+      white-space: nowrap;
+    }
+    .toolbar .btn:hover { transform: translateY(-1px); box-shadow: 0 3px 8px rgba(11,63,138,0.15); }
+    .toolbar .btn-soft { background: #f7fbff; color: #1c456f; }
+    .toolbar .btn-soft:hover { background: #eef6ff; }
+    .z { min-width: 48px; text-align: center; font-weight: 700; color: #143a60; font-size: 13px; }
+
+    /* ── Canvas scroll container ── */
+    .canvas-scroll {
+      flex: 1 1 0;
+      overflow: auto;
+      padding: 14px;
+      -webkit-overflow-scrolling: touch;
+    }
+    .canvas-wrap {
+      width: max-content;
+      margin: 0 auto;
+      padding: 18px;
+      border-radius: 24px;
+      background: linear-gradient(145deg, rgba(255,255,255,0.92), rgba(227,236,247,0.88));
+      box-shadow: 0 18px 40px rgba(24,50,77,0.16);
+    }
+    #editorCanvas {
+      border: 1px solid #9ab1c9;
+      box-shadow: 0 10px 28px rgba(12,26,43,0.18);
+      border-radius: 12px;
+      touch-action: none;
+      display: block;
+    }
+    .canvas-container,
+    .canvas-container canvas {
+      touch-action: none;
+      -ms-touch-action: none;
+    }
+
+    /* ═══════════════════════════════════════════
+       RIGHT PANEL  — desktop sidebar
+    ═══════════════════════════════════════════ */
+    .right {
+      width: 360px;
+      flex-shrink: 0;
+      border-left: 1px solid #d0dcea;
+      background: rgba(255,255,255,0.97);
+      backdrop-filter: blur(14px);
+      display: flex;
+      flex-direction: column;
+      box-shadow: -10px 0 24px rgba(33,61,96,0.07);
+      overflow: hidden;
+    }
+
+    /* panel header */
+    .side-head {
+      flex-shrink: 0;
+      padding: 14px 16px 12px;
+      border-bottom: 1px solid #e5eef8;
+      background: linear-gradient(180deg, rgba(247,250,255,0.97), rgba(255,255,255,0.92));
+    }
+    .side-head h5 { margin: 0 0 2px; font-size: 14px; font-weight: 700; color: #1a3c60; }
+    .side-head small { font-size: 11px; color: #7a93ab; }
+
+    /* tab bar — ALWAYS visible, desktop collapses sections via accordion-style, mobile uses tabs */
+    .panel-tabs {
+      flex-shrink: 0;
+      display: flex;
+      background: #f2f7fd;
+      border-bottom: 1px solid #dce8f5;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+    .panel-tabs::-webkit-scrollbar { display: none; }
+    .panel-tab {
+      flex: 1 0 auto;
+      padding: 9px 10px 8px;
+      font-size: 11px;
+      font-weight: 600;
+      color: #6b8197;
+      border: none;
+      background: none;
+      border-bottom: 2px solid transparent;
+      cursor: pointer;
+      white-space: nowrap;
+      text-align: center;
+      transition: color 0.15s, border-color 0.15s, background 0.15s;
+    }
+    .panel-tab:hover { color: #0b63d1; background: #e8f0fb; }
+    .panel-tab.active { color: #0b63d1; border-bottom-color: #0b63d1; background: #eef5ff; font-weight: 700; }
+
+    /* scrollable body */
+    .side-body {
+      flex: 1 1 0;
+      overflow-y: auto;
+      overflow-x: hidden;
+      padding: 12px;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: thin;
+      scrollbar-color: #c8d8ea transparent;
+    }
+    .side-body::-webkit-scrollbar { width: 5px; }
+    .side-body::-webkit-scrollbar-thumb { background: #c8d8ea; border-radius: 3px; }
+
+    /* panel sections — all hidden by default, JS shows active */
+    .panel-section { display: none; }
+    .panel-section.active { display: block; }
+
+    /* ── Cards ── */
+    .cardx {
+      border: 1px solid #dce6f2;
+      border-left: 4px solid #b0c4dc;
+      border-radius: 14px;
+      padding: 11px 12px;
+      margin-bottom: 12px;
+      background: linear-gradient(180deg, #fff 0%, #f7fbff 100%);
+      box-shadow: 0 4px 12px rgba(35,66,102,0.05);
+    }
+    .cardx h6 { margin: 0 0 9px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.07em; color: #687d95; font-weight: 700; }
+    .cardx.guides { border-left-color: #e2a300; }
+    .cardx.photo  { border-left-color: #d63b62; }
+    .cardx.fields { border-left-color: #0b63d1; }
+
+    /* ── Form rows ── */
+    .rowx { display: grid; grid-template-columns: 64px 1fr 1fr; gap: 6px; align-items: center; margin-bottom: 7px; }
+    .rowx label { margin: 0; font-size: 12px; color: #4b6179; font-weight: 600; }
+    .grid-field { border: 1px solid #e2ebf5; border-radius: 8px; padding: 9px; margin-bottom: 9px; }
+    .grid-field:last-child { margin-bottom: 0; }
+    .grid-field .ttl { font-size: 12px; font-weight: 700; color: #415a75; margin-bottom: 7px; }
+    .mini-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+    .toggles { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+    .grow-block { margin-top: 8px; border-top: 1px dashed #d9e6f5; padding-top: 8px; }
+    .grow-line { display: grid; grid-template-columns: 48px 1fr; gap: 6px; align-items: center; margin-bottom: 6px; }
+    .grow-line:last-child { margin-bottom: 0; }
+    .grow-line .cap { font-size: 11px; color: #4b6179; font-weight: 600; text-transform: uppercase; }
+    .grow-options { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .grow-options .form-check-label { font-size: 12px; }
+    .layer-list { display: flex; flex-direction: column; gap: 6px; max-height: 180px; overflow-y: auto; }
+    .layer-item { display: flex; align-items: center; justify-content: space-between; gap: 8px; border: 1px solid #d8e4f3; border-radius: 8px; padding: 6px 8px; cursor: pointer; transition: background 0.12s; }
+    .layer-item:hover { background: #f5f9ff; }
+    .layer-item.active { border-color: #0b63d1; background: #eef5ff; }
+    .layer-meta { font-size: 11px; color: #607891; }
+    .metrics-grid { display: grid; grid-template-columns: 28px 1fr 28px 1fr; gap: 6px; align-items: center; }
+    .metrics-grid label { margin: 0; font-size: 12px; color: #4b6179; font-weight: 600; }
+    .inspector-grid { display: grid; grid-template-columns: 50px 1fr 50px 1fr; gap: 6px; align-items: center; margin-top: 8px; }
+    .inspector-grid label { margin: 0; font-size: 12px; color: #4b6179; font-weight: 600; }
+
+    /* ── Footer ── */
+    .foot {
+      flex-shrink: 0;
+      border-top: 1px solid #e5eef8;
+      padding: 12px 14px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.75), rgba(246,250,255,0.97));
+    }
+    .status { font-size: 12px; color: #5f7893; margin-top: 6px; padding: 7px 10px; border-radius: 10px; background: #f4f8fc; border: 1px solid #e1eaf4; min-height: 16px; }
+    .workspace-note { font-size: 11px; color: #7a93ab; margin-top: 4px; line-height: 1.5; }
+
+    /* ═══════════════════════════════════════════
+       TABLET  768 – 1100px
+    ═══════════════════════════════════════════ */
+    @media (max-width: 1100px) {
+      .right { width: 310px; }
+      .top-title small { display: none; }
+    }
+
+    /* ═══════════════════════════════════════════
+       MOBILE  ≤ 767px  — bottom-drawer layout
+    ═══════════════════════════════════════════ */
+    @media (max-width: 767px) {
+      /* top bar */
+      .top { height: 52px; padding: 0 12px; }
+      .top-title strong { font-size: 13px; }
+      .top-title small { display: none !important; }
+      .top-actions .btn { font-size: 11px; padding: 4px 8px; }
+
+      /* stack vertically */
+      .main { flex-direction: column; height: calc(100vh - 52px); }
+
+      /* canvas section */
+      .left { flex: 1 1 0; min-height: 0; }
+
+      /* toolbar — horizontal scroll strip */
+      .toolbar {
+        border-radius: 0;
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        overflow-y: hidden;
+        justify-content: flex-start;
+        padding: 6px 10px;
+        gap: 5px;
+        scrollbar-width: none;
+        box-shadow: 0 3px 10px rgba(20,41,68,0.08);
+      }
+      .toolbar::-webkit-scrollbar { display: none; }
+      .tool-group { flex-wrap: nowrap; }
+      .tool-sep { display: none; }
+      .toolbar .btn { font-size: 11px; padding: 3px 8px; }
+      .z { min-width: 36px; font-size: 11px; }
+
+      .canvas-scroll { padding: 8px; }
+
+      /* right panel → bottom drawer */
+      .right {
+        width: 100%;
+        height: 42vh;
+        flex-shrink: 0;
+        border-left: none;
+        border-top: 2px solid #c0d4e8;
+        box-shadow: 0 -6px 20px rgba(33,61,96,0.11);
+        position: relative;
+      }
+
+      /* drag-handle pill on side-head */
+      .side-head {
+        padding: 5px 14px 9px;
+        cursor: ns-resize;
+        user-select: none;
+        touch-action: none;
+      }
+      .side-head::before {
+        content: '';
+        display: block;
+        width: 38px; height: 4px;
+        background: #b8cfe4;
+        border-radius: 2px;
+        margin: 0 auto 6px;
+      }
+      .side-head h5 { font-size: 13px; }
+      .side-head small { display: none; }
+
+      /* tabs tighter on mobile */
+      .panel-tab { padding: 7px 8px 6px; font-size: 10.5px; min-width: 60px; }
+
+      /* foot compact */
+      .foot { padding: 8px 12px; }
+      .workspace-note { display: none; }
+      .status { margin-top: 4px; padding: 5px 8px; font-size: 11px; }
+    }
+
+    /* ═══════════════════════════════════════════
+       VERY SMALL PHONES  ≤ 400px
+    ═══════════════════════════════════════════ */
+    @media (max-width: 400px) {
+      .top-actions .btn { font-size: 10px; padding: 3px 7px; }
+      .mini-actions .btn { font-size: 10px; padding: 3px 6px; }
+      .cardx { padding: 8px 9px; }
+      .rowx { grid-template-columns: 54px 1fr 1fr; gap: 5px; }
+    }
+  </style>
+</head>
+<body>
+  <!-- ════ TOP BAR ════ -->
+  <div class="top">
+    <div class="top-title">
+      <strong>Visual Editor: {{ template.school_name }} <span style="opacity:.8">[{{ editor_side|capitalize }}]</span></strong>
+      <small>Canvas workspace — layout, objects &amp; output controls</small>
+    </div>
+    <div class="top-actions">
+      <a href="{{ url_for('editor.template_editor', template_id=template.id, side='front') }}"
+         class="btn btn-sm {{ 'btn-light' if editor_side == 'front' else 'btn-outline-light' }}">Front</a>
+      {% if template.is_double_sided %}
+      <a href="{{ url_for('editor.template_editor', template_id=template.id, side='back') }}"
+         class="btn btn-sm {{ 'btn-light' if editor_side == 'back' else 'btn-outline-light' }}">Back</a>
+      {% endif %}
+      <a href="/admin" class="btn btn-outline-light btn-sm">✕ Close</a>
+    </div>
+  </div>
+
+  <!-- ════ MAIN LAYOUT ════ -->
+  <div class="main">
+
+    <!-- ── LEFT: toolbar + canvas ── -->
+    <div class="left" id="stage">
+      <div class="toolbar">
+        <div class="tool-group">
+          <button class="btn btn-soft btn-sm rounded-circle" onclick="setZoom(-0.1)">−</button>
+          <div class="z" id="zoomLabel">100%</div>
+          <button class="btn btn-soft btn-sm rounded-circle" onclick="setZoom(0.1)">+</button>
+          <button class="btn btn-soft btn-sm" onclick="fitCanvas()">Fit</button>
+          <button class="btn btn-soft btn-sm" onclick="undoHistory()">Undo</button>
+          <button class="btn btn-soft btn-sm" onclick="redoHistory()">Redo</button>
+        </div>
+        <div class="tool-sep"></div>
+        <div class="tool-group">
+          <button class="btn btn-soft btn-sm" onclick="setSnap(1)">Snap 1</button>
+          <button class="btn btn-soft btn-sm" onclick="setSnap(10)">Snap 10</button>
+          <button class="btn btn-soft btn-sm" onclick="toggleGridVisibility()">Grid</button>
+        </div>
+        <div class="tool-sep"></div>
+        <div class="tool-group">
+          <button class="btn btn-soft btn-sm" onclick="hideSelected()">Hide</button>
+          <button class="btn btn-soft btn-sm" onclick="bringSelectedToFront()">Front</button>
+          <button class="btn btn-soft btn-sm" onclick="sendSelectedToBack()">Back</button>
+          <button class="btn btn-soft btn-sm" onclick="selectAllCustomObjects()">Sel All</button>
+          <button class="btn btn-soft btn-sm" onclick="copySelected()">Copy</button>
+          <button class="btn btn-soft btn-sm" onclick="pasteClipboard()">Paste</button>
+        </div>
+        <div class="tool-sep"></div>
+        <div class="tool-group">
+          <button class="btn btn-soft btn-sm" onclick="alignSelected('left')">⬜L</button>
+          <button class="btn btn-soft btn-sm" onclick="alignSelected('hcenter')">H·C</button>
+          <button class="btn btn-soft btn-sm" onclick="alignSelected('right')">R⬜</button>
+          <button class="btn btn-soft btn-sm" onclick="alignSelected('top')">Top</button>
+          <button class="btn btn-soft btn-sm" onclick="alignSelected('vcenter')">V·C</button>
+          <button class="btn btn-soft btn-sm" onclick="alignSelected('bottom')">Bot</button>
+          <button class="btn btn-soft btn-sm" onclick="distributeSelected('horizontal')">Dist H</button>
+          <button class="btn btn-soft btn-sm" onclick="distributeSelected('vertical')">Dist V</button>
+          <button class="btn btn-soft btn-sm" onclick="rotateSelected(-15)">↺−15</button>
+          <button class="btn btn-soft btn-sm" onclick="rotateSelected(15)">↻+15</button>
+          <button class="btn btn-soft btn-sm" onclick="toggleLockSelected(true)">Lock</button>
+          <button class="btn btn-soft btn-sm" onclick="toggleLockSelected(false)">Unlock</button>
+        </div>
+      </div>
+      <div class="canvas-scroll">
+        <div class="canvas-wrap"><canvas id="editorCanvas"></canvas></div>
+      </div>
+    </div>
+
+    <!-- ── RIGHT: tabbed panel (sidebar on desktop, bottom drawer on mobile) ── -->
+    <div class="right">
+      <div class="side-head">
+        <h5>Per-field Editor</h5>
+        <small>Drag labels/values, manage layers, adjust selected objects.</small>
+      </div>
+
+      <!-- Unified tab bar — always visible, works on both desktop & mobile -->
+      <div class="panel-tabs" id="panelTabs">
+        <button class="panel-tab active" data-panel="guides"  onclick="switchTab('guides')">Guides</button>
+        <button class="panel-tab"        data-panel="photo"   onclick="switchTab('photo')">Photo/QR</button>
+        <button class="panel-tab"        data-panel="fields"  onclick="switchTab('fields')">Fields</button>
+        <button class="panel-tab"        data-panel="objects" onclick="switchTab('objects')">Objects</button>
+        <button class="panel-tab"        data-panel="layers"  onclick="switchTab('layers')">Layers</button>
+      </div>
+
+      <div class="side-body">
+
+        <!-- ── GUIDES ── -->
+        <div class="panel-section active" id="panel-guides">
+          <div class="cardx guides">
+            <h6>Guides &amp; Direction</h6>
+            <div class="rowx">
+              <label>Language</label>
+              <input class="form-control form-control-sm" id="langView" readonly>
+              <select class="form-select form-select-sm" id="dirView" onchange="redrawFields()">
+                <option value="ltr">LTR</option>
+                <option value="rtl">RTL</option>
+              </select>
+            </div>
+            <div class="form-check form-switch mb-1">
+              <input class="form-check-input" type="checkbox" id="showLabelColonVE" checked onchange="toggleLabelColon()">
+              <label class="form-check-label" for="showLabelColonVE">Show label colon</label>
+            </div>
+            <div class="form-check form-switch mb-1">
+              <input class="form-check-input" type="checkbox" id="alignLabelColonVE" checked onchange="toggleAlignLabelColon()">
+              <label class="form-check-label" for="alignLabelColonVE">Align colon near value</label>
+            </div>
+            <div class="rowx">
+              <label>Colon Gap</label>
+              <input id="labelColonGapVE" type="number" min="0" max="80" class="form-control form-control-sm" onchange="setLabelColonGap()">
+              <div class="small text-muted">px</div>
+            </div>
+            <div class="rowx">
+              <label>Colon Color</label>
+              <input id="colonColorVE" type="color" class="form-control form-control-sm" onchange="setColonColor()">
+              <div class="small text-muted">hex</div>
+            </div>
+            <hr class="my-2">
+            <div class="form-check form-switch mb-1">
+              <input class="form-check-input" type="checkbox" id="showBleed" checked onchange="toggleGuides()">
+              <label class="form-check-label" for="showBleed">Bleed guide</label>
+            </div>
+            <div class="form-check form-switch mb-1">
+              <input class="form-check-input" type="checkbox" id="showSafe" checked onchange="toggleGuides()">
+              <label class="form-check-label" for="showSafe">Safe area</label>
+            </div>
+            <div class="form-check form-switch mb-1">
+              <input class="form-check-input" type="checkbox" id="showGrid" onchange="toggleGridVisibility(this.checked)">
+              <label class="form-check-label" for="showGrid">Editor grid</label>
+            </div>
+            <div class="rowx">
+              <label>Grid Size</label>
+              <input id="gridSizeVE" type="number" min="5" max="100" value="20" class="form-control form-control-sm" onchange="setGridSize()">
+              <div class="small text-muted">px</div>
+            </div>
+          </div>
+        </div><!-- /#panel-guides -->
+
+        <!-- ── PHOTO / QR ── -->
+        <div class="panel-section" id="panel-photo">
+          <div class="cardx photo">
+            <h6>Photo &amp; QR Position</h6>
+            <div class="toggles mb-2">
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="enablePhotoVE" onchange="toggleBlockVisibility('photo', this.checked)">
+                <label class="form-check-label" for="enablePhotoVE">Show photo</label>
+              </div>
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="enableQrVE" onchange="toggleBlockVisibility('qr', this.checked)">
+                <label class="form-check-label" for="enableQrVE">Show QR</label>
+              </div>
+            </div>
+            <div class="rowx"><label>Photo X/Y</label><input id="photoX" type="number" class="form-control form-control-sm" onchange="applyBlockInputs()"><input id="photoY" type="number" class="form-control form-control-sm" onchange="applyBlockInputs()"></div>
+            <div class="rowx"><label>Photo W/H</label><input id="photoW" type="number" class="form-control form-control-sm" onchange="applyBlockInputs()"><input id="photoH" type="number" class="form-control form-control-sm" onchange="applyBlockInputs()"></div>
+            <div class="rowx"><label>QR X/Y</label><input id="qrX" type="number" class="form-control form-control-sm" onchange="applyBlockInputs()"><input id="qrY" type="number" class="form-control form-control-sm" onchange="applyBlockInputs()"></div>
+            <div class="rowx"><label>QR Size</label><input id="qrS" type="number" class="form-control form-control-sm" onchange="applyBlockInputs()"><div class="small text-muted">px</div></div>
+          </div>
+        </div><!-- /#panel-photo -->
+
+        <!-- ── FIELDS ── -->
+        <div class="panel-section" id="panel-fields">
+          <div class="cardx fields">
+            <h6>Fields (Label / Value)</h6>
+            <div id="fieldList"></div>
+          </div>
+        </div><!-- /#panel-fields -->
+
+        <!-- ── OBJECTS ── -->
+        <div class="panel-section" id="panel-objects">
+          <div class="cardx fields">
+            <h6>Custom Objects</h6>
+            <div class="grid-field">
+              <div class="ttl">Add Object</div>
+              <div class="mini-actions mb-2">
+                <button class="btn btn-outline-primary btn-sm" onclick="addCustomObject('text')">Text</button>
+                <button class="btn btn-outline-primary btn-sm" onclick="addCustomObject('rect')">Rect</button>
+                <button class="btn btn-outline-primary btn-sm" onclick="addCustomObject('circle')">Circle</button>
+                <button class="btn btn-outline-primary btn-sm" onclick="addCustomObject('line')">Line</button>
+                <button class="btn btn-outline-primary btn-sm" onclick="triggerImageUpload()">Logo</button>
+              </div>
+              <input id="imageUploadInput" type="file" accept="image/*" style="display:none">
+              <div class="ttl">Selection</div>
+              <div class="mini-actions">
+                <button class="btn btn-outline-secondary btn-sm" onclick="selectAllCustomObjects()">Sel All</button>
+                <button class="btn btn-outline-secondary btn-sm" onclick="copySelected()">Copy</button>
+                <button class="btn btn-outline-secondary btn-sm" onclick="pasteClipboard()">Paste</button>
+                <button class="btn btn-outline-secondary btn-sm" onclick="duplicateSelected()">Dup</button>
+                <button class="btn btn-outline-danger btn-sm" onclick="deleteSelected()">Delete</button>
+              </div>
+            </div>
+            <div class="grid-field">
+              <div class="ttl">Selected Object</div>
+              <div class="rowx">
+                <label>Item</label>
+                <input id="selItem" class="form-control form-control-sm" value="None" readonly style="grid-column: 2 / span 2">
+              </div>
+              <div class="rowx">
+                <label>Name</label>
+                <input id="selName" class="form-control form-control-sm" disabled style="grid-column: 2 / span 2">
+              </div>
+              <div class="rowx">
+                <label>Text</label>
+                <input id="selText" class="form-control form-control-sm" disabled style="grid-column: 2 / span 2">
+              </div>
+              <div class="rowx">
+                <label>Color</label>
+                <input id="selColor" type="color" class="form-control form-control-sm" disabled>
+                <button class="btn btn-outline-secondary btn-sm" id="clearSelColor" disabled>Reset</button>
+              </div>
+              <div class="form-check form-switch mb-2">
+                <input class="form-check-input" type="checkbox" id="selLocked" disabled>
+                <label class="form-check-label" for="selLocked">Lock object</label>
+              </div>
+              <div class="metrics-grid">
+                <label>X</label><input id="selX" class="form-control form-control-sm" type="number" disabled>
+                <label>Y</label><input id="selY" class="form-control form-control-sm" type="number" disabled>
+                <label>W</label><input id="selW" class="form-control form-control-sm" type="number" disabled>
+                <label>H</label><input id="selH" class="form-control form-control-sm" type="number" disabled>
+              </div>
+              <div class="rowx" style="margin-top:8px">
+                <label>Font</label>
+                <input id="selFontSize" class="form-control form-control-sm" type="number" disabled>
+                <button class="btn btn-outline-primary btn-sm" id="applyMetricsBtn" disabled>Apply</button>
+              </div>
+              <div class="inspector-grid">
+                <label>Angle</label><input id="selAngle" class="form-control form-control-sm" type="number" min="-360" max="360" disabled>
+                <label>Opacity</label><input id="selOpacity" class="form-control form-control-sm" type="number" min="0" max="100" disabled>
+                <label>Stroke</label><input id="selStrokeWidth" class="form-control form-control-sm" type="number" min="0" max="40" disabled>
+              </div>
+            </div>
+          </div>
+        </div><!-- /#panel-objects -->
+
+        <!-- ── LAYERS ── -->
+        <div class="panel-section" id="panel-layers">
+          <div class="cardx fields">
+            <h6>Layer Order</h6>
+            <div id="layersList" class="layer-list"></div>
+          </div>
+        </div><!-- /#panel-layers -->
+
+      </div><!-- /.side-body -->
+
+      <div class="foot">
+        <button class="btn btn-primary w-100" id="saveBtn">💾 Save Layout</button>
+        <div class="workspace-note">Shortcuts: Delete=hide/delete · Arrows=nudge · Shift+Arrows=big nudge · Ctrl+0=fit · Ctrl+D=duplicate · Ctrl+C/V=copy/paste · Ctrl+A=select all</div>
+        <div class="status" id="status"></div>
+      </div>
+    </div><!-- /.right -->
+
+  </div><!-- /.main -->
+  <script>
+    const TEMPLATE_ID = {{ template_id }};
+    const EDITOR_SIDE = "{{ editor_side }}";
+    const CARD_ORIENTATION = "{{ template.card_orientation or 'landscape' }}";
+    const CARD_W = {{ template.card_width or 1015 }};
+    const CARD_H = {{ template.card_height or 661 }};
+    const SHEET_W = {{ template.sheet_width or 2480 }};
+    const SHEET_H = {{ template.sheet_height or 3508 }};
+    const GRID_ROWS = {{ template.grid_rows or 5 }};
+    const GRID_COLS = {{ template.grid_cols or 2 }};
+    const BG_IMAGE_URL = "{{ image_url }}";
+    const initFont = {{ (editor_font_settings or {}) | tojson }};
+    const initPhoto = {{ (editor_photo_settings or {}) | tojson }};
+    const initQR = {{ (editor_qr_settings or {}) | tojson }};
+    const initLayout = {{ (editor_layout_config or "{}") | safe }};
+    const initLanguage = "{{ (editor_language or 'english')|lower }}";
+    const initDir = "{{ (editor_text_direction or 'ltr')|lower }}";
+    const dynamicFieldDefs = {{ (editor_dynamic_fields or []) | tojson }};
+
+    const canvas = new fabric.Canvas("editorCanvas", {
+      preserveObjectStacking: true,
+      targetFindTolerance: 12,
+      selectionFullyContained: true
+    });
+    canvas.allowTouchScrolling = false;
+    let zoom = 1;
+    let snap = 10;
+    let gridSize = 20;
+    let gridVisible = false;
+    const fieldObjs = {};
+    const customObjs = {};
+    const historyStack = [];
+    const redoStack = [];
+    let clipboardDefs = [];
+    let historyMuted = false;
+    const asBool = (v, fallback=true) => {
+      if (typeof v === "boolean") return v;
+      if (v === null || typeof v === "undefined") return fallback;
+      if (typeof v === "number") return v !== 0;
+      if (typeof v === "string") return ["1", "true", "yes", "on"].includes(v.trim().toLowerCase());
+      return fallback;
+    };
+
+    const state = {
+      language: initLanguage || "english",
+      direction: initDir === "rtl" ? "rtl" : "ltr",
+      font: {
+        label_x: parseInt(initFont.label_x || 50, 10),
+        value_x: parseInt(initFont.value_x || 280, 10),
+        label_font_size: parseInt(initFont.label_font_size || 22, 10),
+        value_font_size: parseInt(initFont.value_font_size || 20, 10),
+        start_y: parseInt(initFont.start_y || 275, 10),
+        line_height: parseInt(initFont.line_height || 50, 10),
+        show_label_colon: asBool(initFont.show_label_colon, true),
+        align_label_colon: asBool(initFont.align_label_colon, true),
+        label_colon_gap: parseInt(initFont.label_colon_gap || 8, 10),
+        colon_font_color: initFont.colon_font_color || initFont.label_font_color || "#0b3f8a",
+      },
+      photo: {
+        enable_photo: initPhoto.enable_photo !== false,
+        photo_x: parseInt(initPhoto.photo_x || 725, 10),
+        photo_y: parseInt(initPhoto.photo_y || 200, 10),
+        photo_width: parseInt(initPhoto.photo_width || 260, 10),
+        photo_height: parseInt(initPhoto.photo_height || 313, 10),
+      },
+      qr: {
+        enable_qr: !!initQR.enable_qr,
+        qr_x: parseInt(initQR.qr_x || 50, 10),
+        qr_y: parseInt(initQR.qr_y || 50, 10),
+        qr_size: parseInt(initQR.qr_size || 120, 10),
+      },
+      layout: (typeof initLayout === "object" && initLayout) ? initLayout : { fields: {} },
+    };
+    if (!state.layout.fields) state.layout.fields = {};
+    if (!Array.isArray(state.layout.objects)) state.layout.objects = [];
+
+    function cloneStateSnapshot() {
+      return JSON.parse(JSON.stringify({
+        language: state.language,
+        direction: state.direction,
+        font: state.font,
+        photo: state.photo,
+        qr: state.qr,
+        layout: state.layout
+      }));
+    }
+
+    const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+    const sround = (v) => snap <= 1 ? Math.round(v) : Math.round(v / snap) * snap;
+    const deepClone = (value) => JSON.parse(JSON.stringify(value));
+    const standardKeyOrder = ["NAME","F_NAME","CLASS","DOB","MOBILE","ADDRESS"];
+    const labels = {
+      english: { NAME:"NAME",F_NAME:"F.NAME",CLASS:"CLASS",DOB:"D.O.B",MOBILE:"MOBILE",ADDRESS:"ADDRESS" },
+      urdu: { NAME:"نام",F_NAME:"ولدیت",CLASS:"جماعت",DOB:"تاریخ پیدائش",MOBILE:"موبائل",ADDRESS:"پتہ" },
+      arabic: { NAME:"الاسم",F_NAME:"اسم الأب",CLASS:"الصف",DOB:"تاريخ الميلاد",MOBILE:"رقم الهاتف",ADDRESS:"العنوان" },
+      hindi: { NAME:"नाम",F_NAME:"पिता",CLASS:"कक्षा",DOB:"जन्म",MOBILE:"मोबाइल",ADDRESS:"पता" }
+    };
+    const vals = {
+      english: { NAME:"Ali Khan",F_NAME:"Rahman Khan",CLASS:"7",DOB:"2012-02-01",MOBILE:"6396120976",ADDRESS:"Sample address" },
+      urdu: { NAME:"علی خان",F_NAME:"رحمان خان",CLASS:"7",DOB:"2012-02-01",MOBILE:"6396120976",ADDRESS:"نمونہ پتہ" },
+      arabic: { NAME:"علي خان",F_NAME:"رحمان خان",CLASS:"7",DOB:"2012-02-01",MOBILE:"6396120976",ADDRESS:"عنوان تجريبي" },
+      hindi: { NAME:"अली खान",F_NAME:"रहमान खान",CLASS:"7",DOB:"2012-02-01",MOBILE:"6396120976",ADDRESS:"नमूना पता" }
+    };
+    const standardFieldDefs = [
+      { key: "NAME", order: 10, standard: true },
+      { key: "F_NAME", order: 20, standard: true },
+      { key: "CLASS", order: 30, standard: true },
+      { key: "DOB", order: 40, standard: true },
+      { key: "MOBILE", order: 50, standard: true },
+      { key: "ADDRESS", order: 60, standard: true }
+    ];
+    const dynamicFieldMap = {};
+    dynamicFieldDefs.forEach((field) => {
+      if (!field || !field.key) return;
+      dynamicFieldMap[String(field.key)] = field;
+    });
+    const orderedFieldDefs = [...standardFieldDefs, ...dynamicFieldDefs]
+      .map((field, idx) => ({ ...field, _idx: idx }))
+      .sort((a, b) => {
+        const orderDiff = Number(a.order || 0) - Number(b.order || 0);
+        if (orderDiff !== 0) return orderDiff;
+        return Number(a._idx || 0) - Number(b._idx || 0);
+      });
+    const keyOrder = orderedFieldDefs.map((field) => String(field.key));
+
+    function defaultVisibilityFor(key, part) {
+      const def = dynamicFieldMap[key];
+      if (!def) return true;
+      const sideKey = EDITOR_SIDE === "back" ? "back" : "front";
+      if (part === "label") return !!def[`show_label_${sideKey}`];
+      if (part === "value") return !!def[`show_value_${sideKey}`];
+      if (part === "colon") return !!def[`show_label_${sideKey}`];
+      return true;
+    }
+
+    function hasExplicitFieldLayout(key, part) {
+      const fieldState = state.layout.fields[key] || {};
+      const partState = fieldState[part] || {};
+      const isDynamicField = Object.prototype.hasOwnProperty.call(dynamicFieldMap, String(key));
+      const flatKeys = part === "label"
+        ? ["label_font_size", "label_color", "label_grow"]
+        : part === "value"
+          ? ["value_font_size", "value_color", "value_grow"]
+          : ["colon_font_size", "colon_color", "colon_grow"];
+      const legacyPositionKeys = part === "label"
+        ? ["label_x", "label_y"]
+        : part === "value"
+          ? ["value_x", "value_y"]
+          : ["colon_x", "colon_y"];
+
+      const keysToCheck = isDynamicField ? flatKeys : legacyPositionKeys.concat(flatKeys);
+      if (keysToCheck.some((k) => Object.prototype.hasOwnProperty.call(fieldState, k))) return true;
+      return ["x", "y", "manual_y", "font_size", "color", "grow"].some((k) =>
+        Object.prototype.hasOwnProperty.call(partState, k)
+      );
+    }
+
+    function fieldLabelFor(key) {
+      const langMap = labels[state.language] || labels.english;
+      if (langMap[key]) return langMap[key];
+      const def = dynamicFieldMap[key];
+      return (def && def.label) ? String(def.label) : String(key || "");
+    }
+
+    function fieldValueFor(key) {
+      const valueMap = vals[state.language] || vals.english;
+      if (Object.prototype.hasOwnProperty.call(valueMap, key)) return valueMap[key];
+      const def = dynamicFieldMap[key];
+      return def && def.label ? `Sample ${def.label}` : "Sample Data";
+    }
+
+    function _rgbToHex(r, g, b) {
+      const to = (n) => clamp(parseInt(n || 0, 10), 0, 255).toString(16).padStart(2, "0");
+      return `#${to(r)}${to(g)}${to(b)}`;
+    }
+    function _normalizeHex(color, fallback) {
+      if (typeof color !== "string") return fallback;
+      let s = color.trim();
+      if (!s) return fallback;
+      if (!s.startsWith("#")) return fallback;
+      s = s.toLowerCase();
+      if (s.length === 4) {
+        // #rgb -> #rrggbb
+        s = `#${s[1]}${s[1]}${s[2]}${s[2]}${s[3]}${s[3]}`;
+      }
+      if (s.length !== 7) return fallback;
+      return s;
+    }
+    function _fontColorToHex(v, fallback) {
+      if (Array.isArray(v) && v.length === 3) return _rgbToHex(v[0], v[1], v[2]);
+      if (typeof v === "string") return _normalizeHex(v, fallback);
+      return fallback;
+    }
+    const DEFAULT_LABEL_FILL = _fontColorToHex(initFont.label_font_color, "#0b3f8a");
+    const DEFAULT_VALUE_FILL = _fontColorToHex(initFont.value_font_color, "#0b3f8a");
+    const GROW_MODES = ["left", "center", "right"];
+
+    function normalizeGrow(grow, direction) {
+      const g = (typeof grow === "string") ? grow.trim().toLowerCase() : "";
+      if (GROW_MODES.includes(g)) return g;
+      return (direction === "rtl") ? "right" : "left";
+    }
+
+    function leftFromAnchor(anchorX, objWidth, direction, grow) {
+      const w = Number(objWidth || 0);
+      const x = Number(anchorX || 0);
+      const mode = normalizeGrow(grow, direction);
+      const anchor = direction === "rtl" ? (CARD_W - x) : x;
+      if (mode === "left") return anchor;
+      if (mode === "center") return anchor - (w / 2);
+      return anchor - w;
+    }
+
+    function anchorFromLeft(left, objWidth, direction, grow) {
+      const w = Number(objWidth || 0);
+      const l = Number(left || 0);
+      const mode = normalizeGrow(grow, direction);
+      let anchor = l;
+      if (mode === "center") anchor = l + (w / 2);
+      else if (mode === "right") anchor = l + w;
+      return direction === "rtl" ? (CARD_W - anchor) : anchor;
+    }
+
+    function hasManualPartY(partConfig) {
+      if (!partConfig || typeof partConfig !== "object") return false;
+      if (!("y" in partConfig)) return false;
+      return ("manual_y" in partConfig) ? !!partConfig.manual_y : true;
+    }
+
+    function fieldAdvancesFlowInEditor(labelVisible, valueVisible) {
+      return !!labelVisible || !!valueVisible;
+    }
+
+    function initialFlowYInEditor() {
+      const candidates = [];
+      keyOrder.forEach((key) => {
+        const x = state.layout.fields[key] || {};
+        const l = x.label || {};
+        const v = x.value || {};
+        const labelVisible = ("visible" in l)
+          ? (l.visible !== false)
+          : (hasExplicitFieldLayout(key, "label") ? true : defaultVisibilityFor(key, "label"));
+        const valueVisible = ("visible" in v)
+          ? (v.visible !== false)
+          : (hasExplicitFieldLayout(key, "value") ? true : defaultVisibilityFor(key, "value"));
+
+        if (labelVisible) {
+          if (hasManualPartY(l)) candidates.push(parseInt(l.y, 10));
+          else if ("label_y" in x) candidates.push(parseInt(x.label_y, 10));
+        }
+        if (valueVisible) {
+          if (hasManualPartY(v)) candidates.push(parseInt(v.y, 10));
+          else if ("value_y" in x) candidates.push(parseInt(x.value_y, 10));
+        }
+      });
+      if (!candidates.length) return state.font.start_y;
+      return Math.min(...candidates);
+    }
+
+    function buildFlowLayoutMap() {
+      const map = {};
+      let currentY = initialFlowYInEditor();
+      keyOrder.forEach((k) => {
+        const x = state.layout.fields[k] || {};
+        const l = x.label || {};
+        const v = x.value || {};
+        const c = x.colon || {};
+        const isDynamicField = Object.prototype.hasOwnProperty.call(dynamicFieldMap, String(k));
+        const labelVisible = ("visible" in l)
+          ? (l.visible !== false)
+          : (hasExplicitFieldLayout(k, "label") ? true : defaultVisibilityFor(k, "label"));
+        const valueVisible = ("visible" in v)
+          ? (v.visible !== false)
+          : (hasExplicitFieldLayout(k, "value") ? true : defaultVisibilityFor(k, "value"));
+        const useLegacyFlatPosition = !isDynamicField;
+        const legacyLabelX = parseInt((useLegacyFlatPosition && ("label_x" in x)) ? x.label_x : state.font.label_x, 10);
+        const legacyValueX = parseInt((useLegacyFlatPosition && ("value_x" in x)) ? x.value_x : state.font.value_x, 10);
+        const labelY = parseInt(
+          hasManualPartY(l)
+            ? l.y
+            : ((useLegacyFlatPosition && ("label_y" in x)) ? Math.max(parseInt(x.label_y, 10), currentY) : currentY),
+          10
+        );
+        const valueY = parseInt(
+          hasManualPartY(v)
+            ? v.y
+            : ((useLegacyFlatPosition && ("value_y" in x)) ? Math.max(parseInt(x.value_y, 10), currentY) : currentY),
+          10
+        );
+        const colonGap = Math.max(0, parseInt(state.font.label_colon_gap || 8, 10) || 0);
+        const effectiveValueX = parseInt(v.x ?? legacyValueX, 10);
+        const defaultColonX = state.direction === "rtl" ? (effectiveValueX + colonGap) : (effectiveValueX - colonGap);
+        const legacyColonX = parseInt((useLegacyFlatPosition && ("colon_x" in x)) ? x.colon_x : defaultColonX, 10);
+        const legacyColonY = parseInt(
+          (useLegacyFlatPosition && ("colon_y" in x)) ? Math.max(parseInt(x.colon_y, 10), labelY) : labelY,
+          10
+        );
+        const advancesFlow = fieldAdvancesFlowInEditor(labelVisible, valueVisible);
+        map[k] = {
+          label: {
+            x: parseInt(l.x ?? legacyLabelX, 10),
+            y: labelY,
+            font_size: parseInt(l.font_size ?? state.font.label_font_size, 10),
+            visible: labelVisible,
+            color: _normalizeHex(l.color, DEFAULT_LABEL_FILL),
+            grow: normalizeGrow(l.grow, state.direction)
+          },
+          value: {
+            x: parseInt(v.x ?? legacyValueX, 10),
+            y: valueY,
+            font_size: parseInt(v.font_size ?? state.font.value_font_size, 10),
+            visible: valueVisible,
+            color: _normalizeHex(v.color, DEFAULT_VALUE_FILL),
+            grow: normalizeGrow(v.grow, state.direction)
+          },
+          colon: {
+            x: parseInt(c.x ?? legacyColonX, 10),
+            y: parseInt(hasManualPartY(c) ? c.y : legacyColonY, 10),
+            font_size: parseInt(c.font_size ?? l.font_size ?? state.font.label_font_size, 10),
+            visible: (("visible" in c) ? (c.visible !== false) : (hasExplicitFieldLayout(k, "colon") ? true : defaultVisibilityFor(k, "colon"))) && labelVisible && !!state.font.show_label_colon && !!state.font.align_label_colon,
+            color: _normalizeHex(c.color, _fontColorToHex(state.font.colon_font_color, DEFAULT_LABEL_FILL)),
+            grow: (typeof c.grow === "string" && GROW_MODES.includes(c.grow.trim().toLowerCase()))
+              ? c.grow.trim().toLowerCase()
+              : (state.direction === "rtl" ? "left" : "right")
+          }
+        };
+        if (advancesFlow) {
+          currentY = Math.max(currentY, labelY, valueY) + state.font.line_height;
+        }
+      });
+      return map;
+    }
+
+    function layoutFor(key, idx) {
+      const map = buildFlowLayoutMap();
+      if (map[key]) return map[key];
+      const fallbackY = state.font.start_y + idx * state.font.line_height;
+      return {
+        label: { x: state.font.label_x, y: fallbackY, font_size: state.font.label_font_size, visible: defaultVisibilityFor(key, "label"), color: DEFAULT_LABEL_FILL, grow: normalizeGrow(null, state.direction) },
+        value: { x: state.font.value_x, y: fallbackY, font_size: state.font.value_font_size, visible: defaultVisibilityFor(key, "value"), color: DEFAULT_VALUE_FILL, grow: normalizeGrow(null, state.direction) },
+        colon: {
+          x: state.direction === "rtl" ? (state.font.value_x + Math.max(0, parseInt(state.font.label_colon_gap || 8, 10) || 0)) : (state.font.value_x - Math.max(0, parseInt(state.font.label_colon_gap || 8, 10) || 0)),
+          y: fallbackY,
+          font_size: state.font.label_font_size,
+          visible: defaultVisibilityFor(key, "colon") && !!state.font.show_label_colon && !!state.font.align_label_colon,
+          color: _fontColorToHex(state.font.colon_font_color, DEFAULT_LABEL_FILL),
+          grow: state.direction === "rtl" ? "left" : "right"
+        }
+      };
+    }
+
+    function syncFieldColon(key) {
+      const parts = fieldObjs[key];
+      if (!parts || !parts.colon) return;
+      const idx = Math.max(0, keyOrder.indexOf(key));
+      const cfg = layoutFor(key, idx);
+      const colonColor = _fontColorToHex(cfg.colon.color, _fontColorToHex(state.font.colon_font_color, cfg.label.color));
+      parts.colon.set({
+        top: cfg.colon.y,
+        fontSize: cfg.colon.font_size,
+        fill: colonColor,
+        visible: !!cfg.colon.visible,
+        growMode: cfg.colon.grow,
+        left: leftFromAnchor(cfg.colon.x, parts.colon.width || 0, state.direction, cfg.colon.grow)
+      });
+      parts.colon.setCoords();
+    }
+
+    function pruneFieldPartLayout(key, part) {
+      const fieldState = state.layout.fields[key];
+      if (!fieldState || !fieldState[part]) return;
+      if (Object.keys(fieldState[part]).length === 0) delete fieldState[part];
+      if (Object.keys(fieldState).length === 0) delete state.layout.fields[key];
+    }
+
+    function defaultFieldPartLayout(key, part) {
+      const idx = Math.max(0, keyOrder.indexOf(key));
+      const fieldState = state.layout.fields[key] || {};
+      const existingPart = fieldState[part] ? { ...fieldState[part] } : null;
+
+      if (existingPart) {
+        const trimmed = { ...existingPart };
+        delete trimmed.x;
+        delete trimmed.y;
+        delete trimmed.manual_y;
+        delete trimmed.font_size;
+        delete trimmed.grow;
+        if (Object.keys(trimmed).length) fieldState[part] = trimmed;
+        else delete fieldState[part];
+      }
+
+      const cfg = layoutFor(key, idx)[part];
+
+      if (existingPart) {
+        fieldState[part] = existingPart;
+      }
+      if (Object.keys(fieldState).length) state.layout.fields[key] = fieldState;
+      else delete state.layout.fields[key];
+
+      return cfg;
+    }
+
+	    function updateLayoutFromObject(obj, options = {}) {
+	      const key = obj.fieldKey;
+	      const isDynamicField = Object.prototype.hasOwnProperty.call(dynamicFieldMap, String(key));
+	      if (!state.layout.fields[key]) state.layout.fields[key] = {};
+	      if (!state.layout.fields[key][obj.part]) state.layout.fields[key][obj.part] = {};
+	      const forceManualY = !!options.forceManualY;
+	      const grow = normalizeGrow(obj.growMode, state.direction);
+	      const anchorX = Math.round(anchorFromLeft(obj.left, obj.width || 0, state.direction, grow));
+	      const topY = Math.round(obj.top);
+	      const fontSize = Math.max(8, Math.round(obj.fontSize || 0));
+	      const defaults = defaultFieldPartLayout(key, obj.part);
+	      // NOTE: defaultFieldPartLayout() temporarily rewrites state.layout.fields[key][part]
+	      // which can replace the object identity. Re-acquire the reference after it runs.
+	      const partState = state.layout.fields[key][obj.part] || (state.layout.fields[key][obj.part] = {});
+
+	      // Legacy flat keys are kept only for standard fields. Dynamic fields now
+	      // rely on nested part state so display_order can keep flowing correctly.
+	      if (!isDynamicField) {
+	        if (obj.part === "label") {
+	          state.layout.fields[key]["label_x"] = anchorX;
+	          state.layout.fields[key]["label_y"] = topY;
+          } else if (obj.part === "value") {
+            state.layout.fields[key]["value_x"] = anchorX;
+            state.layout.fields[key]["value_y"] = topY;
+          } else if (obj.part === "colon") {
+            state.layout.fields[key]["colon_x"] = anchorX;
+            state.layout.fields[key]["colon_y"] = topY;
+          }
+        } else if (obj.part === "label") {
+          delete state.layout.fields[key]["label_x"];
+          delete state.layout.fields[key]["label_y"];
+        } else if (obj.part === "value") {
+          delete state.layout.fields[key]["value_x"];
+          delete state.layout.fields[key]["value_y"];
+        } else if (obj.part === "colon") {
+          delete state.layout.fields[key]["colon_x"];
+          delete state.layout.fields[key]["colon_y"];
+        }
+      // Preserve original partState for other properties
+      if (anchorX !== Math.round(defaults.x || 0)) partState.x = anchorX;
+      else delete partState.x;
+
+      if (forceManualY || topY !== Math.round(defaults.y || 0)) {
+        partState.y = topY;
+        partState.manual_y = true;
+      } else {
+        delete partState.y;
+        delete partState.manual_y;
+      }
+
+      if (grow !== normalizeGrow(defaults.grow, state.direction)) partState.grow = grow;
+      else delete partState.grow;
+
+      if (fontSize !== Math.max(8, Math.round(defaults.font_size || 0))) partState.font_size = fontSize;
+      else delete partState.font_size;
+
+      pruneFieldPartLayout(key, obj.part);
+      syncFieldColon(key);
+    }
+
+    function normalizeFieldScale(obj) {
+      if (!obj || obj.dataType !== "field") return;
+      const sx = Number(obj.scaleX || 1);
+      const sy = Number(obj.scaleY || 1);
+      if (sx === 1 && sy === 1) return;
+
+      const mul = Math.max(Math.abs(sx), Math.abs(sy));
+      const base = Number(obj.fontSize || (obj.part === "label" ? state.font.label_font_size : state.font.value_font_size));
+      const nextSize = clamp(Math.round(base * mul), 8, 260);
+
+      const key = obj.fieldKey;
+      const idx = Math.max(0, keyOrder.indexOf(key));
+      const cfg = layoutFor(key, idx);
+      const grow = normalizeGrow(obj.growMode, state.direction);
+      const anchorX = obj.part === "label" ? cfg.label.x : (obj.part === "value" ? cfg.value.x : cfg.colon.x);
+
+      obj.set({ fontSize: nextSize, scaleX: 1, scaleY: 1 });
+      obj.growMode = grow;
+      obj.set({ left: leftFromAnchor(anchorX, obj.width || 0, state.direction, grow) });
+      obj.setCoords();
+
+      if (!state.layout.fields[key]) state.layout.fields[key] = {};
+      if (!state.layout.fields[key][obj.part]) state.layout.fields[key][obj.part] = {};
+      state.layout.fields[key][obj.part].font_size = nextSize;
+      syncFieldColon(key);
+    }
+
+    function status(msg, bad=false){ const el=document.getElementById("status"); el.textContent=msg||""; el.style.color=bad?"#b31543":"#5f7893"; }
+
+    function recordHistory(reason) {
+      if (historyMuted) return;
+      const snapshot = cloneStateSnapshot();
+      const serialized = JSON.stringify(snapshot);
+      if (historyStack.length && JSON.stringify(historyStack[historyStack.length - 1]) === serialized) return;
+      historyStack.push(snapshot);
+      if (historyStack.length > 60) historyStack.shift();
+      redoStack.length = 0;
+    }
+
+    function applySnapshot(snapshot) {
+      if (!snapshot) return;
+      historyMuted = true;
+      state.language = snapshot.language || state.language;
+      state.direction = snapshot.direction === "rtl" ? "rtl" : "ltr";
+      state.font = { ...state.font, ...(snapshot.font || {}) };
+      state.photo = { ...state.photo, ...(snapshot.photo || {}) };
+      state.qr = { ...state.qr, ...(snapshot.qr || {}) };
+      state.layout = snapshot.layout || { fields: {}, objects: [] };
+      if (!state.layout.fields) state.layout.fields = {};
+      if (!Array.isArray(state.layout.objects)) state.layout.objects = [];
+      syncBlockInputs();
+      redrawFields();
+      if (photoRect) {
+        photoRect.set({
+          left: state.photo.photo_x,
+          top: state.photo.photo_y,
+          width: state.photo.photo_width,
+          height: state.photo.photo_height,
+          scaleX: 1,
+          scaleY: 1,
+          visible: !!state.photo.enable_photo,
+          evented: !!state.photo.enable_photo,
+          selectable: !!state.photo.enable_photo
+        });
+      }
+      if (qrRect) {
+        qrRect.set({
+          left: state.qr.qr_x,
+          top: state.qr.qr_y,
+          width: state.qr.qr_size,
+          height: state.qr.qr_size,
+          scaleX: 1,
+          scaleY: 1,
+          visible: !!state.qr.enable_qr,
+          evented: !!state.qr.enable_qr,
+          selectable: !!state.qr.enable_qr
+        });
+      }
+      syncTags();
+      canvas.requestRenderAll();
+      historyMuted = false;
+      renderLayersList();
+      _syncSelectedUI();
+    }
+
+    function undoHistory() {
+      if (historyStack.length <= 1) {
+        status("Nothing to undo.", true);
+        return;
+      }
+      const current = historyStack.pop();
+      redoStack.push(current);
+      applySnapshot(historyStack[historyStack.length - 1]);
+      status("Undo applied.");
+    }
+
+    function redoHistory() {
+      if (!redoStack.length) {
+        status("Nothing to redo.", true);
+        return;
+      }
+      const snapshot = redoStack.pop();
+      historyStack.push(JSON.parse(JSON.stringify(snapshot)));
+      applySnapshot(snapshot);
+      status("Redo applied.");
+    }
+
+    function drawFieldList() {
+      const wrap = document.getElementById("fieldList");
+      wrap.innerHTML = "";
+      keyOrder.forEach((k, idx) => {
+        const cfg = layoutFor(k, idx);
+        const title = fieldLabelFor(k);
+        const row = document.createElement("div");
+        row.className = "grid-field";
+        row.innerHTML = `
+          <div class="ttl">${title}</div>
+          <div class="toggles">
+            <div class="form-check"><input class="form-check-input" type="checkbox" id="l_${k}" ${cfg.label.visible ? "checked":""}><label class="form-check-label" for="l_${k}">Show label</label></div>
+            <div class="form-check"><input class="form-check-input" type="checkbox" id="v_${k}" ${cfg.value.visible ? "checked":""}><label class="form-check-label" for="v_${k}">Show value</label></div>
+          </div>
+          <div class="grow-block">
+            <div class="grow-line">
+              <div class="cap">Label</div>
+              <div class="grow-options">
+                <div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="gl_${k}" id="gl_${k}_left" value="left" ${cfg.label.grow === "left" ? "checked":""}><label class="form-check-label" for="gl_${k}_left">Left</label></div>
+                <div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="gl_${k}" id="gl_${k}_center" value="center" ${cfg.label.grow === "center" ? "checked":""}><label class="form-check-label" for="gl_${k}_center">Center</label></div>
+                <div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="gl_${k}" id="gl_${k}_right" value="right" ${cfg.label.grow === "right" ? "checked":""}><label class="form-check-label" for="gl_${k}_right">Right</label></div>
+              </div>
+            </div>
+            <div class="grow-line">
+              <div class="cap">Value</div>
+              <div class="grow-options">
+                <div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="gv_${k}" id="gv_${k}_left" value="left" ${cfg.value.grow === "left" ? "checked":""}><label class="form-check-label" for="gv_${k}_left">Left</label></div>
+                <div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="gv_${k}" id="gv_${k}_center" value="center" ${cfg.value.grow === "center" ? "checked":""}><label class="form-check-label" for="gv_${k}_center">Center</label></div>
+                <div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="gv_${k}" id="gv_${k}_right" value="right" ${cfg.value.grow === "right" ? "checked":""}><label class="form-check-label" for="gv_${k}_right">Right</label></div>
+              </div>
+            </div>
+          </div>
+        `;
+        wrap.appendChild(row);
+        row.querySelector(`#l_${k}`).addEventListener("change", (e)=>setVisibility(k,"label",e.target.checked));
+        row.querySelector(`#v_${k}`).addEventListener("change", (e)=>setVisibility(k,"value",e.target.checked));
+        row.querySelectorAll(`input[name="gl_${k}"]`).forEach((el) => {
+          el.addEventListener("change", (e) => setGrow(k, "label", e.target.value));
+        });
+        row.querySelectorAll(`input[name="gv_${k}"]`).forEach((el) => {
+          el.addEventListener("change", (e) => setGrow(k, "value", e.target.value));
+        });
+      });
+    }
+
+    function setVisibility(key, part, vis) {
+      if (!state.layout.fields[key]) state.layout.fields[key] = {};
+      if (!state.layout.fields[key][part]) state.layout.fields[key][part] = {};
+      state.layout.fields[key][part].visible = !!vis;
+      redrawFields();
+      recordHistory("toggle-visibility");
+    }
+
+    function setGrow(key, part, grow) {
+      if (!state.layout.fields[key]) state.layout.fields[key] = {};
+      if (!state.layout.fields[key][part]) state.layout.fields[key][part] = {};
+      const finalGrow = normalizeGrow(grow, state.direction);
+      state.layout.fields[key][part].grow = finalGrow;
+
+      const obj = fieldObjs[key] && fieldObjs[key][part];
+      if (!obj) return;
+
+      const idx = Math.max(0, keyOrder.indexOf(key));
+      const cfg = layoutFor(key, idx);
+      const anchorX = part === "label" ? cfg.label.x : (part === "value" ? cfg.value.x : cfg.colon.x);
+      obj.growMode = finalGrow;
+      obj.set({ left: leftFromAnchor(anchorX, obj.width || 0, state.direction, finalGrow) });
+      obj.setCoords();
+      syncFieldColon(key);
+      canvas.renderAll();
+      recordHistory("grow-mode");
+    }
+
+    function clearFieldObjects() {
+      Object.values(fieldObjs).forEach(parts => {
+        if (parts.label) canvas.remove(parts.label);
+        if (parts.colon) canvas.remove(parts.colon);
+        if (parts.value) canvas.remove(parts.value);
+      });
+      for (const k in fieldObjs) delete fieldObjs[k];
+    }
+
+    function clearCustomObjects() {
+      Object.values(customObjs).forEach((obj) => canvas.remove(obj));
+      for (const k in customObjs) delete customObjs[k];
+    }
+
+    function nextCustomObjectId() {
+      return `obj_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`;
+    }
+
+    function buildCustomObject(def) {
+      const type = String(def.type || "").toLowerCase();
+      const base = {
+        left: parseInt(def.x || 80, 10),
+        top: parseInt(def.y || 80, 10),
+        visible: def.visible !== false,
+        selectable: true,
+        evented: true,
+        objectId: def.id,
+        dataType: "custom",
+        customType: type,
+        objectName: String(def.name || "").trim(),
+        lockMovementX: !!def.locked,
+        lockMovementY: !!def.locked,
+        lockScalingX: !!def.locked,
+        lockScalingY: !!def.locked,
+        lockRotation: !!def.locked || type === "line",
+        angle: parseInt(def.angle || 0, 10) || 0,
+        opacity: clamp(parseInt(def.opacity || 100, 10) || 100, 0, 100) / 100,
+        fill: def.fill || "#1f4e8c",
+        stroke: def.stroke || "#1f4e8c",
+        strokeWidth: Math.max(1, parseInt(def.stroke_width || 2, 10)),
+      };
+      if (type === "text") {
+        return new fabric.Textbox(def.text || "Text", {
+          ...base,
+          width: Math.max(80, parseInt(def.width || 180, 10)),
+          fontSize: Math.max(8, parseInt(def.font_size || 24, 10)),
+          fontWeight: def.bold ? "700" : "400",
+          fill: def.fill || "#0b3f8a",
+          strokeWidth: 0,
+        });
+      }
+      if (type === "rect") {
+        return new fabric.Rect({
+          ...base,
+          width: Math.max(20, parseInt(def.width || 140, 10)),
+          height: Math.max(20, parseInt(def.height || 80, 10)),
+        });
+      }
+      if (type === "circle") {
+        return new fabric.Ellipse({
+          ...base,
+          rx: Math.max(10, parseInt((def.width || 80) / 2, 10)),
+          ry: Math.max(10, parseInt((def.height || def.width || 80) / 2, 10)),
+        });
+      }
+      if (type === "line") {
+        return new fabric.Line(
+          [0, 0, parseInt(def.x2 || (def.x || 80) + 120, 10) - parseInt(def.x || 80, 10), parseInt(def.y2 || def.y || 80, 10) - parseInt(def.y || 80, 10)],
+          {
+            ...base,
+            fill: undefined,
+          }
+        );
+      }
+      return null;
+    }
+
+    function createCustomObject(def, onReady) {
+      const type = String(def.type || "").toLowerCase();
+      if (type === "image") {
+        const src = def.src || "";
+        if (!src) {
+          onReady(null);
+          return;
+        }
+        fabric.Image.fromURL(src, (img) => {
+          if (!img) {
+            onReady(null);
+            return;
+          }
+          const width = Math.max(20, parseInt(def.width || img.width || 140, 10));
+          const height = Math.max(20, parseInt(def.height || img.height || 140, 10));
+          img.set({
+            left: parseInt(def.x || 80, 10),
+            top: parseInt(def.y || 80, 10),
+            visible: def.visible !== false,
+            selectable: true,
+            evented: true,
+            objectId: def.id,
+            dataType: "custom",
+            customType: "image",
+            objectName: String(def.name || "").trim(),
+            lockMovementX: !!def.locked,
+            lockMovementY: !!def.locked,
+            lockScalingX: !!def.locked,
+            lockScalingY: !!def.locked,
+            lockRotation: !!def.locked,
+            angle: parseInt(def.angle || 0, 10) || 0,
+            opacity: clamp(parseInt(def.opacity || 100, 10) || 100, 0, 100) / 100,
+            strokeWidth: 0,
+            src
+          });
+          const scaleX = width / Math.max(1, img.width || width);
+          const scaleY = height / Math.max(1, img.height || height);
+          img.set({ scaleX, scaleY });
+          onReady(img);
+        }, { crossOrigin: "anonymous" });
+        return;
+      }
+      onReady(buildCustomObject(def));
+    }
+
+    function persistCustomObject(obj) {
+      if (!obj || obj.dataType !== "custom") return;
+      const index = state.layout.objects.findIndex((item) => item && item.id === obj.objectId);
+      if (index < 0) return;
+      const next = { ...(state.layout.objects[index] || {}), id: obj.objectId, type: obj.customType, visible: obj.visible !== false };
+      next.name = String(obj.objectName || next.name || "").trim();
+      next.locked = !!(obj.lockMovementX || obj.lockMovementY || obj.lockScalingX || obj.lockScalingY);
+      next.x = Math.round(obj.left || 0);
+      next.y = Math.round(obj.top || 0);
+      next.angle = Math.round(obj.angle || 0);
+      next.opacity = clamp(Math.round((typeof obj.opacity === "number" ? obj.opacity : 1) * 100), 0, 100);
+      next.fill = obj.fill || next.fill || "#1f4e8c";
+      next.stroke = obj.stroke || next.stroke || "#1f4e8c";
+      next.stroke_width = Math.max(1, Math.round(obj.strokeWidth || next.stroke_width || 2));
+      if (obj.customType === "text") {
+        next.text = obj.text || "Text";
+        next.width = Math.round(obj.width || 180);
+        next.height = Math.round(obj.height || obj.fontSize || 30);
+        next.font_size = Math.max(8, Math.round(obj.fontSize || next.font_size || 24));
+        next.bold = obj.fontWeight === "700";
+      } else if (obj.customType === "image") {
+        next.width = Math.round(obj.getScaledWidth ? obj.getScaledWidth() : (obj.width || 120));
+        next.height = Math.round(obj.getScaledHeight ? obj.getScaledHeight() : (obj.height || 120));
+        next.src = obj.src || next.src || "";
+      } else if (obj.customType === "rect") {
+        next.width = Math.round(obj.width || 120);
+        next.height = Math.round(obj.height || 60);
+      } else if (obj.customType === "circle") {
+        next.width = Math.round((obj.rx || 40) * 2);
+        next.height = Math.round((obj.ry || 40) * 2);
+      } else if (obj.customType === "line") {
+        next.x2 = Math.round((obj.left || 0) + (obj.x2 || 120));
+        next.y2 = Math.round((obj.top || 0) + (obj.y2 || 0));
+      }
+      state.layout.objects[index] = next;
+      customObjs[obj.objectId] = obj;
+    }
+
+    function syncLayerOrderFromCanvas() {
+      const orderedIds = canvas.getObjects()
+        .filter((obj) => obj && obj.dataType === "custom" && obj.objectId)
+        .map((obj) => obj.objectId);
+      if (!orderedIds.length) return;
+      const byId = new Map(state.layout.objects.map((item) => [item.id, item]));
+      state.layout.objects = orderedIds.map((id) => byId.get(id)).filter(Boolean);
+      renderLayersList();
+    }
+
+    function renderLayersList() {
+      const wrap = document.getElementById("layersList");
+      if (!wrap) return;
+      wrap.innerHTML = "";
+      const active = canvas.getActiveObject();
+      const ordered = [...state.layout.objects].reverse();
+      if (!ordered.length) {
+        wrap.innerHTML = `<div class="small text-muted">No custom objects yet.</div>`;
+        return;
+      }
+      ordered.forEach((item) => {
+        const row = document.createElement("div");
+        const obj = customObjs[item.id];
+        row.className = `layer-item${active && active.objectId === item.id ? " active" : ""}`;
+        const title = String(item.name || item.type || "object").trim();
+        row.innerHTML = `
+          <div>
+            <div><strong>${title || String(item.type || "object").toUpperCase()}</strong></div>
+            <div class="layer-meta">${item.id}</div>
+          </div>
+          <button type="button" class="btn btn-outline-secondary btn-sm">${item.visible === false ? "Hidden" : "Visible"}</button>
+        `;
+        row.addEventListener("click", () => {
+          if (obj) {
+            canvas.setActiveObject(obj);
+            canvas.requestRenderAll();
+            _syncSelectedUI();
+          }
+        });
+        row.querySelector("button").addEventListener("click", (e) => {
+          e.stopPropagation();
+          item.visible = item.visible === false;
+          if (obj) obj.set({ visible: item.visible !== false });
+          renderLayersList();
+          canvas.requestRenderAll();
+          recordHistory("layer-visibility");
+        });
+        wrap.appendChild(row);
+      });
+    }
+
+    function objectMetrics(obj) {
+      if (!obj) return null;
+      if (obj.dataType === "field") {
+        const grow = normalizeGrow(obj.growMode, state.direction);
+        return {
+          x: Math.round(anchorFromLeft(obj.left || 0, obj.width || 0, state.direction, grow)),
+          y: Math.round(obj.top || 0),
+          w: Math.round(obj.width || 0),
+          h: Math.round(obj.height || obj.fontSize || 0),
+          fontSize: Math.round(obj.fontSize || 0),
+          widthEnabled: false,
+          heightEnabled: false,
+          fontEnabled: true
+        };
+      }
+      if (obj.dataType === "custom") {
+        const width = obj.customType === "circle" ? Math.round((obj.rx || 0) * 2) : Math.round(obj.width || 0);
+        const scaledWidth = obj.customType === "image" ? Math.round(obj.getScaledWidth ? obj.getScaledWidth() : (obj.width || 0)) : width;
+        const scaledHeight = obj.customType === "image" ? Math.round(obj.getScaledHeight ? obj.getScaledHeight() : (obj.height || 0)) : Math.round(obj.height || obj.fontSize || 0);
+        const height = obj.customType === "circle" ? Math.round((obj.ry || 0) * 2) : Math.round(obj.height || obj.fontSize || 0);
+        return {
+          x: Math.round(obj.left || 0),
+          y: Math.round(obj.top || 0),
+        w: obj.customType === "image" ? scaledWidth : width,
+        h: obj.customType === "image" ? scaledHeight : height,
+        fontSize: Math.round(obj.fontSize || 0),
+        widthEnabled: obj.customType !== "line",
+        heightEnabled: obj.customType !== "line",
+        fontEnabled: obj.customType === "text"
+      };
+      }
+      if (obj.dataType === "photo" || obj.dataType === "qr") {
+        return {
+          x: Math.round(obj.left || 0),
+          y: Math.round(obj.top || 0),
+          w: Math.round(obj.width || 0),
+          h: Math.round(obj.height || 0),
+          fontSize: 0,
+          widthEnabled: true,
+          heightEnabled: true,
+          fontEnabled: false
+        };
+      }
+      return null;
+    }
+
+    function applySelectedMetrics() {
+      const obj = canvas.getActiveObject();
+      if (!obj) return;
+      const x = parseInt(document.getElementById("selX").value || "0", 10);
+      const y = parseInt(document.getElementById("selY").value || "0", 10);
+      const w = parseInt(document.getElementById("selW").value || "0", 10);
+      const h = parseInt(document.getElementById("selH").value || "0", 10);
+      const fontSize = parseInt(document.getElementById("selFontSize").value || "0", 10);
+      const angle = parseInt(document.getElementById("selAngle").value || "0", 10);
+      const opacity = parseInt(document.getElementById("selOpacity").value || "100", 10);
+      const strokeWidth = parseInt(document.getElementById("selStrokeWidth").value || "0", 10);
+      const objectName = String(document.getElementById("selName").value || "").trim();
+
+      if (obj.dataType === "field") {
+        const grow = normalizeGrow(obj.growMode, state.direction);
+        obj.set({
+          top: y,
+          fontSize: Math.max(8, fontSize || obj.fontSize || 8),
+          left: leftFromAnchor(x, obj.width || 0, state.direction, grow)
+        });
+        updateLayoutFromObject(obj);
+        refreshFieldFlow(obj.fieldKey, obj.part);
+      } else if (obj.dataType === "custom") {
+        obj.set({
+          left: x,
+          top: y,
+          angle: obj.customType === "line" ? 0 : clamp(angle || 0, -360, 360),
+          opacity: clamp(opacity || 100, 0, 100) / 100
+        });
+        obj.objectName = objectName;
+        if (obj.customType === "text") {
+          obj.set({
+            width: Math.max(40, w || obj.width || 40),
+            fontSize: Math.max(8, fontSize || obj.fontSize || 8)
+          });
+        } else if (obj.customType === "image") {
+          const width = Math.max(20, w || (obj.getScaledWidth ? obj.getScaledWidth() : obj.width) || 20);
+          const height = Math.max(20, h || (obj.getScaledHeight ? obj.getScaledHeight() : obj.height) || 20);
+          obj.set({
+            scaleX: width / Math.max(1, obj.width || width),
+            scaleY: height / Math.max(1, obj.height || height)
+          });
+        } else if (obj.customType === "rect") {
+          obj.set({
+            width: Math.max(20, w || obj.width || 20),
+            height: Math.max(20, h || obj.height || 20),
+            strokeWidth: Math.max(0, strokeWidth || obj.strokeWidth || 2)
+          });
+        } else if (obj.customType === "circle") {
+          obj.set({
+            rx: Math.max(10, Math.round((w || 20) / 2)),
+            ry: Math.max(10, Math.round((h || 20) / 2)),
+            strokeWidth: Math.max(0, strokeWidth || obj.strokeWidth || 2)
+          });
+        } else if (obj.customType === "line") {
+          obj.set({
+            x2: Math.max(20, w || 120),
+            y2: h || 0,
+            strokeWidth: Math.max(0, strokeWidth || obj.strokeWidth || 2)
+          });
+        }
+        persistObjectState(obj);
+      } else if (obj.dataType === "photo" || obj.dataType === "qr") {
+        obj.set({
+          left: x,
+          top: y,
+          width: Math.max(20, w || obj.width || 20),
+          height: Math.max(20, h || obj.height || 20),
+          scaleX: 1,
+          scaleY: 1
+        });
+        persistObjectState(obj);
+      }
+      canvas.requestRenderAll();
+      _syncSelectedUI();
+      recordHistory("metrics");
+      status("Selected object updated.");
+    }
+
+    function drawCustomObjects() {
+      clearCustomObjects();
+      state.layout.objects.forEach((def) => {
+        createCustomObject(def, (obj) => {
+          if (!obj) return;
+          customObjs[def.id] = obj;
+          canvas.add(obj);
+          renderLayersList();
+          canvas.requestRenderAll();
+        });
+      });
+      renderLayersList();
+      canvas.requestRenderAll();
+    }
+
+    function addCustomObject(type) {
+      const def = {
+        id: nextCustomObjectId(),
+        type,
+        x: 80,
+        y: 80,
+        width: type === "text" ? 180 : 120,
+        height: type === "circle" ? 90 : 70,
+        visible: true,
+        locked: false,
+        opacity: 100,
+        angle: 0,
+        name: type === "text" ? "Text Block" : `${String(type).toUpperCase()} Object`,
+        fill: type === "text" ? "#0b3f8a" : "#8db3e2",
+        stroke: "#1f4e8c",
+        stroke_width: 2,
+        font_size: 24,
+        text: "Text",
+      };
+      if (type === "line") {
+        def.width = 0;
+        def.height = 0;
+        def.x2 = def.x + 140;
+        def.y2 = def.y;
+        def.fill = "#1f4e8c";
+      }
+      state.layout.objects.push(def);
+      drawCustomObjects();
+      if (customObjs[def.id]) canvas.setActiveObject(customObjs[def.id]);
+      _syncSelectedUI();
+      recordHistory("add-object");
+      status(`Added ${type} object.`);
+    }
+
+    function triggerImageUpload() {
+      const input = document.getElementById("imageUploadInput");
+      if (input) input.click();
+    }
+
+    function handleImageUpload(event) {
+      const file = event && event.target && event.target.files ? event.target.files[0] : null;
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        const def = {
+          id: nextCustomObjectId(),
+          type: "image",
+          x: 80,
+          y: 80,
+          width: 160,
+          height: 160,
+          visible: true,
+          locked: false,
+          opacity: 100,
+          angle: 0,
+          name: "Logo",
+          src: reader.result
+        };
+        state.layout.objects.push(def);
+        drawCustomObjects();
+        setTimeout(() => {
+          if (customObjs[def.id]) canvas.setActiveObject(customObjs[def.id]);
+          _syncSelectedUI();
+          recordHistory("add-image");
+          status("Added logo/image object.");
+        }, 50);
+      };
+      reader.readAsDataURL(file);
+      event.target.value = "";
+    }
+
+    function deleteSelected() {
+      const objects = selectedObjects();
+      if (!objects.length) { status("Select an item first.", true); return; }
+      let removed = 0;
+      objects.forEach((obj) => {
+        if (obj.dataType === "custom") {
+          state.layout.objects = state.layout.objects.filter((item) => item && item.id !== obj.objectId);
+          if (customObjs[obj.objectId]) delete customObjs[obj.objectId];
+          canvas.remove(obj);
+          removed += 1;
+        }
+      });
+      if (!removed) {
+        status("Use Delete to hide field parts. Custom objects can be deleted.", true);
+      } else {
+        canvas.discardActiveObject();
+        canvas.requestRenderAll();
+        renderLayersList();
+        _syncSelectedUI();
+        recordHistory("delete-object");
+        status(`Deleted ${removed} custom object(s).`);
+      }
+    }
+
+    function duplicateSelected() {
+      const objects = selectedObjects().filter((obj) => obj && obj.dataType === "custom");
+      if (!objects.length) { status("Select one or more custom objects to duplicate.", true); return; }
+      const clones = [];
+      objects.forEach((obj) => {
+        const source = state.layout.objects.find((item) => item && item.id === obj.objectId);
+        if (!source) return;
+        const clone = deepClone(source);
+        clone.id = nextCustomObjectId();
+        clone.x = parseInt(clone.x || 0, 10) + 20;
+        clone.y = parseInt(clone.y || 0, 10) + 20;
+        if (clone.x2) clone.x2 += 20;
+        if (clone.y2) clone.y2 += 20;
+        clones.push(clone);
+      });
+      if (!clones.length) return;
+      state.layout.objects.push(...clones);
+      drawCustomObjects();
+      const fabricClones = clones.map((clone) => customObjs[clone.id]).filter(Boolean);
+      if (fabricClones.length === 1) {
+        canvas.setActiveObject(fabricClones[0]);
+      } else if (fabricClones.length > 1) {
+        canvas.setActiveObject(new fabric.ActiveSelection(fabricClones, { canvas }));
+      }
+      _syncSelectedUI();
+      recordHistory("duplicate-object");
+      status(`Duplicated ${clones.length} object(s).`);
+    }
+
+    function copySelected() {
+      const objects = selectedObjects().filter((obj) => obj && obj.dataType === "custom");
+      if (!objects.length) {
+        status("Select one or more custom objects to copy.", true);
+        return;
+      }
+      clipboardDefs = objects.map((obj) => {
+        const source = state.layout.objects.find((item) => item && item.id === obj.objectId);
+        return source ? deepClone(source) : null;
+      }).filter(Boolean);
+      status(`Copied ${clipboardDefs.length} object(s).`);
+    }
+
+    function pasteClipboard() {
+      if (!clipboardDefs.length) {
+        status("Clipboard is empty.", true);
+        return;
+      }
+      const clones = clipboardDefs.map((source) => {
+        const clone = deepClone(source);
+        clone.id = nextCustomObjectId();
+        clone.x = parseInt(clone.x || 0, 10) + 24;
+        clone.y = parseInt(clone.y || 0, 10) + 24;
+        if (clone.x2) clone.x2 += 24;
+        if (clone.y2) clone.y2 += 24;
+        return clone;
+      });
+      state.layout.objects.push(...clones);
+      drawCustomObjects();
+      const pasted = clones.map((clone) => customObjs[clone.id]).filter(Boolean);
+      if (pasted.length === 1) {
+        canvas.setActiveObject(pasted[0]);
+      } else if (pasted.length > 1) {
+        canvas.setActiveObject(new fabric.ActiveSelection(pasted, { canvas }));
+      }
+      _syncSelectedUI();
+      recordHistory("paste-object");
+      status(`Pasted ${clones.length} object(s).`);
+    }
+
+    function selectAllCustomObjects() {
+      const objs = Object.values(customObjs).filter(Boolean);
+      if (!objs.length) {
+        status("No custom objects available.", true);
+        return;
+      }
+      canvas.setActiveObject(new fabric.ActiveSelection(objs, { canvas }));
+      canvas.requestRenderAll();
+      _syncSelectedUI();
+      status(`Selected ${objs.length} custom object(s).`);
+    }
+
+    function rotateSelected(delta) {
+      const objects = selectedObjects().filter((obj) => obj && obj.dataType === "custom" && obj.customType !== "line");
+      if (!objects.length) {
+        status("Select one or more rotatable custom objects first.", true);
+        return;
+      }
+      objects.forEach((obj) => {
+        obj.set({ angle: clamp(Math.round((obj.angle || 0) + delta), -360, 360) });
+        persistCustomObject(obj);
+      });
+      canvas.requestRenderAll();
+      _syncSelectedUI();
+      recordHistory(delta > 0 ? "rotate-right" : "rotate-left");
+      status(`Rotated ${objects.length} object(s).`);
+    }
+
+    function toggleLockSelected(locked) {
+      const objects = selectedObjects().filter((obj) => obj && obj.dataType === "custom");
+      if (!objects.length) {
+        status("Select one or more custom objects first.", true);
+        return;
+      }
+      objects.forEach((obj) => {
+        obj.set({
+          lockMovementX: !!locked,
+          lockMovementY: !!locked,
+          lockScalingX: !!locked,
+          lockScalingY: !!locked
+        });
+        persistCustomObject(obj);
+      });
+      canvas.requestRenderAll();
+      _syncSelectedUI();
+      recordHistory(locked ? "lock-selected" : "unlock-selected");
+      status(locked ? "Selection locked." : "Selection unlocked.");
+    }
+
+    function distributeSelected(axis) {
+      const objects = selectedObjects().filter((obj) => obj && (obj.dataType === "custom" || obj.dataType === "field"));
+      if (objects.length < 3) {
+        status("Select at least three objects to distribute.", true);
+        return;
+      }
+      const boxes = objects.map((obj) => ({ obj, box: obj.getBoundingRect(true, true) }));
+      const key = axis === "horizontal" ? "left" : "top";
+      const sizeKey = axis === "horizontal" ? "width" : "height";
+      boxes.sort((a, b) => a.box[key] - b.box[key]);
+      const first = boxes[0].box[key];
+      const last = boxes[boxes.length - 1].box[key] + boxes[boxes.length - 1].box[sizeKey];
+      const totalSize = boxes.reduce((sum, item) => sum + item.box[sizeKey], 0);
+      const gap = (last - first - totalSize) / Math.max(1, boxes.length - 1);
+      let cursor = first;
+      boxes.forEach((item) => {
+        const target = cursor;
+        if (axis === "horizontal") item.obj.set({ left: target });
+        else item.obj.set({ top: target });
+        persistObjectState(item.obj);
+        cursor += item.box[sizeKey] + gap;
+      });
+      canvas.requestRenderAll();
+      _syncSelectedUI();
+      recordHistory(`distribute-${axis}`);
+      status(`Distributed ${objects.length} object(s) ${axis}.`);
+    }
+
+    function drawFields() {
+      clearFieldObjects();
+      const withColon = !!state.font.show_label_colon;
+      const alignColon = withColon && !!state.font.align_label_colon;
+      const colonGap = Math.max(0, parseInt(state.font.label_colon_gap || 8, 10) || 0);
+      const colonColor = _fontColorToHex(state.font.colon_font_color, DEFAULT_LABEL_FILL);
+      keyOrder.forEach((k, idx) => {
+        const cfg = layoutFor(k, idx);
+        const labelText = fieldLabelFor(k);
+        const valueText = fieldValueFor(k);
+        const lText = (!withColon || alignColon)
+          ? `${labelText}`
+          : (state.direction === "rtl" ? `:${labelText}` : `${labelText}:`);
+        const l = new fabric.Text(lText, {
+          left: 0,
+          top: cfg.label.y,
+          fontSize: cfg.label.font_size,
+          fontWeight: "700",
+          padding: 8,
+          cornerSize: 12,
+          transparentCorners: false,
+          borderScaleFactor: 2,
+          lockRotation: true,
+          fill: cfg.label.color,
+          fieldKey: k,
+          part: "label",
+          dataType: "field",
+          visible: cfg.label.visible,
+          growMode: cfg.label.grow
+        });
+        const v = new fabric.Text(valueText, {
+          left: 0,
+          top: cfg.value.y,
+          fontSize: cfg.value.font_size,
+          padding: 8,
+          cornerSize: 12,
+          transparentCorners: false,
+          borderScaleFactor: 2,
+          lockRotation: true,
+          fill: cfg.value.color,
+          fieldKey: k,
+          part: "value",
+          dataType: "field",
+          visible: cfg.value.visible,
+          growMode: cfg.value.grow
+        });
+        let colonObj = null;
+        if (alignColon) {
+          colonObj = new fabric.Text(":", {
+            left: 0,
+            top: cfg.colon.y,
+            fontSize: cfg.colon.font_size,
+            fontWeight: "700",
+            padding: 8,
+            cornerSize: 12,
+            transparentCorners: false,
+            borderScaleFactor: 2,
+            lockRotation: true,
+            fill: cfg.colon.color || colonColor,
+            fieldKey: k,
+            part: "colon",
+            dataType: "field",
+            visible: cfg.colon.visible,
+            growMode: cfg.colon.grow
+          });
+        }
+        l.left = leftFromAnchor(cfg.label.x, l.width || 0, state.direction, cfg.label.grow);
+        v.left = leftFromAnchor(cfg.value.x, v.width || 0, state.direction, cfg.value.grow);
+        if (colonObj) {
+          colonObj.left = leftFromAnchor(cfg.colon.x, colonObj.width || 0, state.direction, cfg.colon.grow);
+          colonObj.setCoords();
+        }
+        l.setCoords();
+        v.setCoords();
+        fieldObjs[k] = { label: l, colon: colonObj, value: v };
+        canvas.add(l);
+        if (colonObj) canvas.add(colonObj);
+        canvas.add(v);
+      });
+      drawFieldList();
+      drawCustomObjects();
+      canvas.renderAll();
+    }
+
+    function toggleLabelColon() {
+      const el = document.getElementById("showLabelColonVE");
+      state.font.show_label_colon = !!(el && el.checked);
+      redrawFields();
+      recordHistory("toggle-colon");
+    }
+
+    function toggleAlignLabelColon() {
+      const el = document.getElementById("alignLabelColonVE");
+      state.font.align_label_colon = !!(el && el.checked);
+      redrawFields();
+      recordHistory("align-colon");
+    }
+
+    function setLabelColonGap() {
+      const el = document.getElementById("labelColonGapVE");
+      state.font.label_colon_gap = Math.max(0, parseInt((el && el.value) || "8", 10) || 8);
+      redrawFields();
+      recordHistory("colon-gap");
+    }
+
+    function setColonColor() {
+      const el = document.getElementById("colonColorVE");
+      state.font.colon_font_color = _normalizeHex((el && el.value) || "", DEFAULT_LABEL_FILL);
+      redrawFields();
+      recordHistory("colon-color");
+    }
+
+    function _activeFieldText() {
+      const o = canvas.getActiveObject();
+      if (!o || o.type === "activeSelection") return null;
+      if (o.dataType !== "field") return null;
+      return o;
+    }
+
+    function _syncSelectedUI() {
+      const item = document.getElementById("selItem");
+      const nameInput = document.getElementById("selName");
+      const color = document.getElementById("selColor");
+      const resetBtn = document.getElementById("clearSelColor");
+      const textInput = document.getElementById("selText");
+      const lockInput = document.getElementById("selLocked");
+      const xInput = document.getElementById("selX");
+      const yInput = document.getElementById("selY");
+      const wInput = document.getElementById("selW");
+      const hInput = document.getElementById("selH");
+      const fontInput = document.getElementById("selFontSize");
+      const angleInput = document.getElementById("selAngle");
+      const opacityInput = document.getElementById("selOpacity");
+      const strokeWidthInput = document.getElementById("selStrokeWidth");
+      const applyBtn = document.getElementById("applyMetricsBtn");
+      const o = _activeFieldText();
+      const active = canvas.getActiveObject();
+      if (active && active.type === "activeSelection") {
+        const selectionItems = active.getObjects().filter(Boolean);
+        item.value = `${selectionItems.length} item(s) selected`;
+        nameInput.disabled = true;
+        nameInput.value = "";
+        color.disabled = true;
+        resetBtn.disabled = true;
+        textInput.disabled = true;
+        textInput.value = "";
+        lockInput.disabled = !selectionItems.some((obj) => obj.dataType === "custom");
+        lockInput.checked = selectionItems.length > 0 && selectionItems.every((obj) => obj.dataType === "custom" && (obj.lockMovementX || obj.lockMovementY));
+        [xInput, yInput, wInput, hInput, fontInput, angleInput, opacityInput, strokeWidthInput].forEach((input) => {
+          input.disabled = true;
+          input.value = "";
+        });
+        applyBtn.disabled = true;
+        renderLayersList();
+        return;
+      }
+      if (!o && !(active && ["custom", "photo", "qr"].includes(active.dataType))) {
+        item.value = "None";
+        nameInput.disabled = true;
+        nameInput.value = "";
+        color.disabled = true;
+        resetBtn.disabled = true;
+        textInput.disabled = true;
+        textInput.value = "";
+        lockInput.disabled = true;
+        lockInput.checked = false;
+        [xInput, yInput, wInput, hInput, fontInput, angleInput, opacityInput, strokeWidthInput].forEach((input) => {
+          input.disabled = true;
+          input.value = "";
+        });
+        applyBtn.disabled = true;
+        renderLayersList();
+        return;
+      }
+      const selected = o || active;
+      if (selected.dataType === "field") {
+        item.value = `${selected.fieldKey} (${selected.part})`;
+        const key = selected.fieldKey;
+        const part = selected.part;
+        const stored = (((state.layout.fields[key] || {})[part] || {}).color);
+        const fallback = part === "label"
+          ? DEFAULT_LABEL_FILL
+          : (part === "value" ? DEFAULT_VALUE_FILL : _fontColorToHex(state.font.colon_font_color, DEFAULT_LABEL_FILL));
+        color.value = _normalizeHex(stored, _normalizeHex(selected.fill, fallback));
+        textInput.disabled = true;
+        textInput.value = "";
+        nameInput.disabled = true;
+        nameInput.value = "";
+        lockInput.disabled = true;
+        lockInput.checked = false;
+      } else if (selected.dataType === "custom") {
+        item.value = `${selected.customType} (${selected.objectId})`;
+        nameInput.disabled = false;
+        nameInput.value = selected.objectName || "";
+        color.value = _normalizeHex(selected.fill || selected.stroke, "#1f4e8c");
+        textInput.disabled = selected.customType !== "text";
+        textInput.value = selected.customType === "text" ? (selected.text || "") : "";
+        lockInput.disabled = false;
+        lockInput.checked = !!(selected.lockMovementX || selected.lockMovementY);
+      } else {
+        item.value = selected.dataType === "photo" ? "Photo Box" : "QR Box";
+        nameInput.disabled = true;
+        nameInput.value = "";
+        color.value = selected.stroke ? _normalizeHex(selected.stroke, "#1f4e8c") : "#1f4e8c";
+        textInput.disabled = true;
+        textInput.value = "";
+        lockInput.disabled = true;
+        lockInput.checked = false;
+      }
+      color.disabled = selected.dataType === "photo"
+        || selected.dataType === "qr"
+        || (selected.dataType === "custom" && selected.customType === "image");
+      resetBtn.disabled = color.disabled;
+      const metrics = objectMetrics(selected);
+      if (metrics) {
+        xInput.disabled = false;
+        yInput.disabled = false;
+        wInput.disabled = !metrics.widthEnabled;
+        hInput.disabled = !metrics.heightEnabled;
+        fontInput.disabled = !metrics.fontEnabled;
+        angleInput.disabled = selected.dataType !== "custom" || selected.customType === "line";
+        opacityInput.disabled = selected.dataType !== "custom";
+        strokeWidthInput.disabled = !(selected.dataType === "custom" && selected.customType !== "image" && selected.customType !== "text");
+        xInput.value = metrics.x;
+        yInput.value = metrics.y;
+        wInput.value = metrics.w;
+        hInput.value = metrics.h;
+        fontInput.value = metrics.fontSize || "";
+        angleInput.value = (selected.dataType === "custom" && selected.customType !== "line") ? Math.round(selected.angle || 0) : "";
+        opacityInput.value = selected.dataType === "custom"
+          ? clamp(Math.round((typeof selected.opacity === "number" ? selected.opacity : 1) * 100), 0, 100)
+          : "";
+        strokeWidthInput.value = (selected.dataType === "custom" && selected.customType !== "image" && selected.customType !== "text")
+          ? Math.round(selected.strokeWidth || 2)
+          : "";
+        applyBtn.disabled = false;
+      }
+      renderLayersList();
+    }
+
+    function _setFieldColor(key, part, hex) {
+      if (!state.layout.fields[key]) state.layout.fields[key] = {};
+      if (!state.layout.fields[key][part]) state.layout.fields[key][part] = {};
+      const fallback = part === "label"
+        ? DEFAULT_LABEL_FILL
+        : (part === "value" ? DEFAULT_VALUE_FILL : _fontColorToHex(state.font.colon_font_color, DEFAULT_LABEL_FILL));
+      const finalHex = _normalizeHex(hex, fallback);
+      state.layout.fields[key][part].color = finalHex;
+      if (fieldObjs[key] && fieldObjs[key][part]) fieldObjs[key][part].set({ fill: finalHex });
+      if (part === "label" || part === "colon") syncFieldColon(key);
+      canvas.renderAll();
+      recordHistory("field-color");
+    }
+
+    function _setCustomColor(objectId, hex) {
+      const obj = customObjs[objectId];
+      if (!obj) return;
+      if (obj.customType === "image") return;
+      const finalHex = _normalizeHex(hex, "#1f4e8c");
+      if (obj.customType === "text") obj.set({ fill: finalHex });
+      else {
+        obj.set({ fill: finalHex, stroke: finalHex });
+      }
+      persistCustomObject(obj);
+      canvas.renderAll();
+      recordHistory("custom-color");
+    }
+
+    function _clearFieldColor(key, part) {
+      if (state.layout.fields[key] && state.layout.fields[key][part]) {
+        delete state.layout.fields[key][part].color;
+      }
+      const fallback = part === "label"
+        ? DEFAULT_LABEL_FILL
+        : (part === "value" ? DEFAULT_VALUE_FILL : _fontColorToHex(state.font.colon_font_color, DEFAULT_LABEL_FILL));
+      if (fieldObjs[key] && fieldObjs[key][part]) fieldObjs[key][part].set({ fill: fallback });
+      if (part === "label" || part === "colon") syncFieldColon(key);
+      canvas.renderAll();
+      _syncSelectedUI();
+      recordHistory("reset-field-color");
+    }
+
+    function _clearCustomColor(objectId) {
+      const obj = customObjs[objectId];
+      if (!obj) return;
+      if (obj.customType === "image") return;
+      if (obj.customType === "text") obj.set({ fill: "#0b3f8a" });
+      else obj.set({ fill: "#8db3e2", stroke: "#1f4e8c" });
+      persistCustomObject(obj);
+      canvas.renderAll();
+      _syncSelectedUI();
+      recordHistory("reset-custom-color");
+    }
+
+    function redrawFields() {
+      state.direction = document.getElementById("dirView").value === "rtl" ? "rtl" : "ltr";
+      drawFields();
+      status(`Direction: ${state.direction.toUpperCase()}`);
+    }
+
+    function refreshFieldFlow(activeKey, activePart) {
+      keyOrder.forEach((key, idx) => {
+        const parts = fieldObjs[key];
+        if (!parts) return;
+        const cfg = layoutFor(key, idx);
+        const labelColor = _normalizeHex(cfg.label.color, DEFAULT_LABEL_FILL);
+        const valueColor = _normalizeHex(cfg.value.color, DEFAULT_VALUE_FILL);
+        const colonColor = _normalizeHex(cfg.colon.color, _fontColorToHex(state.font.colon_font_color, DEFAULT_LABEL_FILL));
+
+        if (parts.label) {
+          parts.label.set({
+            top: cfg.label.y,
+            fontSize: cfg.label.font_size,
+            fill: labelColor,
+            visible: !!cfg.label.visible,
+            growMode: cfg.label.grow,
+            left: leftFromAnchor(cfg.label.x, parts.label.width || 0, state.direction, cfg.label.grow),
+          });
+          parts.label.setCoords();
+        }
+
+        if (parts.value) {
+          parts.value.set({
+            top: cfg.value.y,
+            fontSize: cfg.value.font_size,
+            fill: valueColor,
+            visible: !!cfg.value.visible,
+            growMode: cfg.value.grow,
+            left: leftFromAnchor(cfg.value.x, parts.value.width || 0, state.direction, cfg.value.grow),
+          });
+          parts.value.setCoords();
+        }
+
+        if (parts.colon) {
+          parts.colon.set({
+            top: cfg.colon.y,
+            fontSize: cfg.colon.font_size,
+            fill: colonColor,
+            visible: !!cfg.colon.visible,
+            growMode: cfg.colon.grow,
+            left: leftFromAnchor(cfg.colon.x, parts.colon.width || 0, state.direction, cfg.colon.grow),
+          });
+          parts.colon.setCoords();
+        }
+      });
+      drawFieldList();
+      renderLayersList();
+      if (activeKey && activePart && fieldObjs[activeKey] && fieldObjs[activeKey][activePart]) {
+        canvas.setActiveObject(fieldObjs[activeKey][activePart]);
+      }
+      _syncSelectedUI();
+      canvas.requestRenderAll();
+    }
+
+    function selectedObjects() {
+      const active = canvas.getActiveObject();
+      if (!active) return [];
+      if (active.type === "activeSelection") return active.getObjects().filter(Boolean);
+      return [active];
+    }
+
+    function persistObjectState(obj) {
+      if (!obj) return;
+      if (obj.dataType === "field") {
+        normalizeFieldScale(obj);
+        updateLayoutFromObject(obj);
+      } else if (obj.dataType === "custom") {
+        persistCustomObject(obj);
+      } else if (obj.dataType === "photo") {
+        state.photo.photo_x = Math.round(obj.left);
+        state.photo.photo_y = Math.round(obj.top);
+        state.photo.photo_width = Math.round(obj.width);
+        state.photo.photo_height = Math.round(obj.height);
+        syncTags();
+        syncBlockInputs();
+      } else if (obj.dataType === "qr") {
+        state.qr.qr_x = Math.round(obj.left);
+        state.qr.qr_y = Math.round(obj.top);
+        state.qr.qr_size = Math.round(obj.width);
+        syncTags();
+        syncBlockInputs();
+      }
+      obj.setCoords();
+    }
+
+    function hideSelected() {
+      const objects = selectedObjects();
+      if (!objects.length) { status("Select an item first.", true); return; }
+      let changed = false;
+      objects.forEach((obj) => {
+        if (obj.dataType === "field" && obj.part !== "colon") {
+          setVisibility(obj.fieldKey, obj.part, false);
+          changed = true;
+        } else if (obj.dataType === "photo") {
+          toggleBlockVisibility("photo", false);
+          changed = true;
+        } else if (obj.dataType === "qr") {
+          toggleBlockVisibility("qr", false);
+          changed = true;
+        }
+      });
+      if (!changed) status("Only field blocks, photo, or QR can be hidden from the editor.", true);
+      else {
+        recordHistory("hide-field");
+        status("Selected item hidden.");
+      }
+    }
+
+    function bringSelectedToFront() {
+      const objects = selectedObjects();
+      if (!objects.length) { status("Select an item first.", true); return; }
+      objects.forEach((obj) => canvas.bringToFront(obj));
+      syncLayerOrderFromCanvas();
+      canvas.requestRenderAll();
+      recordHistory("bring-front");
+      status("Selection brought to front.");
+    }
+
+    function sendSelectedToBack() {
+      const objects = selectedObjects();
+      if (!objects.length) { status("Select an item first.", true); return; }
+      objects.forEach((obj) => {
+        if (obj === bleedRect || obj === safeRect) return;
+        canvas.sendToBack(obj);
+      });
+      if (canvas.backgroundImage) canvas.sendToBack(canvas.backgroundImage);
+      if (bleedRect) canvas.bringToFront(bleedRect);
+      if (safeRect) canvas.bringToFront(safeRect);
+      syncLayerOrderFromCanvas();
+      canvas.requestRenderAll();
+      recordHistory("send-back");
+      status("Selection sent backward.");
+    }
+
+    function alignSelected(mode) {
+      const objects = selectedObjects();
+      if (!objects.length) { status("Select an item first.", true); return; }
+      const margin = 24;
+      objects.forEach((obj) => {
+        const w = Number(obj.width || 0);
+        const h = Number(obj.height || 0);
+        if (mode === "left") obj.set({ left: margin });
+        if (mode === "hcenter") obj.set({ left: (CARD_W - w) / 2 });
+        if (mode === "right") obj.set({ left: CARD_W - w - margin });
+        if (mode === "top") obj.set({ top: margin });
+        if (mode === "vcenter") obj.set({ top: (CARD_H - h) / 2 });
+        if (mode === "bottom") obj.set({ top: CARD_H - h - margin });
+        persistObjectState(obj);
+      });
+      canvas.requestRenderAll();
+      recordHistory(`align-${mode}`);
+      status(`Aligned ${objects.length} item(s): ${mode}.`);
+    }
+
+    function nudgeSelection(dx, dy) {
+      const objects = selectedObjects();
+      if (!objects.length) return false;
+      objects.forEach((obj) => {
+        obj.set({
+          left: sround((obj.left || 0) + dx),
+          top: sround((obj.top || 0) + dy)
+        });
+        persistObjectState(obj);
+      });
+      canvas.requestRenderAll();
+      recordHistory("nudge");
+      return true;
+    }
+
+    function setZoom(delta){ zoom = clamp(zoom + delta,0.2,3); canvas.setZoom(zoom); document.getElementById("zoomLabel").textContent=`${Math.round(zoom*100)}%`; canvas.requestRenderAll(); }
+    function fitCanvas(){ const s=document.getElementById("stage"); zoom = clamp(Math.min((s.clientWidth-60)/CARD_W,(s.clientHeight-80)/CARD_H),0.2,2.4); canvas.setZoom(zoom); document.getElementById("zoomLabel").textContent=`${Math.round(zoom*100)}%`; canvas.requestRenderAll(); }
+    function setSnap(v){ snap = Math.max(1, parseInt(v||1,10)); }
+
+    function applyBlockInputs() {
+      state.photo.photo_x = parseInt(document.getElementById("photoX").value || "0", 10);
+      state.photo.photo_y = parseInt(document.getElementById("photoY").value || "0", 10);
+      state.photo.photo_width = parseInt(document.getElementById("photoW").value || "100", 10);
+      state.photo.photo_height = parseInt(document.getElementById("photoH").value || "100", 10);
+      state.qr.qr_x = parseInt(document.getElementById("qrX").value || "0", 10);
+      state.qr.qr_y = parseInt(document.getElementById("qrY").value || "0", 10);
+      state.qr.qr_size = parseInt(document.getElementById("qrS").value || "120", 10);
+      photoRect.set({
+        left: state.photo.photo_x,
+        top: state.photo.photo_y,
+        width: state.photo.photo_width,
+        height: state.photo.photo_height,
+        scaleX:1,
+        scaleY:1,
+        visible: !!state.photo.enable_photo,
+        evented: !!state.photo.enable_photo,
+        selectable: !!state.photo.enable_photo
+      });
+      qrRect.set({
+        left: state.qr.qr_x,
+        top: state.qr.qr_y,
+        width: state.qr.qr_size,
+        height: state.qr.qr_size,
+        scaleX:1,
+        scaleY:1,
+        visible: !!state.qr.enable_qr,
+        evented: !!state.qr.enable_qr,
+        selectable: !!state.qr.enable_qr
+      });
+      syncTags();
+      canvas.renderAll();
+      recordHistory("block-inputs");
+    }
+
+    function toggleBlockVisibility(type, enabled) {
+      if (type === "photo") {
+        state.photo.enable_photo = !!enabled;
+        if (photoRect) {
+          photoRect.set({ visible: !!enabled, evented: !!enabled, selectable: !!enabled });
+        }
+      } else if (type === "qr") {
+        state.qr.enable_qr = !!enabled;
+        if (qrRect) {
+          qrRect.set({ visible: !!enabled, evented: !!enabled, selectable: !!enabled });
+        }
+      }
+      syncTags();
+      canvas.discardActiveObject();
+      canvas.requestRenderAll();
+      _syncSelectedUI();
+      recordHistory(`toggle-${type}`);
+    }
+
+    function syncBlockInputs() {
+      document.getElementById("langView").value = state.language;
+      document.getElementById("dirView").value = state.direction;
+      const showColonEl = document.getElementById("showLabelColonVE");
+      if (showColonEl) showColonEl.checked = !!state.font.show_label_colon;
+      const alignColonEl = document.getElementById("alignLabelColonVE");
+      if (alignColonEl) alignColonEl.checked = !!state.font.align_label_colon;
+      const colonGapEl = document.getElementById("labelColonGapVE");
+      if (colonGapEl) colonGapEl.value = Math.max(0, parseInt(state.font.label_colon_gap || 8, 10) || 8);
+      const colonColorEl = document.getElementById("colonColorVE");
+      if (colonColorEl) colonColorEl.value = _fontColorToHex(state.font.colon_font_color, DEFAULT_LABEL_FILL);
+      document.getElementById("photoX").value = Math.round(state.photo.photo_x);
+      document.getElementById("photoY").value = Math.round(state.photo.photo_y);
+      document.getElementById("photoW").value = Math.round(state.photo.photo_width);
+      document.getElementById("photoH").value = Math.round(state.photo.photo_height);
+      const enablePhotoEl = document.getElementById("enablePhotoVE");
+      if (enablePhotoEl) enablePhotoEl.checked = !!state.photo.enable_photo;
+      document.getElementById("qrX").value = Math.round(state.qr.qr_x);
+      document.getElementById("qrY").value = Math.round(state.qr.qr_y);
+      document.getElementById("qrS").value = Math.round(state.qr.qr_size);
+      const enableQrEl = document.getElementById("enableQrVE");
+      if (enableQrEl) enableQrEl.checked = !!state.qr.enable_qr;
+    }
+
+    let bleedRect, safeRect, photoRect, qrRect, pTag, qTag;
+    let gridGroup = null;
+    function toggleGuides(){ bleedRect.set({visible:document.getElementById("showBleed").checked}); safeRect.set({visible:document.getElementById("showSafe").checked}); canvas.renderAll(); }
+    function syncTags(){
+      pTag.set({left:photoRect.left+6, top:photoRect.top-18, visible: !!state.photo.enable_photo});
+      qTag.set({left:qrRect.left+6, top:qrRect.top-18, visible: !!state.qr.enable_qr});
+    }
+    function rebuildGrid() {
+      if (gridGroup) {
+        canvas.remove(gridGroup);
+        gridGroup = null;
+      }
+      if (!gridVisible) {
+        canvas.requestRenderAll();
+        return;
+      }
+      const lines = [];
+      for (let x = gridSize; x < CARD_W; x += gridSize) {
+        lines.push(new fabric.Line([x, 0, x, CARD_H], {
+          stroke: "rgba(41, 92, 149, 0.16)",
+          strokeWidth: x % (gridSize * 5) === 0 ? 1.2 : 0.6,
+          selectable: false,
+          evented: false,
+          excludeFromExport: true
+        }));
+      }
+      for (let y = gridSize; y < CARD_H; y += gridSize) {
+        lines.push(new fabric.Line([0, y, CARD_W, y], {
+          stroke: "rgba(41, 92, 149, 0.16)",
+          strokeWidth: y % (gridSize * 5) === 0 ? 1.2 : 0.6,
+          selectable: false,
+          evented: false,
+          excludeFromExport: true
+        }));
+      }
+      gridGroup = new fabric.Group(lines, {
+        selectable: false,
+        evented: false,
+        excludeFromExport: true,
+        objectCaching: false
+      });
+      canvas.add(gridGroup);
+      if (canvas.backgroundImage) canvas.sendToBack(canvas.backgroundImage);
+      canvas.sendToBack(gridGroup);
+      if (bleedRect) canvas.bringToFront(bleedRect);
+      if (safeRect) canvas.bringToFront(safeRect);
+      if (photoRect) canvas.bringToFront(photoRect);
+      if (qrRect) canvas.bringToFront(qrRect);
+      if (pTag) canvas.bringToFront(pTag);
+      if (qTag) canvas.bringToFront(qTag);
+      canvas.requestRenderAll();
+    }
+    function toggleGridVisibility(forceValue) {
+      gridVisible = typeof forceValue === "boolean" ? forceValue : !gridVisible;
+      const checkbox = document.getElementById("showGrid");
+      if (checkbox) checkbox.checked = gridVisible;
+      rebuildGrid();
+      status(gridVisible ? "Grid enabled." : "Grid hidden.");
+    }
+    function setGridSize() {
+      const input = document.getElementById("gridSizeVE");
+      gridSize = clamp(parseInt((input && input.value) || "20", 10) || 20, 5, 100);
+      if (input) input.value = gridSize;
+      rebuildGrid();
+      status(`Grid size: ${gridSize}px`);
+    }
+
+    async function saveLayout() {
+      const btn = document.getElementById("saveBtn");
+      const csrf = document.querySelector('meta[name="csrf-token"]').getAttribute("content");
+      btn.disabled = true; btn.textContent = "Saving...";
+      try {
+        Object.values(fieldObjs).forEach((parts) => {
+          ["label", "colon", "value"].forEach((part) => {
+            if (parts && parts[part]) persistObjectState(parts[part]);
+          });
+        });
+        Object.values(customObjs).forEach((obj) => persistObjectState(obj));
+        if (photoRect) persistObjectState(photoRect);
+        if (qrRect) persistObjectState(qrRect);
+        const payload = {
+          template_id: TEMPLATE_ID,
+          settings_side: EDITOR_SIDE,
+          card_orientation: CARD_ORIENTATION,
+          card_width: CARD_W,
+          card_height: CARD_H,
+          sheet_width: SHEET_W,
+          sheet_height: SHEET_H,
+          grid_rows: GRID_ROWS,
+          grid_cols: GRID_COLS,
+          language: state.language,
+          text_direction: state.direction,
+          font_settings: { ...initFont, ...state.font },
+          photo_settings: { ...initPhoto, ...state.photo },
+          qr_settings: { ...initQR, ...state.qr },
+          layout_config: state.layout
+        };
+        const res = await fetch("/update_template_settings", {
+          method: "POST",
+          headers: { "Content-Type":"application/json", "X-CSRFToken": csrf },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) throw new Error(data.error || "Save failed");
+        status("Saved successfully.");
+      } catch (e) {
+        status(`Save failed: ${e.message}`, true);
+      } finally {
+        btn.disabled = false; btn.textContent = "Save Layout";
+      }
+    }
+
+    function init() {
+      canvas.setWidth(CARD_W); canvas.setHeight(CARD_H);
+      fabric.Image.fromURL(BG_IMAGE_URL, (img) => {
+        if (!img) { status("Template image load failed.", true); return; }
+        img.scaleToWidth(CARD_W); img.scaleToHeight(CARD_H);
+        canvas.setBackgroundImage(img, canvas.renderAll.bind(canvas));
+
+        bleedRect = new fabric.Rect({ left:8, top:8, width:CARD_W-16, height:CARD_H-16, fill:"rgba(0,0,0,0)", stroke:"rgba(245,60,90,0.8)", strokeDashArray:[8,6], selectable:false, evented:false });
+        safeRect = new fabric.Rect({ left:24, top:24, width:CARD_W-48, height:CARD_H-48, fill:"rgba(0,0,0,0)", stroke:"rgba(0,145,110,0.8)", strokeDashArray:[6,6], selectable:false, evented:false });
+        photoRect = new fabric.Rect({ left:state.photo.photo_x, top:state.photo.photo_y, width:state.photo.photo_width, height:state.photo.photo_height, fill:"rgba(214,59,98,0.16)", stroke:"#d63b62", strokeWidth:2, cornerColor:"#d63b62", dataType:"photo", visible: !!state.photo.enable_photo, evented: !!state.photo.enable_photo, selectable: !!state.photo.enable_photo });
+        qrRect = new fabric.Rect({ left:state.qr.qr_x, top:state.qr.qr_y, width:state.qr.qr_size, height:state.qr.qr_size, fill:"rgba(0,165,137,0.16)", stroke:"#00a589", strokeWidth:2, cornerColor:"#00a589", lockUniScaling:true, dataType:"qr", visible: !!state.qr.enable_qr, evented: !!state.qr.enable_qr, selectable: !!state.qr.enable_qr });
+        pTag = new fabric.Text("PHOTO", { left:photoRect.left+6, top:photoRect.top-18, fontSize:13, fill:"#c42f55", selectable:false, evented:false, visible: !!state.photo.enable_photo });
+        qTag = new fabric.Text("QR", { left:qrRect.left+6, top:qrRect.top-18, fontSize:13, fill:"#008d75", selectable:false, evented:false, visible: !!state.qr.enable_qr });
+        canvas.add(bleedRect, safeRect, photoRect, qrRect, pTag, qTag);
+        drawFields();
+        toggleGuides();
+        const gridInput = document.getElementById("gridSizeVE");
+        const gridToggle = document.getElementById("showGrid");
+        if (gridInput) gridInput.value = gridSize;
+        if (gridToggle) gridToggle.checked = gridVisible;
+        rebuildGrid();
+        syncBlockInputs();
+        fitCanvas();
+        syncCanvasTouchBehavior();
+        renderLayersList();
+        recordHistory("init");
+        status("Ready. Drag any label/value block; uncheck to hide.");
+        _syncSelectedUI();
+
+        canvas.on("object:moving", (e) => {
+          const o = e.target; if (!o) return;
+          // Auto-unlock custom objects before drag and persist unlock state
+          if (o.dataType === "custom") {
+            o.set({
+              lockMovementX: false,
+              lockMovementY: false,
+              lockScalingX: false,
+              lockScalingY: false
+            });
+            persistCustomObject(o); // persist unlock state immediately
+          }
+          o.set({ left:sround(o.left), top:sround(o.top) });
+          if (o.dataType === "field") updateLayoutFromObject(o);
+          if (o.dataType === "custom") persistCustomObject(o);
+        });
+        canvas.on("object:scaling", (e) => {
+          const o = e.target; if (!o) return;
+          if (o.dataType === "photo") o.set({ width: clamp(sround(o.getScaledWidth()),20,CARD_W), height: clamp(sround(o.getScaledHeight()),20,CARD_H), scaleX:1, scaleY:1 });
+          if (o.dataType === "qr") { const side = clamp(sround(Math.max(o.getScaledWidth(),o.getScaledHeight())),20,500); o.set({ width: side, height: side, scaleX:1, scaleY:1 }); }
+          if (o.dataType === "field") normalizeFieldScale(o);
+          if (o.dataType === "custom" && o.customType !== "line") {
+            if (o.customType === "circle") {
+              o.set({ rx: Math.max(10, sround(o.getScaledWidth() / 2)), ry: Math.max(10, sround(o.getScaledHeight() / 2)), scaleX:1, scaleY:1 });
+            } else {
+              o.set({ width: clamp(sround(o.getScaledWidth()),20,CARD_W), height: clamp(sround(o.getScaledHeight()),20,CARD_H), scaleX:1, scaleY:1 });
+            }
+            persistCustomObject(o);
+          }
+        });
+	        canvas.on("object:modified", (e) => {
+	          const o = e.target; if (!o) return;
+	          if (o.type === "activeSelection" && typeof o.getObjects === "function") {
+	            const moved = o.getObjects();
+	            moved.forEach((child) => {
+	              if (!child) return;
+	              if (child.dataType === "field") {
+	                normalizeFieldScale(child);
+		                updateLayoutFromObject(child);
+	              } else if (child.dataType === "photo") {
+	                state.photo.photo_x = Math.round(child.left);
+	                state.photo.photo_y = Math.round(child.top);
+	                state.photo.photo_width = Math.round(child.width);
+	                state.photo.photo_height = Math.round(child.height);
+	              } else if (child.dataType === "qr") {
+	                state.qr.qr_x = Math.round(child.left);
+	                state.qr.qr_y = Math.round(child.top);
+	                state.qr.qr_size = Math.round(child.width);
+	              } else if (child.dataType === "custom") {
+	                persistCustomObject(child);
+	              }
+	            });
+	            refreshFieldFlow();
+	            syncTags();
+	            syncBlockInputs();
+	            syncLayerOrderFromCanvas();
+	          } else {
+	            if (o.dataType === "field") {
+	              normalizeFieldScale(o);
+		              updateLayoutFromObject(o);
+	              refreshFieldFlow(o.fieldKey, o.part);
+	            }
+	            if (o.dataType === "photo") { state.photo.photo_x=Math.round(o.left); state.photo.photo_y=Math.round(o.top); state.photo.photo_width=Math.round(o.width); state.photo.photo_height=Math.round(o.height); syncTags(); syncBlockInputs(); }
+	            if (o.dataType === "qr") { state.qr.qr_x=Math.round(o.left); state.qr.qr_y=Math.round(o.top); state.qr.qr_size=Math.round(o.width); syncTags(); syncBlockInputs(); }
+	            if (o.dataType === "custom") persistCustomObject(o);
+	            if (o.dataType === "custom") syncLayerOrderFromCanvas();
+	          }
+	          canvas.renderAll();
+	          recordHistory("object-modified");
+	        });
+        canvas.on("selection:created", _syncSelectedUI);
+        canvas.on("selection:updated", _syncSelectedUI);
+        canvas.on("selection:cleared", _syncSelectedUI);
+        canvas.on("mouse:up", _syncSelectedUI);
+      }, { crossOrigin: "anonymous" });
+      document.getElementById("saveBtn").addEventListener("click", saveLayout);
+      document.getElementById("imageUploadInput").addEventListener("change", handleImageUpload);
+      document.getElementById("selColor").addEventListener("input", (e) => {
+        const o = canvas.getActiveObject(); if (!o) return;
+        if (o.dataType === "field") _setFieldColor(o.fieldKey, o.part, e.target.value);
+        if (o.dataType === "custom" && o.customType !== "image") _setCustomColor(o.objectId, e.target.value);
+      });
+      document.getElementById("clearSelColor").addEventListener("click", () => {
+        const o = canvas.getActiveObject(); if (!o) return;
+        if (o.dataType === "field") _clearFieldColor(o.fieldKey, o.part);
+        if (o.dataType === "custom" && o.customType !== "image") _clearCustomColor(o.objectId);
+      });
+      document.getElementById("selText").addEventListener("input", (e) => {
+        const o = canvas.getActiveObject();
+        if (!o || o.dataType !== "custom" || o.customType !== "text") return;
+        o.set({ text: e.target.value || "Text" });
+        persistCustomObject(o);
+        canvas.requestRenderAll();
+      });
+      document.getElementById("selName").addEventListener("input", (e) => {
+        const o = canvas.getActiveObject();
+        if (!o || o.type === "activeSelection" || o.dataType !== "custom") return;
+        o.objectName = String(e.target.value || "").trim();
+        persistCustomObject(o);
+        renderLayersList();
+      });
+      document.getElementById("selLocked").addEventListener("change", (e) => {
+        const o = canvas.getActiveObject();
+        if (!o) return;
+        if (o.type === "activeSelection") {
+          toggleLockSelected(!!e.target.checked);
+          return;
+        }
+        if (o.dataType !== "custom") return;
+        const locked = !!e.target.checked;
+        o.set({ lockMovementX: locked, lockMovementY: locked, lockScalingX: locked, lockScalingY: locked });
+        persistCustomObject(o);
+        canvas.requestRenderAll();
+        recordHistory("lock-object");
+      });
+      document.getElementById("applyMetricsBtn").addEventListener("click", applySelectedMetrics);
+      document.addEventListener("keydown", (e) => {
+        const target = e.target;
+        const tag = target && target.tagName ? target.tagName.toLowerCase() : "";
+        if (["input", "textarea", "select"].includes(tag)) return;
+        const step = e.shiftKey ? 10 : 1;
+        if ((e.ctrlKey || e.metaKey) && e.key === "0") {
+          e.preventDefault();
+          fitCanvas();
+          return;
+        }
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "a") {
+          e.preventDefault();
+          selectAllCustomObjects();
+          return;
+        }
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "c") {
+          e.preventDefault();
+          copySelected();
+          return;
+        }
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "v") {
+          e.preventDefault();
+          pasteClipboard();
+          return;
+        }
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "d") {
+          e.preventDefault();
+          duplicateSelected();
+          return;
+        }
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "l") {
+          e.preventDefault();
+          const objects = selectedObjects().filter((obj) => obj && obj.dataType === "custom");
+          if (!objects.length) {
+            status("Select one or more custom objects first.", true);
+            return;
+          }
+          const shouldLock = objects.some((obj) => !(obj.lockMovementX || obj.lockMovementY));
+          toggleLockSelected(shouldLock);
+          return;
+        }
+        if (e.key === "Delete" || e.key === "Backspace") {
+          e.preventDefault();
+          const active = canvas.getActiveObject();
+          if (active && active.dataType === "custom") deleteSelected();
+          else hideSelected();
+          return;
+        }
+        if (e.key === "ArrowLeft" && nudgeSelection(-step, 0)) e.preventDefault();
+        if (e.key === "ArrowRight" && nudgeSelection(step, 0)) e.preventDefault();
+        if (e.key === "ArrowUp" && nudgeSelection(0, -step)) e.preventDefault();
+        if (e.key === "ArrowDown" && nudgeSelection(0, step)) e.preventDefault();
+      });
+      window.addEventListener("resize", fitCanvas);
+    }
+
+    // ═══════════════════════════════════════════
+    // PANEL TAB SWITCHING (desktop + mobile)
+    // ═══════════════════════════════════════════
+    function switchTab(panelId) {
+      document.querySelectorAll('.panel-section').forEach(el => el.classList.remove('active'));
+      document.querySelectorAll('.panel-tab').forEach(el => el.classList.remove('active'));
+      const panel = document.getElementById('panel-' + panelId);
+      if (panel) panel.classList.add('active');
+      const tab = document.querySelector(`.panel-tab[data-panel="${panelId}"]`);
+      if (tab) tab.classList.add('active');
+    }
+
+    // Keep legacy alias so any existing calls still work
+    function switchMobileTab(id) { switchTab(id); }
+
+    // Auto-switch to Objects tab when a custom object is selected
+    function _autoTabOnSelect() {
+      const o = canvas && canvas.getActiveObject ? canvas.getActiveObject() : null;
+      if (!o) return;
+      if (o.dataType === 'custom') switchTab('objects');
+      else if (o.dataType === 'field') switchTab('fields');
+    }
+
+    // ═══════════════════════════════════════════
+    // DRAG-TO-RESIZE BOTTOM PANEL (mobile only)
+    // ═══════════════════════════════════════════
+    (function() {
+      const rightPanel = document.querySelector('.right');
+      const sideHead   = document.querySelector('.side-head');
+      let dragging = false, startY = 0, startH = 0;
+
+      function onStart(e) {
+        if (window.innerWidth > 767) return;
+        dragging = true;
+        startY = e.touches ? e.touches[0].clientY : e.clientY;
+        startH = rightPanel.offsetHeight;
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup',   onEnd);
+        document.addEventListener('touchmove', onMove, { passive: false });
+        document.addEventListener('touchend',  onEnd);
+      }
+      function onMove(e) {
+        if (!dragging) return;
+        if (e.cancelable) e.preventDefault();
+        const cy = e.touches ? e.touches[0].clientY : e.clientY;
+        const newH = Math.max(110, Math.min(window.innerHeight * 0.78, startH + (startY - cy)));
+        rightPanel.style.height    = newH + 'px';
+        rightPanel.style.maxHeight = newH + 'px';
+      }
+      function onEnd() {
+        dragging = false;
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup',   onEnd);
+        document.removeEventListener('touchmove', onMove);
+        document.removeEventListener('touchend',  onEnd);
+      }
+
+      if (sideHead) {
+        sideHead.addEventListener('mousedown', onStart);
+        sideHead.addEventListener('touchstart', onStart, { passive: true });
+      }
+    })();
+
+    function syncCanvasTouchBehavior() {
+      [canvas.wrapperEl, canvas.upperCanvasEl, canvas.lowerCanvasEl].forEach((node) => {
+        if (!node) return;
+        node.style.touchAction = "none";
+        node.style.msTouchAction = "none";
+      });
+    }
+
+    init();
+
+    // Hook canvas selection after init
+    if (typeof canvas !== 'undefined') {
+      canvas.on('selection:created', _autoTabOnSelect);
+      canvas.on('selection:updated', _autoTabOnSelect);
+    }
+  </script>
+</body>
+</html>

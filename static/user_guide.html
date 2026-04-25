@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin User Guide | ID Card Generator</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --bg: #f7f6f2;
+            --panel: #ffffff;
+            --ink: #17212b;
+            --muted: #586474;
+            --line: #d9e0e8;
+            --primary: #0f6b4f;
+            --primary-dark: #0c5a42;
+            --accent: #d6971d;
+            --alert: #c2410c;
+            --ok: #166534;
+            --shadow: 0 20px 45px rgba(12, 22, 36, 0.10);
+            --radius: 16px;
+        }
+
+        * { box-sizing: border-box; }
+
+        html { scroll-behavior: smooth; }
+
+        body {
+            margin: 0;
+            color: var(--ink);
+            font-family: "Archivo", "Segoe UI", Tahoma, sans-serif;
+            background:
+                radial-gradient(circle at 12% 10%, #e7efe9 0%, transparent 35%),
+                radial-gradient(circle at 90% 6%, #f7e8c9 0%, transparent 28%),
+                linear-gradient(180deg, #f6f8fb 0%, var(--bg) 100%);
+        }
+
+        .texture {
+            position: fixed;
+            inset: 0;
+            background-image:
+                linear-gradient(rgba(15, 107, 79, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(15, 107, 79, 0.03) 1px, transparent 1px);
+            background-size: 26px 26px;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .page {
+            position: relative;
+            z-index: 1;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px 16px 40px;
+        }
+
+        .topbar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 14px;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            text-decoration: none;
+            border-radius: 12px;
+            border: 1px solid var(--line);
+            padding: 10px 14px;
+            font-weight: 700;
+            color: var(--ink);
+            background: rgba(255, 255, 255, 0.95);
+            transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 18px rgba(0, 0, 0, 0.08);
+        }
+
+        .btn.primary {
+            color: #fff;
+            border-color: transparent;
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+        }
+
+        .hero {
+            background: linear-gradient(150deg, #0f6b4f 0%, #156f53 55%, #1f7d5f 100%);
+            color: #fff;
+            border-radius: var(--radius);
+            padding: 24px;
+            box-shadow: var(--shadow);
+            margin-bottom: 16px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .hero::after {
+            content: "";
+            position: absolute;
+            top: -60px;
+            right: -60px;
+            width: 180px;
+            height: 180px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.14);
+        }
+
+        .hero h1 {
+            margin: 0 0 8px;
+            font-family: "Fraunces", Georgia, serif;
+            font-size: clamp(1.45rem, 2.4vw, 2.15rem);
+            line-height: 1.2;
+            letter-spacing: 0.2px;
+        }
+
+        .hero p {
+            margin: 0;
+            max-width: 760px;
+            color: rgba(255, 255, 255, 0.93);
+        }
+
+        .hero-badges {
+            margin-top: 14px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .badge {
+            background: rgba(255, 255, 255, 0.16);
+            border: 1px solid rgba(255, 255, 255, 0.27);
+            padding: 6px 10px;
+            border-radius: 999px;
+            font-size: 0.82rem;
+            font-weight: 700;
+        }
+
+        .layout {
+            display: grid;
+            grid-template-columns: 280px minmax(0, 1fr);
+            gap: 16px;
+            align-items: start;
+        }
+
+        .toc {
+            position: sticky;
+            top: 14px;
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            padding: 14px;
+        }
+
+        .toc h2 {
+            margin: 0 0 10px;
+            font-size: 1rem;
+            font-family: "Fraunces", Georgia, serif;
+        }
+
+        .toc ol {
+            margin: 0;
+            padding-left: 18px;
+            display: grid;
+            gap: 7px;
+        }
+
+        .toc a {
+            color: #0e3b5c;
+            text-decoration: none;
+            font-size: 0.93rem;
+            font-weight: 600;
+        }
+
+        .toc a:hover { text-decoration: underline; }
+
+        .card {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: var(--radius);
+            padding: 18px;
+            margin-bottom: 12px;
+            box-shadow: var(--shadow);
+        }
+
+        .card h2 {
+            margin: 0 0 10px;
+            font-family: "Fraunces", Georgia, serif;
+            font-size: 1.2rem;
+            color: #112b45;
+        }
+
+        .card h3 {
+            margin: 16px 0 8px;
+            font-size: 1rem;
+            color: #173f63;
+        }
+
+        .muted { color: var(--muted); }
+
+        .step {
+            background: #f6faf8;
+            border: 1px solid #dce9e2;
+            border-radius: 12px;
+            padding: 10px 12px;
+            margin: 8px 0;
+        }
+
+        .step strong { color: #0f5d45; }
+
+        .note, .warn, .good {
+            border-radius: 12px;
+            padding: 10px 12px;
+            margin: 10px 0;
+            border-left: 4px solid;
+        }
+
+        .note {
+            border-left-color: #0b5cad;
+            background: #eef5ff;
+        }
+
+        .warn {
+            border-left-color: var(--alert);
+            background: #fff3ee;
+        }
+
+        .good {
+            border-left-color: var(--ok);
+            background: #eefbf1;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 10px 0 4px;
+            font-size: 0.93rem;
+        }
+
+        th, td {
+            border: 1px solid var(--line);
+            padding: 10px 10px;
+            vertical-align: top;
+            text-align: left;
+        }
+
+        th {
+            background: #f4f8fc;
+            color: #123653;
+            font-size: 0.84rem;
+            letter-spacing: 0.02em;
+            text-transform: uppercase;
+        }
+
+        code {
+            font-family: Consolas, "Courier New", monospace;
+            background: #f3f6fb;
+            border: 1px solid #dce3ec;
+            border-radius: 7px;
+            padding: 1px 6px;
+            font-size: 0.88em;
+        }
+
+        .footer {
+            margin-top: 16px;
+            color: var(--muted);
+            font-size: 0.86rem;
+            text-align: center;
+        }
+
+        @media (max-width: 960px) {
+            .layout {
+                grid-template-columns: 1fr;
+            }
+            .toc {
+                position: static;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="texture"></div>
+    <main class="page">
+        <div class="topbar">
+            <a class="btn primary" href="/admin"><i class="fas fa-arrow-left"></i> Back to Admin</a>
+            <a class="btn" href="/admin/bulk_upload_guide" target="_blank"><i class="fas fa-file-csv"></i> Bulk Upload Guide</a>
+            <a class="btn" href="/documentation" target="_blank"><i class="fas fa-book-open"></i> Public Docs</a>
+        </div>
+
+        <section class="hero">
+            <h1><i class="fas fa-user-shield"></i> Admin Panel User Guide</h1>
+            <p>Complete reference for template setup, rendering controls, bulk generation, data safety, and troubleshooting. Use this page while configuring your schools and card designs.</p>
+            <div class="hero-badges">
+                <span class="badge">Template Controls</span>
+                <span class="badge">Multilingual (Urdu/Hindi/Arabic)</span>
+                <span class="badge">QR and Barcode</span>
+                <span class="badge">Bulk Upload</span>
+                <span class="badge">Dynamic Fields</span>
+            </div>
+        </section>
+
+        <div class="layout">
+            <aside class="toc">
+                <h2>Contents</h2>
+                <ol>
+                    <li><a href="#quick-start">Quick Start (10 minutes)</a></li>
+                    <li><a href="#tabs-overview">Tabs Overview</a></li>
+                    <li><a href="#template-upload">Upload Template</a></li>
+                    <li><a href="#template-settings">Template Settings Reference</a></li>
+                    <li><a href="#text-language">Text Case, Language and Direction</a></li>
+                    <li><a href="#bulk">Bulk Generation Workflow</a></li>
+                    <li><a href="#dynamic-fields">Dynamic Form Fields</a></li>
+                    <li><a href="#data-management">Data Management and Safety</a></li>
+                    <li><a href="#preview-verify">Preview and Verification</a></li>
+                    <li><a href="#troubleshooting">Troubleshooting</a></li>
+                </ol>
+            </aside>
+
+            <section>
+                <article id="quick-start" class="card">
+                    <h2>1. Quick Start (10 minutes)</h2>
+                    <div class="step"><strong>Step 1:</strong> Go to <strong>Settings</strong> tab and upload a card template (PDF/JPG/PNG).</div>
+                    <div class="step"><strong>Step 2:</strong> Select template language, text direction, and orientation.</div>
+                    <div class="step"><strong>Step 3:</strong> Open <strong>Template Settings</strong>, adjust fonts/positions/colors/photo area/QR, then click <strong>Save Template Settings</strong>.</div>
+                    <div class="step"><strong>Step 4:</strong> Generate one sample card to validate layout before bulk usage.</div>
+                    <div class="step"><strong>Step 5:</strong> Use Bulk Generate only after sample output is correct.</div>
+                    <div class="good"><strong>Tip:</strong> After changing settings, regenerate cards or previews. Existing generated images do not auto-update.</div>
+                </article>
+
+                <article id="tabs-overview" class="card">
+                    <h2>2. Admin Tabs Overview</h2>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Tab</th>
+                                <th>Main Use</th>
+                                <th>Important Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Settings</td>
+                                <td>Template upload, template configuration, bulk generation, font upload</td>
+                                <td>Upload template, save settings, run bulk generate, configure duplicate controls</td>
+                            </tr>
+                            <tr>
+                                <td>Data Management</td>
+                                <td>Manage existing student cards and files</td>
+                                <td>Edit student, delete entries, cleanup files, export records, delete by school</td>
+                            </tr>
+                            <tr>
+                                <td>Preview</td>
+                                <td>Preview student cards from admin side</td>
+                                <td>Load preview, regenerate latest preview, download student PDF</td>
+                            </tr>
+                            <tr>
+                                <td>Form Fields</td>
+                                <td>Per-template dynamic inputs</td>
+                                <td>Add/edit/delete custom fields, set type, required flag, display order</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </article>
+
+                <article id="template-upload" class="card">
+                    <h2>3. Upload Template</h2>
+                    <h3>Required inputs</h3>
+                    <ul>
+                        <li><strong>School Name:</strong> identifies template group.</li>
+                        <li><strong>Template File:</strong> <code>.pdf</code>, <code>.jpg</code>, <code>.jpeg</code>, <code>.png</code>.</li>
+                        <li><strong>Language Script:</strong> English, Urdu, Hindi, Arabic.</li>
+                        <li><strong>Text Direction:</strong> LTR or RTL.</li>
+                        <li><strong>Card Orientation:</strong> Landscape or Portrait.</li>
+                    </ul>
+                    <div class="note"><strong>Recommendation:</strong> For Urdu/Arabic templates always use RTL and Unicode fonts to avoid broken glyphs.</div>
+                </article>
+
+                <article id="template-settings" class="card">
+                    <h2>4. Template Settings Reference</h2>
+                    <p class="muted">All settings are stored per selected template.</p>
+
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Section</th>
+                                <th>Fields</th>
+                                <th>What It Controls</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Dimensions and Paper</td>
+                                <td>Card Width/Height, A4 Width/Height</td>
+                                <td>Card render size and A4 compiled sheet layout.</td>
+                            </tr>
+                            <tr>
+                                <td>Typography</td>
+                                <td>Label Font, Value Font, Label/Value Size, Label X, Value X, Start Y, Line Height, Label Color, Value Color, Text Case</td>
+                                <td>Position, spacing, appearance, and capitalization rules for all text.</td>
+                            </tr>
+                            <tr>
+                                <td>Language Settings</td>
+                                <td>Template Language, Text Direction</td>
+                                <td>Text shaping and RTL/LTR behavior.</td>
+                            </tr>
+                            <tr>
+                                <td>Photo Box</td>
+                                <td>X/Y, Width/Height, corner radius</td>
+                                <td>Where and how student photo appears on card.</td>
+                            </tr>
+                            <tr>
+                                <td>QR/Barcode</td>
+                                <td>Enable flags, position, size, payload type, URL/text/json settings</td>
+                                <td>Machine-readable verification and data encoding on card.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </article>
+
+                <article id="text-language" class="card">
+                    <h2>5. Text Case, Language and Direction</h2>
+                    <h3>Text case behavior</h3>
+                    <ul>
+                        <li><strong>Text Case</strong> applies to both label text and value text during rendering.</li>
+                        <li>Modes: <code>normal</code>, <code>uppercase</code>, <code>lowercase</code>, <code>capitalize</code>.</li>
+                        <li>If you change this setting, regenerate preview/card to see effect.</li>
+                    </ul>
+
+                    <h3>Language + direction map</h3>
+                    <ul>
+                        <li>English: usually LTR</li>
+                        <li>Hindi: usually LTR</li>
+                        <li>Urdu: RTL</li>
+                        <li>Arabic: RTL</li>
+                    </ul>
+                    <div class="warn"><strong>Common mistake:</strong> Keeping direction LTR for Urdu/Arabic can break label/value alignment.</div>
+                </article>
+
+                <article id="bulk" class="card">
+                    <h2>6. Bulk Generation Workflow</h2>
+                    <ol>
+                        <li>Prepare CSV/XLSX with required columns first.</li>
+                        <li>Run a small test batch (2-5 rows) before full upload.</li>
+                        <li>Optionally upload photos; file names should map cleanly to student identifiers.</li>
+                        <li>Watch progress bar; do not close the tab during active generation.</li>
+                        <li>Check sample output in Preview tab before distributing final cards.</li>
+                    </ol>
+                    <div class="note"><strong>Performance tip:</strong> Large batches are safer after template coordinates are finalized.</div>
+                </article>
+
+                <article id="dynamic-fields" class="card">
+                    <h2>7. Dynamic Form Fields</h2>
+                    <ul>
+                        <li>Each template can have custom fields like Blood Group, Roll Number, House, Session, etc.</li>
+                        <li>Field Name is internal key (avoid spaces; use underscore style).</li>
+                        <li>Field Label is what appears in form and on card.</li>
+                        <li>Display Order controls vertical sequence on card.</li>
+                        <li>Use <code>select</code> type with options for controlled values.</li>
+                    </ul>
+                    <div class="good"><strong>Best practice:</strong> Keep field names stable once bulk data is in use to avoid mapping issues.</div>
+                </article>
+
+                <article id="data-management" class="card">
+                    <h2>8. Data Management and Safety</h2>
+                    <h3>Available operations</h3>
+                    <ul>
+                        <li>Edit individual cards.</li>
+                        <li>Delete single student cards.</li>
+                        <li>Delete all cards for one template/school.</li>
+                        <li>Run old file cleanup.</li>
+                        <li>Delete all data and files (danger operation).</li>
+                    </ul>
+                    <div class="warn"><strong>Safety order:</strong> Export backup first, then cleanup/delete operations.</div>
+                </article>
+
+                <article id="preview-verify" class="card">
+                    <h2>9. Preview and Verification</h2>
+                    <ul>
+                        <li>Use Preview tab to load any student card from admin side.</li>
+                        <li>Use regenerate preview when settings changed recently.</li>
+                        <li>Use download action to fetch PDF for print/share.</li>
+                        <li>If preview looks old, regenerate once and refresh browser.</li>
+                    </ul>
+                    <p class="muted">Preview image URLs include cache-busting so newest image should load after regeneration.</p>
+                </article>
+
+                <article id="troubleshooting" class="card">
+                    <h2>10. Troubleshooting</h2>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Issue</th>
+                                <th>Likely Cause</th>
+                                <th>Fix</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Labels not changing with text case</td>
+                                <td>Old generated file still being viewed</td>
+                                <td>Save settings and regenerate preview/card output.</td>
+                            </tr>
+                            <tr>
+                                <td>Urdu/Arabic alignment broken</td>
+                                <td>Wrong direction or unsupported font</td>
+                                <td>Set RTL and choose Unicode Arabic/Urdu font in template settings.</td>
+                            </tr>
+                            <tr>
+                                <td>Manual button not opening</td>
+                                <td>Bad route mapping</td>
+                                <td>Open <code>/static/user_guide.html</code> directly.</td>
+                            </tr>
+                            <tr>
+                                <td>Bulk generation errors</td>
+                                <td>Column mismatch or missing required fields</td>
+                                <td>Validate columns and try a small batch first.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </article>
+            </section>
+        </div>
+
+        <p class="footer">ID Card Generator Admin Guide</p>
+    </main>
+</body>
+</html>
