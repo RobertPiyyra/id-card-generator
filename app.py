@@ -6390,15 +6390,15 @@ def edit_student(student_id):
 
                 if back_image is not None:
                     back_jpg_buffer = io.BytesIO()
-                    back_template_img.save(back_jpg_buffer, "JPEG", quality=95)
+                    back_image.save(back_jpg_buffer, "JPEG", quality=95)
                     back_jpg_buffer.seek(0)
                     back_jpg_url = upload_image(back_jpg_buffer.getvalue(), folder='cards', resource_type='image')
                     back_generated_url = with_cache_bust(back_jpg_url)
 
                 # Upload PDF to Cloudinary as well
                 pdf_buffer = io.BytesIO()
-                if back_template_img is not None:
-                    template.save(pdf_buffer, "PDF", save_all=True, append_images=[back_template_img], resolution=300)
+                if back_image is not None:
+                    template.save(pdf_buffer, "PDF", save_all=True, append_images=[back_image], resolution=300)
                 else:
                     template.save(pdf_buffer, "PDF", resolution=300)
                 pdf_buffer.seek(0)
