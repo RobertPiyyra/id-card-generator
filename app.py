@@ -3021,6 +3021,14 @@ def _student_session_school_name():
     return (session.get("student_school_name") or "").strip()
 
 
+def _is_admin_session():
+    return bool(session.get("admin"))
+
+
+def _current_session_email():
+    return (session.get("student_email") or "").strip().lower()
+
+
 def _student_school_access_allowed(student_school_name):
     locked_school = _student_session_school_name()
     if not locked_school:
@@ -4682,7 +4690,7 @@ def admin_reset_student_password(student_id):
 @app.route("/index", methods=["GET", "POST"])
 def index():
     # 1. Security Check
-    if not session.get("student_email"):
+    if not session.get("student_email") and not _is_admin_session():
         return redirect(url_for("student_login"))
 
     # 2. Init Variables
@@ -4702,6 +4710,8 @@ def index():
     
     # Auto-select template based on school name
     school_name = _student_session_school_name()
+    if not school_name and _is_admin_session() and session.get("admin_role") == "school_admin":
+        school_name = (session.get("admin_school") or "").strip()
     locked_template = _find_template_dict_by_school(templates, school_name)
     student_school_locked = locked_template is not None
     selected_template_id = locked_template["id"] if locked_template else None
@@ -4761,11 +4771,9 @@ def index():
         try:
             # === LIMIT CHECK WITH ADMIN BYPASS ===
             is_editing = 'edit_student_id' in session
-            current_email = session['student_email'].strip().lower()
-            admin_email = os.environ.get("EMAIL_FROM", "").lower() if os.environ.get("EMAIL_FROM") else ""
+            is_admin = _is_admin_session()
             
-            # Logic: If NOT editing AND email is NOT admin email -> Check Limit
-            if not is_editing and current_email != admin_email:
+            if not is_editing and not is_admin:
                 count = Student.query.filter_by(email=session['student_email']).count()
                 
                 # Limit is set to 3 cards
@@ -4777,9 +4785,8 @@ def index():
                                            selected_template_id=int(request.form.get("template_id", 0)),
                                            deadline_info=deadline_info), 403 # Added deadline_info
             
-            # If Admin, log the bypass for debugging
-            if current_email == admin_email and not is_editing:
-                logger.info(f"Admin email {admin_email} bypassed the 3-card limit.")
+            if is_admin and not is_editing:
+                logger.info("Admin session bypassed the 3-card generation limit.")
             # === END LIMIT CHECK ===
 
             # 1. Get Template ID
@@ -4813,8 +4820,8 @@ def index():
             # 2. Check Deadline
             is_passed, deadline_date = check_deadline_passed(template_id)
 
-            # --- ADDED: Strict Deadline Enforcement (No Bypass) ---
-            if is_passed:
+            # Admin sessions can bypass expired generation deadlines.
+            if is_passed and not is_admin:
                 error_msg = f"⛔ The deadline passed on {deadline_date}. Card generation is closed for everyone."
                 return render_template("index.html", 
                                        error=error_msg, 
@@ -4822,7 +4829,8 @@ def index():
                                        form_data=request.form, 
                                        selected_template_id=template_id,
                                        deadline_info=deadline_info), 403
-            # ------------------------------------------------------
+            if is_passed and is_admin:
+                logger.info("Admin session bypassed the generation deadline for template %s.", template_id)
 
             # Load Settings
             font_settings, photo_settings, qr_settings, card_orientation = get_template_settings(template_id)
@@ -5502,7 +5510,7 @@ def index():
                     data_hash=data_hash,
                     template_id=template_id,
                     school_name=school_name,
-                    email=session['student_email'],
+                    email=session.get('student_email'),
                     custom_data=custom_data
                 )
                 db.session.add(student)
@@ -5539,7 +5547,10 @@ NOOR GRAPHICS AND PRINTERS
                 except Exception as email_err:
                     logger.error(f"Crash in email logic: {email_err}")
 
-                success = f"Card Generated Successfully! (ID: {unique_edit_id}). \n An email with this ID has been sent to you."
+                if student.email:
+                    success = f"Card Generated Successfully! (ID: {unique_edit_id}). \n An email with this ID has been sent to you."
+                else:
+                    success = f"Card Generated Successfully! (ID: {unique_edit_id})."
             # Clear Form
             form_data = { 'template_id': template_id }
 
@@ -5593,6 +5604,10 @@ def fetch_record():
         logger.info(f"Fetching record for unique_id: {unique_id} (raw: {unique_id_raw}), found: {student}")
         
         if student:
+            if _is_admin_session():
+                edit_url = url_for('edit_student', student_id=student.id)
+                return jsonify({"success": True, "edit_url": edit_url})
+
             session_email = session.get('student_email')
             if not _student_school_access_allowed(student.school_name):
                 logger.warning(
