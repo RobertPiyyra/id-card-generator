@@ -7323,22 +7323,22 @@ def update_font():
                 "align_label_colon": (request.form.get("align_label_colon", "off").strip().lower() in {"1", "true", "yes", "on"}),
                 "label_colon_gap": int(request.form.get("label_colon_gap", 8)),
             }
-                
-                # --- FIX: Clear layout_config fields on legacy font save ---
-                template = db.session.get(Template, template_id)
-                if template:
-                    for side_attr in ['layout_config', 'back_layout_config']:
-                        config_str = getattr(template, side_attr)
-                        if config_str:
-                            try:
-                                cfg = json.loads(config_str)
-                                if "fields" in cfg:
-                                    cfg["fields"] = {}
-                                    setattr(template, side_attr, json.dumps(cfg))
-                            except Exception:
-                                pass
-                # -----------------------------------------------------------
-                
+            
+            # --- FIX: Clear layout_config fields on legacy font save ---
+            template = db.session.get(Template, template_id)
+            if template:
+                for side_attr in ['layout_config', 'back_layout_config']:
+                    config_str = getattr(template, side_attr)
+                    if config_str:
+                        try:
+                            cfg = json.loads(config_str)
+                            if "fields" in cfg:
+                                cfg["fields"] = {}
+                                setattr(template, side_attr, json.dumps(cfg))
+                        except Exception:
+                            pass
+            # -----------------------------------------------------------
+            
             update_template_settings(template_id, font_settings=font_settings)
             return redirect(url_for("admin", success="Font settings updated successfully"))
         else:
