@@ -157,7 +157,7 @@ def get_redis_client():
         return None
 
     if redis_client is None:
-        last_exc = None
+        failures = []
         for redis_url in candidates:
             try:
                 candidate = Redis.from_url(
@@ -174,19 +174,31 @@ def get_redis_client():
                 if redis_url == REDIS_URL:
                     logger.info("Connected to Redis using REDIS_URL.")
                 else:
+                    for label, failure_exc, failure_hint in failures:
+                        logger.info(
+                            "Redis connection attempt failed for %s but fallback recovered: %s%s",
+                            label,
+                            failure_exc,
+                            failure_hint,
+                        )
                     logger.info("Connected to Redis using REDIS_PUBLIC_URL fallback.")
                 break
             except Exception as exc:
-                last_exc = exc
-                logger.warning(
-                    "Redis connection attempt failed for %s: %s%s",
+                failures.append((
                     "REDIS_URL" if redis_url == REDIS_URL else "REDIS_PUBLIC_URL",
                     exc,
                     _redis_connection_hint(redis_url),
-                )
+                ))
         if redis_client is None:
             _redis_last_error_at = now
             _active_redis_url = None
+            for label, failure_exc, failure_hint in failures:
+                logger.warning(
+                    "Redis connection attempt failed for %s: %s%s",
+                    label,
+                    failure_exc,
+                    failure_hint,
+                )
             logger.warning("Redis unavailable; continuing without Redis cache/queue.")
 
     return redis_client

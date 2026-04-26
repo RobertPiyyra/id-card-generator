@@ -35,7 +35,8 @@ flask_sqlalchemy==3.1.1
 # Pillow >=11 is required for reliable Python 3.13 builds
 Pillow==10.4.0; python_version < "3.13"
 Pillow>=11.0.0; python_version >= "3.13"
-mediapipe==0.10.32
+# MediaPipe 0.10.31+ removed the legacy `mediapipe.solutions` API used by this app.
+mediapipe==0.10.21
 requests
 
 # -------------------------
