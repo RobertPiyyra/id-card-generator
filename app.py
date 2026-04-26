@@ -4291,14 +4291,18 @@ def generate_student_preview(student_id):
                     if photo_img is None:
                         logger.error(f"Failed to load photo for student {getattr(student, 'id', 'unknown')}, using placeholder")
                         if os.path.exists(PLACEHOLDER_PATH):
+                            ph_w = int(float(photo_settings.get("photo_width", 100) or 100))
+                            ph_h = int(float(photo_settings.get("photo_height", 100) or 100))
                             photo_img = Image.open(PLACEHOLDER_PATH).convert("RGBA")
-                            photo_img = ImageOps.fit(photo_img, (photo_settings["photo_width"], photo_settings["photo_height"]), Image.Resampling.LANCZOS)
+                            photo_img = ImageOps.fit(
+                                photo_img, (ph_w, ph_h), Image.Resampling.LANCZOS
+                            )
                     if photo_img:
                         radii = [
-                            photo_settings.get("photo_border_top_left", 0),
-                            photo_settings.get("photo_border_top_right", 0),
-                            photo_settings.get("photo_border_bottom_right", 0),
-                            photo_settings.get("photo_border_bottom_left", 0)
+                            int(float(photo_settings.get("photo_border_top_left", 0) or 0)),
+                            int(float(photo_settings.get("photo_border_top_right", 0) or 0)),
+                            int(float(photo_settings.get("photo_border_bottom_right", 0) or 0)),
+                            int(float(photo_settings.get("photo_border_bottom_left", 0) or 0))
                         ]
                         photo_img = round_photo(photo_img, radii)
                         template_img.paste(photo_img, (photo_settings["photo_x"], photo_settings["photo_y"]), photo_img)
@@ -5254,10 +5258,14 @@ def index():
                     if ph is None:
                         logger.error(f"Failed to load photo for photo_subject, using placeholder")
                         if os.path.exists(PLACEHOLDER_PATH):
+                            ph_w = int(float(photo_settings.get("photo_width", 100) or 100))
+                            ph_h = int(float(photo_settings.get("photo_height", 100) or 100))
                             ph = Image.open(PLACEHOLDER_PATH).convert("RGBA")
-                            ph = ImageOps.fit(ph, (photo_settings["photo_width"], photo_settings["photo_height"]), Image.Resampling.LANCZOS)
+                            ph = ImageOps.fit(
+                                ph, (ph_w, ph_h), Image.Resampling.LANCZOS
+                            )
                     if ph:
-                        radii = [photo_settings.get(f"photo_border_{k}", 0) for k in ["top_left", "top_right", "bottom_right", "bottom_left"]]
+                        radii = [int(float(photo_settings.get(f"photo_border_{k}", 0) or 0)) for k in ["top_left", "top_right", "bottom_right", "bottom_left"]]
                         ph = round_photo(ph, radii)
                         template_img.paste(ph, (photo_settings["photo_x"], photo_settings["photo_y"]), ph)
                 except Exception as e:
@@ -6236,14 +6244,18 @@ def edit_student(student_id):
                     if photo_img is None:
                         logger.error(f"Failed to load photo for photo_subject, using placeholder")
                         if os.path.exists(PLACEHOLDER_PATH):
+                            ph_w = int(float(photo_settings.get("photo_width", 100) or 100))
+                            ph_h = int(float(photo_settings.get("photo_height", 100) or 100))
                             photo_img = Image.open(PLACEHOLDER_PATH).convert("RGBA")
-                            photo_img = ImageOps.fit(photo_img, (photo_settings["photo_width"], photo_settings["photo_height"]), Image.Resampling.LANCZOS)
+                            photo_img = ImageOps.fit(
+                                photo_img, (ph_w, ph_h), Image.Resampling.LANCZOS
+                            )
                     if photo_img:
                         radii = [
-                            photo_settings.get("photo_border_top_left", 0),
-                            photo_settings.get("photo_border_top_right", 0),
-                            photo_settings.get("photo_border_bottom_right", 0),
-                            photo_settings.get("photo_border_bottom_left", 0)
+                            int(float(photo_settings.get("photo_border_top_left", 0) or 0)),
+                            int(float(photo_settings.get("photo_border_top_right", 0) or 0)),
+                            int(float(photo_settings.get("photo_border_bottom_right", 0) or 0)),
+                            int(float(photo_settings.get("photo_border_bottom_left", 0) or 0))
                         ]
                         photo_img = round_photo(photo_img, radii)
                         template.paste(photo_img, (photo_settings["photo_x"], photo_settings["photo_y"]), photo_img)
