@@ -3042,6 +3042,8 @@ def _current_session_email():
 
 
 def _student_school_access_allowed(student_school_name):
+    if _is_admin_session() and session.get("admin_role") != "school_admin":
+        return True
     locked_school = _student_session_school_name()
     if not locked_school:
         return True
@@ -4725,12 +4727,18 @@ def index():
     if not school_name and _is_admin_session() and session.get("admin_role") == "school_admin":
         school_name = (session.get("admin_school") or "").strip()
     locked_template = _find_template_dict_by_school(templates, school_name)
-    student_school_locked = locked_template is not None
-    selected_template_id = locked_template["id"] if locked_template else None
-    if student_school_locked:
-        templates = [locked_template]
-    elif school_name:
-        error = f"Your school template '{school_name}' is not available right now. Please contact the administrator."
+    
+    is_super_admin = _is_admin_session() and session.get("admin_role") != "school_admin"
+    if is_super_admin:
+        student_school_locked = False
+        selected_template_id = locked_template["id"] if locked_template else None
+    else:
+        student_school_locked = locked_template is not None
+        selected_template_id = locked_template["id"] if locked_template else None
+        if student_school_locked:
+            templates = [locked_template]
+        elif school_name:
+            error = f"Your school template '{school_name}' is not available right now. Please contact the administrator."
 
     # --- ADDED: Calculate Deadline Info for Display ---
     # Determine which template is active (from form POST or default selection)
