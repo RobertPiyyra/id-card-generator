@@ -158,12 +158,13 @@ CLOUDINARY_API_SECRET=<your Cloudinary API secret>
 Attach Railway Redis and set:
 
 REDIS_URL=<Railway Redis connection URL>
+REDIS_PUBLIC_URL=<Railway public TCP proxy Redis URL>
 
-Redis is optional. If REDIS_URL is missing or Redis is temporarily unavailable, the app skips Redis caching/RQ queueing and continues rendering cards.
+Redis is optional. The app tries REDIS_URL first and automatically falls back to REDIS_PUBLIC_URL when the private Railway hostname is not reachable. If both are unavailable, it skips Redis caching/RQ queueing and continues rendering cards.
 
 Use `redis.railway.internal` only inside Railway services in the same project/environment as Redis. For local testing, use Railway's public TCP proxy URL/REDIS_PUBLIC_URL.
 
-MediaPipe requires native libraries on Railway. nixpacks.toml installs:
+MediaPipe requires native libraries on Railway. The Dockerfile installs:
 
 libgl1
 libglib2.0-0

@@ -94,6 +94,7 @@ warnings.filterwarnings("ignore", message="SymbolDatabase.GetPrototype() is depr
 logger = logging.getLogger(__name__)
 
 REDIS_URL = (os.environ.get("REDIS_URL") or "").strip()
+REDIS_PUBLIC_URL = (os.environ.get("REDIS_PUBLIC_URL") or "").strip()
 REDIS_CACHE_TTL = int(os.environ.get("REDIS_CACHE_TTL", "86400"))
 REDIS_CONNECT_TIMEOUT = float(os.environ.get("REDIS_CONNECT_TIMEOUT", "2"))
 REDIS_SOCKET_TIMEOUT = float(os.environ.get("REDIS_SOCKET_TIMEOUT", "2"))
@@ -102,23 +103,37 @@ redis_client = None
 task_queue = None
 _redis_last_error_at = 0
 _redis_warned_missing_url = False
+_active_redis_url = None
 
 
-def _redis_url_hostname():
+def _redis_url_hostname(redis_url=None):
     try:
-        return urlparse(REDIS_URL).hostname or ""
+        return urlparse(redis_url or REDIS_URL).hostname or ""
     except Exception:
         return ""
 
 
-def _redis_connection_hint():
-    hostname = _redis_url_hostname()
+def _redis_connection_hint(redis_url=None):
+    hostname = _redis_url_hostname(redis_url)
     if hostname.endswith(".railway.internal"):
+        extra = ""
+        if REDIS_PUBLIC_URL:
+            extra = " Falling back to REDIS_PUBLIC_URL when available."
         return (
             " Railway private Redis hosts are reachable only from Railway services "
             "in the same project/environment. Use REDIS_PUBLIC_URL for local tests."
+            + extra
         )
     return ""
+
+
+def _redis_candidate_urls():
+    candidates = []
+    for value in (REDIS_URL, REDIS_PUBLIC_URL):
+        value = (value or "").strip()
+        if value and value not in candidates:
+            candidates.append(value)
+    return candidates
 
 
 def get_redis_client():
@@ -128,11 +143,12 @@ def get_redis_client():
     Redis is optional: if the service is not attached, down, or temporarily
     unreachable, the app skips caching/queueing and continues rendering.
     """
-    global redis_client, _redis_last_error_at, _redis_warned_missing_url
+    global redis_client, _redis_last_error_at, _redis_warned_missing_url, _active_redis_url
 
-    if not REDIS_URL:
+    candidates = _redis_candidate_urls()
+    if not candidates:
         if not _redis_warned_missing_url:
-            logger.warning("REDIS_URL is not set; Redis cache and RQ queue are disabled.")
+            logger.warning("REDIS_URL / REDIS_PUBLIC_URL are not set; Redis cache and RQ queue are disabled.")
             _redis_warned_missing_url = True
         return None
 
@@ -141,35 +157,47 @@ def get_redis_client():
         return None
 
     if redis_client is None:
-        try:
-            candidate = Redis.from_url(
-                REDIS_URL,
-                decode_responses=False,
-                socket_connect_timeout=REDIS_CONNECT_TIMEOUT,
-                socket_timeout=REDIS_SOCKET_TIMEOUT,
-                health_check_interval=30,
-                retry_on_timeout=True,
-            )
-            candidate.ping()
-            redis_client = candidate
-            logger.info("Connected to Redis using REDIS_URL.")
-        except Exception as exc:
+        last_exc = None
+        for redis_url in candidates:
+            try:
+                candidate = Redis.from_url(
+                    redis_url,
+                    decode_responses=False,
+                    socket_connect_timeout=REDIS_CONNECT_TIMEOUT,
+                    socket_timeout=REDIS_SOCKET_TIMEOUT,
+                    health_check_interval=30,
+                    retry_on_timeout=True,
+                )
+                candidate.ping()
+                redis_client = candidate
+                _active_redis_url = redis_url
+                if redis_url == REDIS_URL:
+                    logger.info("Connected to Redis using REDIS_URL.")
+                else:
+                    logger.info("Connected to Redis using REDIS_PUBLIC_URL fallback.")
+                break
+            except Exception as exc:
+                last_exc = exc
+                logger.warning(
+                    "Redis connection attempt failed for %s: %s%s",
+                    "REDIS_URL" if redis_url == REDIS_URL else "REDIS_PUBLIC_URL",
+                    exc,
+                    _redis_connection_hint(redis_url),
+                )
+        if redis_client is None:
             _redis_last_error_at = now
-            logger.warning(
-                "Redis unavailable; continuing without Redis cache/queue: %s%s",
-                exc,
-                _redis_connection_hint(),
-            )
-            redis_client = None
+            _active_redis_url = None
+            logger.warning("Redis unavailable; continuing without Redis cache/queue.")
 
     return redis_client
 
 
 def _mark_redis_unavailable(exc):
-    global redis_client, task_queue, _redis_last_error_at
+    global redis_client, task_queue, _redis_last_error_at, _active_redis_url
     _redis_last_error_at = time.time()
     redis_client = None
     task_queue = None
+    _active_redis_url = None
     logger.warning("Redis operation failed; continuing without Redis temporarily: %s", exc)
 
 
@@ -9291,9 +9319,14 @@ def health_check():
         # Check DB connection
         db.session.execute(text("SELECT 1"))
         redis_status = "disabled"
-        if REDIS_URL:
+        redis_mode = None
+        if _redis_candidate_urls():
             redis_status = "connected" if get_redis_client() is not None else "unavailable"
-        return jsonify({"status": "healthy", "db": "connected", "redis": redis_status}), 200
+            if _active_redis_url == REDIS_URL:
+                redis_mode = "private"
+            elif _active_redis_url == REDIS_PUBLIC_URL:
+                redis_mode = "public_fallback"
+        return jsonify({"status": "healthy", "db": "connected", "redis": redis_status, "redis_mode": redis_mode}), 200
     except Exception as e:
         return jsonify({"status": "unhealthy", "error": str(e)}), 500
 

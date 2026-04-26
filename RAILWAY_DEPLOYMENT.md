@@ -19,15 +19,16 @@ If you use bulk/background jobs, also attach Redis and set:
 
 ```text
 REDIS_URL=<Railway Redis connection URL>
+REDIS_PUBLIC_URL=<Railway public TCP proxy Redis URL>
 ```
 
-The app no longer falls back to `localhost:6379`. If `REDIS_URL` is missing or Redis is temporarily unreachable, Redis caching and RQ queueing are skipped and the app continues running.
+The app no longer falls back to `localhost:6379`. It tries `REDIS_URL` first and automatically falls back to `REDIS_PUBLIC_URL` if the private Railway hostname cannot be reached. If both are unavailable, Redis caching and RQ queueing are skipped and the app continues running.
 
 Use the private `redis.railway.internal` URL only in the Railway app service that lives in the same project and environment as the Redis service. That hostname will not work from your laptop or from a different Railway project/environment. For local testing, use Railway's public TCP proxy URL/`REDIS_PUBLIC_URL` instead.
 
 ## MediaPipe System Packages
 
-MediaPipe needs native OpenGL/GLib libraries on Railway. `nixpacks.toml` installs these apt packages:
+MediaPipe needs native OpenGL/GLib libraries on Railway. The `Dockerfile` installs these apt packages:
 
 ```text
 libgl1
