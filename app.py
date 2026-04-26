@@ -2605,27 +2605,32 @@ def load_student_photo_rgba_prepared(
         return photo_img.copy()
 
     try:
+        photo_img = None
         if photo_url:
             logger.info(f"Loading student photo from URL: {photo_url}")
             response = requests.get(photo_url, timeout=timeout)
             response.raise_for_status()
             photo_img = _load_detached_image(response.content)
-        elif local_path and os.path.exists(local_path):
+
+        if photo_img is None and local_path and os.path.exists(local_path):
             try:
                 if os.path.getsize(local_path) <= 0:
                     logger.warning("Student photo file is empty: %s", local_path)
                     local_path = None
             except OSError:
                 local_path = None
-        if local_path and os.path.exists(local_path):
+
+        if photo_img is None and local_path and os.path.exists(local_path):
             logger.info(f"Loading student photo from local path: {local_path}")
             with open(local_path, "rb") as fh:
                 photo_img = _load_detached_image(fh.read())
-        elif allow_placeholder and os.path.exists(PLACEHOLDER_PATH):
+
+        if photo_img is None and allow_placeholder and os.path.exists(PLACEHOLDER_PATH):
             logger.info(f"Loading placeholder photo: {PLACEHOLDER_PATH}")
             with open(PLACEHOLDER_PATH, "rb") as fh:
                 photo_img = _load_detached_image(fh.read())
-        else:
+
+        if photo_img is None:
             logger.error("No photo source available and placeholder not allowed or missing")
             return None
 
