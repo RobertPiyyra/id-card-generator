@@ -2900,7 +2900,8 @@ def add_template_cloudinary(
         db.session.add(template)
         db.session.commit()
         
-        logger.info(f"Added Cloudinary template: {template_url[:50]}... ({width}x{height})")
+        safe_url = str(template_url or "Local Fallback")
+        logger.info(f"Added Cloudinary template: {safe_url[:50]}... ({width}x{height})")
         return template.id
     except Exception as e:
         db.session.rollback()
@@ -7322,6 +7323,22 @@ def update_font():
                 "align_label_colon": (request.form.get("align_label_colon", "off").strip().lower() in {"1", "true", "yes", "on"}),
                 "label_colon_gap": int(request.form.get("label_colon_gap", 8)),
             }
+                
+                # --- FIX: Clear layout_config fields on legacy font save ---
+                template = db.session.get(Template, template_id)
+                if template:
+                    for side_attr in ['layout_config', 'back_layout_config']:
+                        config_str = getattr(template, side_attr)
+                        if config_str:
+                            try:
+                                cfg = json.loads(config_str)
+                                if "fields" in cfg:
+                                    cfg["fields"] = {}
+                                    setattr(template, side_attr, json.dumps(cfg))
+                            except Exception:
+                                pass
+                # -----------------------------------------------------------
+                
             update_template_settings(template_id, font_settings=font_settings)
             return redirect(url_for("admin", success="Font settings updated successfully"))
         else:
@@ -8678,6 +8695,16 @@ def bulk_generate():
     
     template_id = int(template_id_raw)
     
+    # --- RBAC / School Lock Bypass Logic ---
+    template_obj = db.session.get(Template, template_id)
+    if not template_obj:
+        return jsonify({"success": False, "error": "Template not found", "errors": ["Template not found"]}), 404
+        
+    is_super_admin = session.get("admin_role") != "school_admin"
+    if not is_super_admin and template_obj.school_name != session.get("admin_school"):
+        return jsonify({"success": False, "error": "You can only bulk generate cards for your assigned school.", "errors": ["Unauthorized school"]}), 403
+    # ---------------------------------------
+
     if 'excel_file' not in request.files:
         return jsonify({"success": False, "error": "No Excel file uploaded", "errors": ["No Excel file uploaded"]}), 400
         
@@ -8800,6 +8827,10 @@ def preview_bulk_template(template_id):
     if not template:
         return jsonify({"success": False, "error": "Template not found"}), 404
     
+    is_super_admin = session.get("admin_role") != "school_admin"
+    if not is_super_admin and template.school_name != session.get("admin_school"):
+        return jsonify({"success": False, "error": "You can only access templates for your assigned school."}), 403
+
     # Get dynamic fields - FIXED
     dynamic_fields = TemplateField.query.filter_by(
         template_id=template_id
