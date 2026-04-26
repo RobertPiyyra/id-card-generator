@@ -563,9 +563,9 @@ def _render_qr_and_barcode(template_img, qr_settings, student_like, student_id, 
     qr_id = _build_qr_hash(student_like)
     if include_qr and qr_settings.get('enable_qr', False):
         qr_payload = _build_payload(qr_settings, student_like, student_id, school_name, 'qr')
-        qr_size = max(1, int(round(qr_settings.get('qr_size', 120) * scale)))
-        qr_x = int(round(qr_settings.get('qr_x', 50) * scale))
-        qr_y = int(round(qr_settings.get('qr_y', 50) * scale))
+        qr_size = max(1, int(round(float(qr_settings.get('qr_size', 120) or 120) * scale)))
+        qr_x = int(round(float(qr_settings.get('qr_x', 50) or 50) * scale))
+        qr_y = int(round(float(qr_settings.get('qr_y', 50) or 50) * scale))
         qr_img = _get_cached_qr_image(qr_payload, qr_settings, qr_size)
         try:
             template_img.paste(qr_img, (qr_x, qr_y))
@@ -574,10 +574,10 @@ def _render_qr_and_barcode(template_img, qr_settings, student_like, student_id, 
 
     if include_barcode and qr_settings.get('enable_barcode', False):
         barcode_payload = _build_payload(qr_settings, student_like, student_id, school_name, 'barcode')
-        barcode_w = max(40, int(round(qr_settings.get('barcode_width', 220) * scale)))
-        barcode_h = max(30, int(round(qr_settings.get('barcode_height', 70) * scale)))
-        barcode_x = int(round(qr_settings.get('barcode_x', 50) * scale))
-        barcode_y = int(round(qr_settings.get('barcode_y', 200) * scale))
+        barcode_w = max(40, int(round(float(qr_settings.get('barcode_width', 220) or 220) * scale)))
+        barcode_h = max(30, int(round(float(qr_settings.get('barcode_height', 70) or 70) * scale)))
+        barcode_x = int(round(float(qr_settings.get('barcode_x', 50) or 50) * scale))
+        barcode_y = int(round(float(qr_settings.get('barcode_y', 200) or 200) * scale))
         barcode_img = _get_cached_barcode_image(barcode_payload, qr_settings, barcode_w, barcode_h)
         try:
             template_img.paste(barcode_img, (barcode_x, barcode_y))
@@ -586,15 +586,15 @@ def _render_qr_and_barcode(template_img, qr_settings, student_like, student_id, 
 
 
 def _photo_settings_dimensions(photo_settings, scale=1.0):
-    photo_w = max(1, int(round(photo_settings.get('photo_width', 0) * scale)))
-    photo_h = max(1, int(round(photo_settings.get('photo_height', 0) * scale)))
-    photo_x = int(round(photo_settings.get('photo_x', 0) * scale))
-    photo_y = int(round(photo_settings.get('photo_y', 0) * scale))
+    photo_w = max(1, int(round(float(photo_settings.get('photo_width', 0) or 0) * scale)))
+    photo_h = max(1, int(round(float(photo_settings.get('photo_height', 0) or 0) * scale)))
+    photo_x = int(round(float(photo_settings.get('photo_x', 0) or 0) * scale))
+    photo_y = int(round(float(photo_settings.get('photo_y', 0) or 0) * scale))
     radii = [
-        int(round(photo_settings.get('photo_border_top_left', 0) * scale)),
-        int(round(photo_settings.get('photo_border_top_right', 0) * scale)),
-        int(round(photo_settings.get('photo_border_bottom_right', 0) * scale)),
-        int(round(photo_settings.get('photo_border_bottom_left', 0) * scale)),
+        int(round(float(photo_settings.get('photo_border_top_left', 0) or 0) * scale)),
+        int(round(float(photo_settings.get('photo_border_top_right', 0) or 0) * scale)),
+        int(round(float(photo_settings.get('photo_border_bottom_right', 0) or 0) * scale)),
+        int(round(float(photo_settings.get('photo_border_bottom_left', 0) or 0) * scale)),
     ]
     return photo_w, photo_h, photo_x, photo_y, radii
 

@@ -1078,7 +1078,7 @@ def round_photo(image, radii):
     """
     image = image.convert("RGBA")
     w, h = image.size
-    tl, tr, br, bl = radii
+    tl, tr, br, bl = [int(float(r or 0)) for r in radii]
 
     # 1. Start with a completely Opaque (White) mask
     # This means "Show the whole image" by default

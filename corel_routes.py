@@ -736,8 +736,8 @@ def _draw_editable_media_overlays(
 
     if photo_settings.get("enable_photo", True):
         try:
-            photo_w_px = max(1, int(photo_settings.get("photo_width", 100) or 100))
-            photo_h_px = max(1, int(photo_settings.get("photo_height", 100) or 100))
+            photo_w_px = max(1, int(float(photo_settings.get("photo_width", 100) or 100)))
+            photo_h_px = max(1, int(float(photo_settings.get("photo_height", 100) or 100)))
             photo_img = None
             try:
                 photo_img = load_student_photo_rgba_fn(
@@ -778,10 +778,10 @@ def _draw_editable_media_overlays(
                     photo_img = ImageOps.fit(photo_img, (photo_w_px, photo_h_px), Image.Resampling.LANCZOS)
             if photo_img is not None:
                 radii = [
-                    int(photo_settings.get("photo_border_top_left", 0) or 0),
-                    int(photo_settings.get("photo_border_top_right", 0) or 0),
-                    int(photo_settings.get("photo_border_bottom_right", 0) or 0),
-                    int(photo_settings.get("photo_border_bottom_left", 0) or 0),
+                    int(float(photo_settings.get("photo_border_top_left", 0) or 0)),
+                    int(float(photo_settings.get("photo_border_top_right", 0) or 0)),
+                    int(float(photo_settings.get("photo_border_bottom_right", 0) or 0)),
+                    int(float(photo_settings.get("photo_border_bottom_left", 0) or 0)),
                 ]
                 if photo_img.mode != "RGBA":
                     photo_img = photo_img.convert("RGBA")
