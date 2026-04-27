@@ -4793,25 +4793,26 @@ def index():
     # --------------------------------------------------
 
     if request.method == "POST":
+        template_id = None
         try:
-            # === LIMIT CHECK: Only super admin bypasses the 3-card limit ===
+            # === LIMIT CHECK: Admins bypass, users limited to 3 ===
             is_editing = 'edit_student_id' in session
-            is_super_admin = session.get("admin_role") == "super_admin"
+            is_admin = session.get("admin") == True
             
-            if not is_editing and not is_super_admin and session.get('student_email'):
+            if not is_editing and not is_admin and session.get('student_email'):
                 count = Student.query.filter_by(email=session.get('student_email')).count()
                 
                 # Limit is set to 3 cards
                 if count >= 3:
                     return render_template("index.html", 
-                                           error="⚠️ Limit Reached: You can only generate 3 ID cards per account.", 
+                                           error="You have reached your limit (3 cards).", 
                                            templates=templates, 
                                            form_data=request.form, 
                                            selected_template_id=int(request.form.get("template_id", 0)),
-                                           deadline_info=deadline_info), 403 # Added deadline_info
+                                           deadline_info=deadline_info), 403
             
             if is_admin and not is_editing:
-                logger.info("Admin session bypassed the 3-card generation limit.")
+                logger.info("Admin bypassed the 3-card generation limit.")
             # === END LIMIT CHECK ===
 
             # 1. Get Template ID
@@ -4823,7 +4824,11 @@ def index():
             
                 template_id = student.template_id   # ✅ ONLY SOURCE
             else:
-                posted_template_id = int(request.form.get("template_id", 0))
+                posted_template_id = request.form.get("template_id", "0")
+                try:
+                    posted_template_id = int(posted_template_id)
+                except ValueError:
+                    posted_template_id = 0
                 template_id = selected_template_id if student_school_locked else posted_template_id
                 if student_school_locked and posted_template_id and posted_template_id != selected_template_id:
                     logger.warning(
@@ -4832,7 +4837,7 @@ def index():
                         posted_template_id,
                         selected_template_id,
                     )
-            
+
             if not template_id:
                 raise ValueError("Please select a valid school template.")
 
@@ -5591,8 +5596,9 @@ NOOR GRAPHICS AND PRINTERS
         except Exception as e:
             error = f"Error: {str(e)}"
             logger.error(error)
+            safe_template_id = template_id if template_id else selected_template_id
             return render_template("index.html", error=error, templates=templates, 
-                                   form_data=request.form, selected_template_id=template_id,
+                                   form_data=request.form, selected_template_id=safe_template_id,
                                    deadline_info=deadline_info), 500 # Added deadline_info
 
     return render_template("index.html", generated_url=generated_url, back_generated_url=back_generated_url, download_url=download_url,

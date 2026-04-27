@@ -2057,6 +2057,7 @@
 
        // Form submit handler for generation message
        document.getElementById('fetchForm').addEventListener('submit', function(event) {
+           event.preventDefault(); // Prevent immediate submit
            // Show loading message
            const messageDiv = document.createElement('div');
            messageDiv.id = 'generationMessage';
@@ -2072,7 +2073,12 @@
            document.body.appendChild(messageDiv);
            
            // Prevent navigation
-           window.onbeforeunload = function() { return "Your card is being generated. Please wait until it completes."; };
+           window.onbeforeunload = function() { return "Your card is being generated. Please wait."; };
+           
+           // Submit the form after a short delay to show the message
+           setTimeout(() => {
+               document.getElementById('fetchForm').submit();
+           }, 1000);
        });
 
     </script>
