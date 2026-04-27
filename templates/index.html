@@ -1037,6 +1037,15 @@
                             </option>
                             {% endfor %}
                         </optgroup>
+                        <optgroup label="Madrasa">
+                            {% set madrasa_classes = ['Ibtidai', 'Nazra', 'Hifz', '1st Year Arabic', '2nd Year Arabic', '3rd Year Arabic', '4th Year Arabic', 'Final Year Arabic'] %}
+                            {% for class_name in madrasa_classes %}
+                            <option value="{{ class_name }}"
+                                {% if form_data and form_data.get('class_name') == class_name %}selected{% endif %}>
+                                {{ class_name }}
+                            </option>
+                            {% endfor %}
+                        </optgroup>
                         <optgroup label="Undergraduate">
                             {% set ug_classes = ['B.A. 1st Year', 'B.A. 2nd Year', 'B.A. 3rd Year',
                                                'B.Sc. 1st Year', 'B.Sc. 2nd Year', 'B.Sc. 3rd Year',

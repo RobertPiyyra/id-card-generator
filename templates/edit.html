@@ -547,7 +547,17 @@
 
       <div class="form-group">
         <label for="class_name"><i class="fas fa-graduation-cap"></i>Class:</label>
-        <input id="class_name" type="text" name="class_name" value="{% if form_data and form_data['class_name'] %}{{ form_data['class_name'] }}{% else %}{% endif %}" required minlength="1" maxlength="50" />
+        <input id="class_name" type="text" name="class_name" list="madrasaClasses" value="{% if form_data and form_data['class_name'] %}{{ form_data['class_name'] }}{% else %}{% endif %}" required minlength="1" maxlength="50" />
+        <datalist id="madrasaClasses">
+          <option value="Ibtidai"></option>
+          <option value="Nazra"></option>
+          <option value="Hifz"></option>
+          <option value="1st Year Arabic"></option>
+          <option value="2nd Year Arabic"></option>
+          <option value="3rd Year Arabic"></option>
+          <option value="4th Year Arabic"></option>
+          <option value="Final Year Arabic"></option>
+        </datalist>
       </div>
 
       <div class="form-group">
