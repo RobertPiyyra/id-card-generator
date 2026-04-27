@@ -4798,8 +4798,8 @@ def index():
             is_editing = 'edit_student_id' in session
             is_super_admin = session.get("admin_role") == "super_admin"
             
-            if not is_editing and not is_super_admin:
-                count = Student.query.filter_by(email=session['student_email']).count()
+            if not is_editing and not is_super_admin and session.get('student_email'):
+                count = Student.query.filter_by(email=session.get('student_email')).count()
                 
                 # Limit is set to 3 cards
                 if count >= 3:
