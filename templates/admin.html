@@ -1593,6 +1593,27 @@
                                     <input type="number" name="line_height" id="lineHeight" min="0" max="100">
                                 </div>
                             </div>
+
+                            <div class="form-group">
+                                <label><i class="fas fa-align-left"></i> Address Lines</label>
+                                <div class="checkbox-group">
+                                    <label class="checkbox-label">
+                                        <input type="radio" name="address_max_lines" id="addressLines1" value="1">
+                                        <span>1 Line</span>
+                                    </label>
+                                    <label class="checkbox-label">
+                                        <input type="radio" name="address_max_lines" id="addressLines2" value="2" checked>
+                                        <span>2 Lines</span>
+                                    </label>
+                                    <label class="checkbox-label">
+                                        <input type="radio" name="address_max_lines" id="addressLines3" value="3">
+                                        <span>3 Lines</span>
+                                    </label>
+                                </div>
+                                <small style="color: #666; font-size: 0.8rem;">
+                                    <i class="fas fa-info-circle"></i> Address can wrap to the selected number of lines. Other fields still shrink only when needed.
+                                </small>
+                            </div>
                         </div>
 
                         <div class="settings-section">
@@ -2605,6 +2626,9 @@
                 document.getElementById('valueX').value = fontSettings.value_x || 280;
                 document.getElementById('startY').value = fontSettings.start_y || 275;
                 document.getElementById('lineHeight').value = fontSettings.line_height || 50;
+                const addressLineCount = String(fontSettings.address_max_lines || 2);
+                const addressLineRadio = document.querySelector(`input[name="address_max_lines"][value="${addressLineCount}"]`);
+                if (addressLineRadio) addressLineRadio.checked = true;
                 document.getElementById('textCase').value = fontSettings.text_case || 'normal';
                 document.getElementById('showLabelColon').checked = (fontSettings.show_label_colon !== false);
                 document.getElementById('alignLabelColon').checked = (fontSettings.align_label_colon !== false);
@@ -2745,6 +2769,7 @@
                     value_x: getIntValue('valueX', 280),
                     start_y: getIntValue('startY', 275),
                     line_height: getIntValue('lineHeight', 50),
+                    address_max_lines: parseInt((document.querySelector('input[name="address_max_lines"]:checked') || {}).value || '2', 10),
                     text_case: getStringValue('textCase', 'normal'),
                     show_label_colon: getBoolValue('showLabelColon'),
                     align_label_colon: getBoolValue('alignLabelColon'),

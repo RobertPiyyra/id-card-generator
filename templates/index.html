@@ -109,6 +109,60 @@
             background-color: rgba(51, 153, 255, 0.05);
         }
 
+        .generation-overlay {
+            position: fixed;
+            inset: 0;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            background: rgba(10, 18, 38, 0.72);
+            backdrop-filter: blur(6px);
+            z-index: 5000;
+            padding: 1.5rem;
+        }
+
+        .generation-overlay.active {
+            display: flex;
+        }
+
+        .generation-overlay-card {
+            width: min(420px, 100%);
+            background: #ffffff;
+            color: var(--text-primary);
+            border-radius: 16px;
+            padding: 2rem 1.5rem;
+            box-shadow: 0 24px 60px rgba(0, 0, 0, 0.22);
+            text-align: center;
+        }
+
+        .dark-mode .generation-overlay-card {
+            background: #202638;
+            color: var(--text-light);
+        }
+
+        .generation-overlay-spinner {
+            width: 54px;
+            height: 54px;
+            margin: 0 auto 1rem;
+            border-radius: 50%;
+            border: 5px solid rgba(0, 82, 204, 0.15);
+            border-top-color: var(--primary);
+            animation: spin 0.9s linear infinite;
+        }
+
+        .generation-overlay-card h3 {
+            font-size: 1.2rem;
+            margin-bottom: 0.45rem;
+        }
+
+        .generation-overlay-card p {
+            color: var(--text-secondary);
+        }
+
+        .dark-mode .generation-overlay-card p {
+            color: rgba(228, 228, 228, 0.8);
+        }
+
         /* ===== Navigation ===== */
         .main-nav {
             background: rgba(255, 255, 255, 0.95);
@@ -1212,6 +1266,14 @@
         {% endif %}
     </main>
 
+    <div class="generation-overlay" id="generationOverlay" aria-hidden="true">
+        <div class="generation-overlay-card" role="status" aria-live="polite">
+            <div class="generation-overlay-spinner"></div>
+            <h3>Your card is generating</h3>
+            <p>It takes some moment. Please wait while we prepare your card.</p>
+        </div>
+    </div>
+
     <script>
         // ===== Application State =====
         const AppState = {
@@ -1274,6 +1336,7 @@
             
             // Security
             securityOverlay: document.getElementById('securityOverlay'),
+            generationOverlay: document.getElementById('generationOverlay'),
             
             // Background
             backgroundBubbles: document.getElementById('backgroundBubbles')
@@ -1916,14 +1979,21 @@
                 const submitBtn = elements.submitBtn;
                 const originalContent = submitBtn.innerHTML;
                 
-                submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+                submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
                 submitBtn.disabled = true;
-                
-                // Form will submit normally, just show loading state
-                setTimeout(() => {
+                if (elements.generationOverlay) {
+                    elements.generationOverlay.classList.add('active');
+                    elements.generationOverlay.setAttribute('aria-hidden', 'false');
+                }
+
+                window.addEventListener('pageshow', () => {
                     submitBtn.innerHTML = originalContent;
                     submitBtn.disabled = false;
-                }, 3000);
+                    if (elements.generationOverlay) {
+                        elements.generationOverlay.classList.remove('active');
+                        elements.generationOverlay.setAttribute('aria-hidden', 'true');
+                    }
+                }, { once: true });
             }
         };
 
@@ -2062,32 +2132,6 @@
    
            // Keep the timer updating live every minute
            setInterval(updateDeadlineBanner, 60000);
-       });
-
-       // Form submit handler for generation message
-       document.getElementById('fetchForm').addEventListener('submit', function(event) {
-           event.preventDefault(); // Prevent immediate submit
-           // Show loading message
-           const messageDiv = document.createElement('div');
-           messageDiv.id = 'generationMessage';
-           messageDiv.innerHTML = `
-               <div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 9999; display: flex; align-items: center; justify-content: center; color: white;">
-                   <div style="background: #007bff; padding: 30px; border-radius: 15px; text-align: center; box-shadow: 0 0 20px rgba(0,0,0,0.5);">
-                       <i class="fas fa-spinner fa-spin" style="font-size: 2em; margin-bottom: 10px;"></i>
-                       <h3>Your card is generating, please don't back.</h3>
-                       <p>This may take a few moments...</p>
-                   </div>
-               </div>
-           `;
-           document.body.appendChild(messageDiv);
-           
-           // Prevent navigation
-           window.onbeforeunload = function() { return "Your card is being generated. Please wait."; };
-           
-           // Submit the form after a short delay to show the message
-           setTimeout(() => {
-               document.getElementById('fetchForm').submit();
-           }, 1000);
        });
 
     </script>

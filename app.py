@@ -786,27 +786,17 @@ def _render_student_fields(template_img, template_obj, student_like, font_settin
         ))
 
         if field_key == 'ADDRESS':
-            curr_size = value_font_size_eff
-            min_size = 10
-            wrapped_addr = []
-            while curr_size >= min_size:
-                addr_font = load_font_dynamic(font_reg_path, 'X', 10**9, curr_size, language=lang)
-                avg_char_w = curr_size * 0.50
-                chars_limit = max(5, int(max_w / max(avg_char_w, 1)))
-                wrapped_addr = textwrap.wrap(raw_val, width=chars_limit, break_long_words=True)
-                fits_horizontally = len(wrapped_addr) <= 2
-                if fits_horizontally:
-                    for line in wrapped_addr:
-                        measure_text = process_text_for_drawing(line, lang)
-                        if draw.textlength(measure_text, font=addr_font, **get_draw_text_kwargs(measure_text, lang)) > max_w:
-                            fits_horizontally = False
-                            break
-                if fits_horizontally:
-                    break
-                curr_size -= 2
-            if curr_size < min_size:
-                addr_font = load_font_dynamic(font_reg_path, 'X', 10**9, min_size, language=lang)
-            for line in wrapped_addr[:2]:
+            addr_font, wrapped_addr, curr_size = _fit_address_lines(
+                draw,
+                raw_val,
+                max_w,
+                value_font_size_eff,
+                font_reg_path,
+                language=lang,
+                min_size=10,
+                max_lines=_address_max_lines(font_settings),
+            )
+            for line in wrapped_addr:
                 line_display = process_text_for_drawing(line, lang)
                 if layout_item['value_visible']:
                     value_draw_x = flip_x_for_text_direction(
@@ -1927,27 +1917,17 @@ def build_student_card_text_runs(template_obj, student_like, side="front"):
         ))
 
         if field_key == "ADDRESS":
-            curr_size = value_font_size_eff
-            min_size = 10
-            wrapped_addr = []
-            while curr_size >= min_size:
-                addr_font = load_font_dynamic(font_reg_path, "X", 10**9, curr_size, language=lang)
-                avg_char_w = curr_size * 0.50
-                chars_limit = max(5, int(max_w / max(avg_char_w, 1)))
-                wrapped_addr = textwrap.wrap(raw_val, width=chars_limit, break_long_words=True)
-                fits_horizontally = len(wrapped_addr) <= 2
-                if fits_horizontally:
-                    for line in wrapped_addr:
-                        measure_text = process_text_for_drawing(line, lang)
-                        if draw.textlength(measure_text, font=addr_font, **get_draw_text_kwargs(measure_text, lang)) > max_w:
-                            fits_horizontally = False
-                            break
-                if fits_horizontally:
-                    break
-                curr_size -= 2
-            if curr_size < min_size:
-                addr_font = load_font_dynamic(font_reg_path, "X", 10**9, min_size, language=lang)
-            for line in wrapped_addr[:2]:
+            addr_font, wrapped_addr, curr_size = _fit_address_lines(
+                draw,
+                raw_val,
+                max_w,
+                value_font_size_eff,
+                font_reg_path,
+                language=lang,
+                min_size=10,
+                max_lines=_address_max_lines(font_settings),
+            )
+            for line in wrapped_addr:
                 line_display = process_text_for_drawing(line, lang)
                 if layout_item["value_visible"]:
                     value_draw_x = flip_x_for_text_direction(
@@ -2913,10 +2893,9 @@ def get_templates():
     try:
         query = db.session.query(Template).order_by(Template.created_at.desc())
         
-        # RBAC Filtering: School admins only see their assigned school
-        if session.get("admin") and session.get("admin_role") == "school_admin":
-            if session.get("admin_school"):
-                query = query.filter_by(school_name=session.get("admin_school"))
+        # RBAC Filtering: only scoped admins are locked to one school.
+        if _admin_is_school_scoped():
+            query = query.filter_by(school_name=session.get("admin_school"))
                 
         templates = query.all()
         result = []
@@ -3038,17 +3017,75 @@ def _is_admin_session():
     return bool(session.get("admin"))
 
 
+def _admin_is_school_scoped():
+    return bool(
+        _is_admin_session()
+        and session.get("admin_role") == "school_admin"
+        and (session.get("admin_school") or "").strip()
+    )
+
+
 def _current_session_email():
     return (session.get("student_email") or "").strip().lower()
 
 
 def _student_school_access_allowed(student_school_name):
-    if _is_admin_session() and session.get("admin_role") != "school_admin":
+    if _is_admin_session() and not _admin_is_school_scoped():
         return True
     locked_school = _student_session_school_name()
     if not locked_school:
         return True
     return _normalize_school_name(locked_school) == _normalize_school_name(student_school_name)
+
+
+def _address_max_lines(font_settings):
+    try:
+        return max(1, min(3, int((font_settings or {}).get("address_max_lines", 2) or 2)))
+    except Exception:
+        return 2
+
+
+def _fit_address_lines(draw, raw_value, max_width, start_size, font_path, language="english", min_size=10, max_lines=2):
+    raw_text = str(raw_value or "").strip()
+    if not raw_text:
+        return load_font_dynamic(font_path, "X", 10**9, max(start_size, min_size), language=language), [], max(start_size, min_size)
+
+    best_font = load_font_dynamic(font_path, "X", 10**9, min_size, language=language)
+    best_lines = [raw_text]
+    best_size = min_size
+    current_size = max(start_size, min_size)
+
+    while current_size >= min_size:
+        candidate_font = load_font_dynamic(font_path, "X", 10**9, current_size, language=language)
+        avg_char_w = max(1.0, current_size * 0.50)
+        chars_limit = max(5, int(max_width / avg_char_w))
+        candidate_lines = textwrap.wrap(raw_text, width=chars_limit, break_long_words=True)
+        if not candidate_lines:
+            candidate_lines = [raw_text]
+
+        fits = len(candidate_lines) <= max_lines
+        if fits:
+            for line in candidate_lines:
+                shaped = process_text_for_drawing(line, language)
+                if draw.textlength(shaped, font=candidate_font, **get_draw_text_kwargs(shaped, language)) > max_width:
+                    fits = False
+                    break
+
+        if fits:
+            return candidate_font, candidate_lines[:max_lines], current_size
+
+        best_font = candidate_font
+        best_lines = candidate_lines[:max_lines]
+        best_size = current_size
+        current_size -= 2
+
+    return best_font, best_lines[:max_lines], best_size
+
+
+def _admin_can_access_school(target_school_name):
+    if not _admin_is_school_scoped():
+        return True
+    return _normalize_school_name(target_school_name) == _normalize_school_name(session.get("admin_school"))
 
 
 def store_template_upload_asset(file_storage, *, side_label):
@@ -3392,8 +3429,9 @@ def _detect_face_crop_box(pil_img, target_width, target_height):
         face_cy = int((box.ymin + (box.height / 2.0)) * h_orig)
 
         target_ratio = float(target_width) / float(max(1, target_height))
-        face_to_image_ratio = 0.45
-        face_center_y_ratio = 0.51
+        # Keep more headroom so turbans and hijabs are less likely to clip.
+        face_to_image_ratio = 0.38
+        face_center_y_ratio = 0.58
         crop_h = max(1, int(round(face_h / face_to_image_ratio)))
         crop_w = max(1, int(round(crop_h * target_ratio)))
 
@@ -4729,11 +4767,11 @@ def index():
     
     # Auto-select template based on school name
     school_name = _student_session_school_name()
-    if not school_name and _is_admin_session() and session.get("admin_role") == "school_admin":
+    if not school_name and _admin_is_school_scoped():
         school_name = (session.get("admin_school") or "").strip()
     locked_template = _find_template_dict_by_school(templates, school_name)
     
-    is_super_admin = _is_admin_session() and session.get("admin_role") != "school_admin"
+    is_super_admin = _is_admin_session() and not _admin_is_school_scoped()
     if is_super_admin:
         student_school_locked = False
         selected_template_id = locked_template["id"] if locked_template else None
@@ -5142,51 +5180,18 @@ def index():
                     min_width=20,
                 ))
 
-                # --- SPECIAL LOGIC FOR ADDRESS: FIT IN 2 LINES (FIXED) ---
                 if item['label'] == labels_map['ADDRESS']:
-                    # Start shrinking logic
-                    curr_size = value_font_size_eff
-                    min_size = 10 
-                    wrapped_addr = []
-                    
-                    # We need the path to reload font for accurate measurement
-                    addr_font_path = FONT_REG 
-
-                    while curr_size >= min_size:
-                        # 1. Load font at this specific size to measure
-                        temp_font = load_font_dynamic(addr_font_path, "X", 10**9, curr_size, language=lang)
-
-                        # 2. Heuristic wrapping
-                        avg_char_w = curr_size * 0.50
-                        chars_limit = int(max_w / avg_char_w)
-                        if chars_limit < 5: chars_limit = 5 
-
-                        wrapped_addr = textwrap.wrap(raw_val, width=chars_limit, break_long_words=True)
-                        
-                        # 3. Check pixel width of every line
-                        fits_horizontally = True
-                        if len(wrapped_addr) <= 2:
-                            for line in wrapped_addr:
-                                # Shape text for accurate length measurement (Urdu/Arabic support)
-                                measure_text = process_text_for_drawing(line, lang)
-                                if draw.textlength(measure_text, font=temp_font, **get_draw_text_kwargs(measure_text, lang)) > max_w:
-                                    fits_horizontally = False
-                                    break
-                            
-                            if fits_horizontally:
-                                # It fits! Use this font
-                                addr_font = temp_font
-                                break
-                        
-                        # Decrease size and try again
-                        curr_size -= 2
-                    
-                    # Fallback if loop finishes without finding a fit
-                    if 'addr_font' not in locals():
-                        addr_font = load_font_dynamic(addr_font_path, "X", 10**9, min_size, language=lang)
-
-                    # Draw up to 2 lines
-                    for line in wrapped_addr[:2]:
+                    addr_font, wrapped_addr, curr_size = _fit_address_lines(
+                        draw,
+                        raw_val,
+                        max_w,
+                        value_font_size_eff,
+                        FONT_REG,
+                        language=lang,
+                        min_size=10,
+                        max_lines=_address_max_lines(font_settings),
+                    )
+                    for line in wrapped_addr:
                         line_display = process_text_for_drawing(line, lang)
                         # Use slightly tighter spacing if we shrunk the font significantly
                         spacing = line_height if curr_size > 20 else curr_size + 5
@@ -6096,7 +6101,7 @@ def edit_student(student_id):
                     min_width=20,
                 ))
                 
-                # --- ADDRESS LOGIC (PIXEL-ACCURATE, MAX 2 LINES) ---
+                # --- ADDRESS LOGIC (PIXEL-ACCURATE, TEMPLATE-CONTROLLED LINES) ---
                 if field_key == "ADDRESS" or lbl == "ADDRESS":
                     if layout_item["label_visible"]:
                         draw.text(
@@ -6147,8 +6152,8 @@ def edit_student(student_id):
                         if current_line:
                             lines.append(current_line)
                 
-                        # Stop if it fits in 2 lines
-                        if len(lines) <= 2:
+                        # Stop when it fits within the configured number of lines.
+                        if len(lines) <= _address_max_lines(font_settings):
                             wrapped_addr = lines
                             break
                 
@@ -6156,10 +6161,10 @@ def edit_student(student_id):
                 
                     # Fallback if still too long
                     if not wrapped_addr:
-                        wrapped_addr = lines[:2]
+                        wrapped_addr = lines[:_address_max_lines(font_settings)]
                 
                     # Draw address lines
-                    for line in wrapped_addr[:2]:
+                    for line in wrapped_addr:
                         line_display = process_text_for_drawing(line, lang)
                         if layout_item["value_visible"]:
                             value_draw_x = flip_x_for_text_direction(
@@ -6529,8 +6534,7 @@ def admin():
     
     try:
         if session.get("admin"):
-            # RBAC: Super admin sees all, School admin sees only their school
-            if session.get("admin_role") == "school_admin":
+            if _admin_is_school_scoped():
                 rows = db.session.query(Student).filter_by(school_name=session.get("admin_school")).order_by(Student.created_at.desc()).all()
             else:
                 rows = db.session.query(Student).order_by(Student.created_at.desc()).all()
@@ -6663,7 +6667,7 @@ def upload_template():
         return redirect(url_for("admin", error="Front template file and school name are required"))
         
     # Enforce RBAC for School Admins (can only upload to their assigned school)
-    if session.get("admin_role") == "school_admin" and school_name != session.get("admin_school"):
+    if not _admin_can_access_school(school_name):
         return redirect(url_for("admin", error="You can only upload templates for your assigned school."))
     
     file = front_file
@@ -6984,6 +6988,7 @@ def update_template_settings_route():
                 "value_x": safe_get_int(font_settings_data, "value_x", default_value_x),
                 "start_y": safe_get_int(font_settings_data, "start_y", default_start_y),
                 "line_height": safe_get_int(font_settings_data, "line_height", default_line_height),
+                "address_max_lines": max(1, min(3, safe_get_int(font_settings_data, "address_max_lines", 2))),
                 "text_case": safe_get_nested(font_settings_data, "text_case", default="normal"),
                 "show_label_colon": safe_get_bool(font_settings_data, "show_label_colon", True),
                 "align_label_colon": safe_get_bool(font_settings_data, "align_label_colon", True),
@@ -7041,6 +7046,7 @@ def update_template_settings_route():
                 "value_x": get_form_int(request.form, "value_x", default_value_x),
                 "start_y": get_form_int(request.form, "start_y", default_start_y),
                 "line_height": get_form_int(request.form, "line_height", default_line_height),
+                "address_max_lines": max(1, min(3, get_form_int(request.form, "address_max_lines", 2))),
                 "text_case": request.form.get("text_case", "normal"),
                 # Unchecked checkboxes are omitted from form posts.
                 "show_label_colon": (request.form.get("show_label_colon", "off").strip().lower() in {"1", "true", "yes", "on"}),
@@ -7347,21 +7353,6 @@ def update_font():
                 "label_colon_gap": int(request.form.get("label_colon_gap", 8)),
             }
             
-            # --- FIX: Clear layout_config fields on legacy font save ---
-            template = db.session.get(Template, template_id)
-            if template:
-                for side_attr in ['layout_config', 'back_layout_config']:
-                    config_str = getattr(template, side_attr)
-                    if config_str:
-                        try:
-                            cfg = json.loads(config_str)
-                            if "fields" in cfg:
-                                cfg["fields"] = {}
-                                setattr(template, side_attr, json.dumps(cfg))
-                        except Exception:
-                            pass
-            # -----------------------------------------------------------
-            
             update_template_settings(template_id, font_settings=font_settings)
             return redirect(url_for("admin", success="Font settings updated successfully"))
         else:
@@ -7448,7 +7439,7 @@ def delete_student(student_id):
             return redirect(url_for("admin", error="Student not found"))
         
         # Enforce RBAC
-        if session.get("admin_role") == "school_admin" and student.school_name != session.get("admin_school"):
+        if not _admin_can_access_school(student.school_name):
             return redirect(url_for("admin", error="Unauthorized to delete student from this school."))
 
         # Save name for logging before deletion
@@ -7562,7 +7553,7 @@ def remove_template(template_id):
             return redirect(url_for("admin", error="Template not found"))
         
         # Enforce RBAC
-        if session.get("admin_role") == "school_admin" and template.school_name != session.get("admin_school"):
+        if not _admin_can_access_school(template.school_name):
             return redirect(url_for("admin", error="Unauthorized to remove template for this school."))
             
         template_path = get_template_path(template_id)
@@ -7830,7 +7821,7 @@ def admin_preview_card():
                     avg_char_w = curr_size * 0.55
                     chars_limit = max(5, int(max_w / max(avg_char_w, 1)))
                     wrapped_addr = safe_wrap_preview(raw_val, chars_limit)
-                    if len(wrapped_addr) <= 2: break
+                    if len(wrapped_addr) <= _address_max_lines(font_settings): break
                     curr_size -= 2
                 
                 # Load safe font for address using real shaped text (better glyph matching)
@@ -7841,7 +7832,7 @@ def admin_preview_card():
                     display_val,
                 )
 
-                for line in wrapped_addr[:2]:
+                for line in wrapped_addr[:_address_max_lines(font_settings)]:
                     line_display = process_text_for_drawing(line, lang)
                     spacing = line_height if curr_size > 20 else curr_size + 5
                     if layout_item["value_visible"]:
@@ -8853,8 +8844,7 @@ def preview_bulk_template(template_id):
     if not template:
         return jsonify({"success": False, "error": "Template not found"}), 404
     
-    is_super_admin = session.get("admin_role") != "school_admin"
-    if not is_super_admin and template.school_name != session.get("admin_school"):
+    if not _admin_can_access_school(template.school_name):
         return jsonify({"success": False, "error": "You can only access templates for your assigned school."}), 403
 
     # Get dynamic fields - FIXED

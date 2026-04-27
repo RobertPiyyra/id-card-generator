@@ -1,5 +1,5 @@
 from flask import Blueprint, render_template, request, jsonify, session, redirect, url_for, send_file, make_response, current_app
-from models import db, Template, TemplateField, FieldSetting
+from models import db, Template, TemplateField
 from utils import (
     get_template_path,
     load_template_smart,
@@ -45,6 +45,63 @@ def _is_valid_editor_image_token(token, template_id, side):
     return payload == {"template_id": int(template_id), "side": side}
 
 
+def _layout_attr_for_side(side):
+    return "back_layout_config" if side == "back" else "layout_config"
+
+
+def _photo_attr_for_side(side):
+    return "back_photo_settings" if side == "back" else "photo_settings"
+
+
+def _qr_attr_for_side(side):
+    return "back_qr_settings" if side == "back" else "qr_settings"
+
+
+def _get_template_layout_payload(template, side):
+    side_name = _normalize_editor_side(template, side)
+    layout_raw = getattr(template, _layout_attr_for_side(side_name), None)
+    return {
+        "template_id": template.id,
+        "side": side_name,
+        "layout_config": parse_layout_config(layout_raw),
+        "photo_settings": getattr(template, _photo_attr_for_side(side_name), None) or {},
+        "qr_settings": getattr(template, _qr_attr_for_side(side_name), None) or {},
+    }
+
+
+def _save_template_layout_payload(template, side, data):
+    side_name = _normalize_editor_side(template, side)
+    layout_attr = _layout_attr_for_side(side_name)
+    photo_attr = _photo_attr_for_side(side_name)
+    qr_attr = _qr_attr_for_side(side_name)
+
+    parsed_layout = parse_layout_config((data or {}).get("layout_config"))
+    setattr(template, layout_attr, json.dumps(parsed_layout, ensure_ascii=False) if parsed_layout else None)
+
+    if isinstance((data or {}).get("photo_settings"), dict):
+        current_photo = dict(getattr(template, photo_attr, None) or {})
+        incoming_photo = data.get("photo_settings") or {}
+        for key in ("photo_x", "photo_y", "photo_width", "photo_height"):
+            if key in incoming_photo:
+                current_photo[key] = int(incoming_photo.get(key))
+        if "enable_photo" in incoming_photo:
+            current_photo["enable_photo"] = bool(incoming_photo.get("enable_photo"))
+        setattr(template, photo_attr, current_photo)
+
+    if isinstance((data or {}).get("qr_settings"), dict):
+        current_qr = dict(getattr(template, qr_attr, None) or {})
+        incoming_qr = data.get("qr_settings") or {}
+        for key in ("qr_x", "qr_y", "qr_size"):
+            if key in incoming_qr:
+                current_qr[key] = int(incoming_qr.get(key))
+        if "enable_qr" in incoming_qr:
+            current_qr["enable_qr"] = bool(incoming_qr.get("enable_qr"))
+        setattr(template, qr_attr, current_qr)
+
+    db.session.commit()
+    return _get_template_layout_payload(template, side_name)
+
+
 
 # =========================================================
 # 1. Main Editor Page Route
@@ -68,7 +125,7 @@ def template_editor(template_id):
     font_settings = template.back_font_settings if side == "back" else template.font_settings
     photo_settings = template.back_photo_settings if side == "back" else template.photo_settings
     qr_settings = template.back_qr_settings if side == "back" else template.qr_settings
-    layout_config = template.back_layout_config if side == "back" else template.layout_config
+    layout_config = parse_layout_config(template.back_layout_config if side == "back" else template.layout_config)
     language = template.back_language if side == "back" else template.language
     text_direction = template.back_text_direction if side == "back" else template.text_direction
     editor_dynamic_fields = []
@@ -97,7 +154,7 @@ def template_editor(template_id):
         editor_font_settings=font_settings or {},
         editor_photo_settings=photo_settings or {},
         editor_qr_settings=qr_settings or {},
-        editor_layout_config=layout_config or "{}",
+        editor_layout_config=layout_config or {},
         editor_language=(language or "english"),
         editor_text_direction=(text_direction or "ltr"),
         editor_dynamic_fields=editor_dynamic_fields,
@@ -147,46 +204,55 @@ def get_template_image(template_id):
         return "Error processing image", 500
 
 # =========================================================
-# 3. API: Get Individual Field Settings
+# 3. Unified Layout API
 # =========================================================
+@editor_bp.route('/admin/template_layout/<int:template_id>', methods=["GET", "POST"])
+def template_layout_api(template_id):
+    if not session.get("admin"):
+        return jsonify({"error": "Unauthorized"}), 403
+
+    template = db.session.get(Template, template_id)
+    if not template:
+        return jsonify({"error": "Template not found"}), 404
+
+    request_payload = request.get_json(silent=True) or {}
+    side = _normalize_editor_side(template, request.args.get("side") or request_payload.get("settings_side"))
+
+    if request.method == "GET":
+        return jsonify({"success": True, **_get_template_layout_payload(template, side)})
+
+    try:
+        payload = _save_template_layout_payload(template, side, request_payload)
+        return jsonify({"success": True, **payload})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
+
+
 @editor_bp.route('/admin/get_editor_fields/<int:template_id>')
 def get_editor_fields(template_id):
-    """
-    Returns JSON list of all text fields and their positions.
-    If no settings exist, it returns a smart default set.
-    """
-    if not session.get("admin"): return jsonify({"error": "Unauthorized"}), 403
+    if not session.get("admin"):
+        return jsonify({"error": "Unauthorized"}), 403
 
-    # 1. Get saved positions from DB
-    settings = FieldSetting.query.filter_by(template_id=template_id).all()
-    
-    # 2. If no settings exist, return DEFAULTS based on standard ID card layout
-    if not settings:
-        default_fields = [
-            {'key': 'name', 'label': 'Name', 'x': 50, 'y': 100, 'size': 30, 'color': '#000000', 'bold': True},
-            {'key': 'father_name', 'label': 'Father Name', 'x': 50, 'y': 150, 'size': 30, 'color': '#000000', 'bold': False},
-            {'key': 'class', 'label': 'Class', 'x': 50, 'y': 200, 'size': 30, 'color': '#000000', 'bold': False},
-            {'key': 'dob', 'label': 'D.O.B', 'x': 50, 'y': 250, 'size': 30, 'color': '#000000', 'bold': False},
-            {'key': 'phone', 'label': 'Phone', 'x': 50, 'y': 300, 'size': 30, 'color': '#000000', 'bold': False},
-            {'key': 'address', 'label': 'Address', 'x': 50, 'y': 350, 'size': 25, 'color': '#000000', 'bold': False},
-        ]
-        return jsonify(default_fields)
+    template = db.session.get(Template, template_id)
+    if not template:
+        return jsonify({"error": "Template not found"}), 404
 
-    # 3. Serialize stored settings
+    side = _normalize_editor_side(template, request.args.get("side"))
+    payload = _get_template_layout_payload(template, side)
+    fields = payload.get("layout_config", {}).get("fields", {})
     output = []
-    for s in settings:
+    for field_key, field_obj in fields.items():
+        if not isinstance(field_obj, dict):
+            continue
         output.append({
-            'key': s.field_key,
-            # Generate a nice label from key if custom label is missing (e.g., 'father_name' -> 'Father Name')
-            'label': s.custom_label or s.field_key.replace('_', ' ').title(),
-            'x': s.x_pos,
-            'y': s.y_pos,
-            'size': s.font_size,
-            'color': s.color,
-            'bold': s.is_bold,
-            'visible': s.is_visible
+            "key": field_key,
+            "x": int(field_obj.get("x", 0) or 0),
+            "y": int(field_obj.get("y", 0) or 0),
+            "size": int(field_obj.get("font_size", 0) or 0),
+            "color": field_obj.get("color"),
+            "visible": bool(field_obj.get("visible", True)),
         })
-        
     return jsonify(output)
 
 # =========================================================
@@ -215,52 +281,13 @@ def save_field_settings():
     if not template:
         return jsonify({"error": "Template not found"}), 404
 
-    settings_side = str(data.get("settings_side") or "front").strip().lower()
-    if settings_side not in {"front", "back"}:
-        settings_side = "front"
-
     try:
-        # Save photo settings as before
-        if 'photo_settings' in data and isinstance(data.get('photo_settings'), dict):
-            incoming_photo = data.get('photo_settings') or {}
-            current_photo = (template.back_photo_settings if settings_side == "back" else template.photo_settings) or {}
-            current_photo['photo_x'] = int(incoming_photo.get('photo_x', current_photo.get('photo_x', 0)))
-            current_photo['photo_y'] = int(incoming_photo.get('photo_y', current_photo.get('photo_y', 0)))
-            current_photo['photo_width'] = int(incoming_photo.get('photo_width', current_photo.get('photo_width', 100)))
-            current_photo['photo_height'] = int(incoming_photo.get('photo_height', current_photo.get('photo_height', 100)))
-            current_photo['corel_editable_photo_mode'] = str(
-                incoming_photo.get('corel_editable_photo_mode', current_photo.get('corel_editable_photo_mode', 'frame_only'))
-            ).strip().lower() or 'frame_only'
-            if settings_side == "back":
-                template.back_photo_settings = current_photo
-            else:
-                template.photo_settings = current_photo
-        elif 'photo_x' in data:
-            current_photo = (template.back_photo_settings if settings_side == "back" else template.photo_settings) or {}
-            current_photo['photo_x'] = int(data.get('photo_x', 0))
-            current_photo['photo_y'] = int(data.get('photo_y', 0))
-            current_photo['photo_width'] = int(data.get('photo_width', 100))
-            current_photo['photo_height'] = int(data.get('photo_height', 100))
-            if 'corel_editable_photo_mode' in data:
-                current_photo['corel_editable_photo_mode'] = str(
-                    data.get('corel_editable_photo_mode', 'frame_only')
-                ).strip().lower() or 'frame_only'
-            if settings_side == "back":
-                template.back_photo_settings = current_photo
-            else:
-                template.photo_settings = current_photo
-
-        # Save layout_config JSON from editor
-        if 'layout_config' in data:
-            from utils import parse_layout_config
-            parsed_layout = parse_layout_config(data['layout_config'])
-            if settings_side == "back":
-                template.back_layout_config = json.dumps(parsed_layout, ensure_ascii=False) if parsed_layout else None
-            else:
-                template.layout_config = json.dumps(parsed_layout, ensure_ascii=False) if parsed_layout else None
-
-        db.session.commit()
-        return jsonify({'success': True})
+        payload = _save_template_layout_payload(
+            template,
+            data.get("settings_side"),
+            data,
+        )
+        return jsonify({'success': True, **payload})
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
