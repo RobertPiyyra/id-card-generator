@@ -502,7 +502,6 @@ def get_default_font_config():
         "show_label_colon": True,
         "align_label_colon": True,
         "label_colon_gap": 8,
-        "address_max_lines": 2,
     }
 
 def get_default_photo_config():
@@ -518,8 +517,6 @@ def get_default_photo_config():
         "photo_border_bottom_right": 0,
         "photo_border_bottom_left": 0,
         "corel_editable_photo_mode": "frame_only",
-        "photo_face_coverage": 0.38,
-        "photo_face_center_y": 0.58,
     }
 
 def get_photo_settings_for_orientation(template_id, photo_settings):
@@ -1718,15 +1715,14 @@ def parse_layout_config(layout_config):
     Parse and sanitize template.layout_config (from visual editor).
 
     Accepts a dict or a JSON string. Returns a dict with at least:
-      { "fields": { FIELD_KEY: { "x": 120, "y": 80 } } }
+      { "fields": { FIELD_KEY: { "label": {...}, "value": {...}, "colon": {...} } } }
 
     Sanitization rules (minimal + safe):
     - Ensure top-level and `fields` are dicts
-    - Flatten legacy nested label/value/colon data into one position per field
     - Coerce x/y to int if present
     - Coerce visible to bool if present
     - Normalize color to '#RRGGBB' if present (drop if invalid)
-    - Preserve top-level unknown keys for forward compatibility
+    - Preserve unknown keys for forward compatibility
     """
     if layout_config is None or layout_config == "":
         return {}
@@ -1746,95 +1742,67 @@ def parse_layout_config(layout_config):
     if not isinstance(fields, dict):
         fields = {}
 
-    def _int_or_none(value):
-        try:
-            return int(value)
-        except Exception:
-            return None
-
-    def _part_obj(field_obj, part_name):
-        part = field_obj.get(part_name)
-        return part if isinstance(part, dict) else {}
-
-    def _first_int(*candidates):
-        for candidate in candidates:
-            if candidate is not None:
-                return candidate
-        return None
-
     sanitized_fields = {}
     for field_key, field_obj in fields.items():
         if not isinstance(field_obj, dict):
             continue
 
-        value_part = _part_obj(field_obj, "value")
-        label_part = _part_obj(field_obj, "label")
-        colon_part = _part_obj(field_obj, "colon")
+        sanitized_field = dict(field_obj)
+        for part in ("label", "value", "colon"):
+            part_obj = field_obj.get(part)
+            if not isinstance(part_obj, dict):
+                continue
 
-        sanitized_field = {}
+            sanitized_part = dict(part_obj)
 
-        x_value = _first_int(
-            _int_or_none(field_obj.get("x")) if "x" in field_obj else None,
-            _int_or_none(value_part.get("x")) if "x" in value_part else None,
-            _int_or_none(field_obj.get("value_x")) if "value_x" in field_obj else None,
-            _int_or_none(label_part.get("x")) if "x" in label_part else None,
-            _int_or_none(field_obj.get("label_x")) if "label_x" in field_obj else None,
-            _int_or_none(colon_part.get("x")) if "x" in colon_part else None,
-            _int_or_none(field_obj.get("colon_x")) if "colon_x" in field_obj else None,
-        )
-        y_value = _first_int(
-            _int_or_none(field_obj.get("y")) if "y" in field_obj else None,
-            _int_or_none(value_part.get("y")) if "y" in value_part else None,
-            _int_or_none(field_obj.get("value_y")) if "value_y" in field_obj else None,
-            _int_or_none(label_part.get("y")) if "y" in label_part else None,
-            _int_or_none(field_obj.get("label_y")) if "label_y" in field_obj else None,
-            _int_or_none(colon_part.get("y")) if "y" in colon_part else None,
-            _int_or_none(field_obj.get("colon_y")) if "colon_y" in field_obj else None,
-        )
+            if "x" in part_obj:
+                try:
+                    sanitized_part["x"] = int(part_obj.get("x"))
+                except Exception:
+                    sanitized_part.pop("x", None)
 
-        if x_value is not None:
-            sanitized_field["x"] = x_value
-        if y_value is not None:
-            sanitized_field["y"] = y_value
+            if "y" in part_obj:
+                try:
+                    sanitized_part["y"] = int(part_obj.get("y"))
+                except Exception:
+                    sanitized_part.pop("y", None)
 
-        visible_value = None
-        if "visible" in field_obj:
-            visible_value = bool(field_obj.get("visible"))
-        elif "visible" in value_part:
-            visible_value = bool(value_part.get("visible"))
-        elif "value_visible" in field_obj:
-            visible_value = bool(field_obj.get("value_visible"))
-        elif "visible" in label_part:
-            visible_value = bool(label_part.get("visible"))
-        elif "label_visible" in field_obj:
-            visible_value = bool(field_obj.get("label_visible"))
-        if visible_value is not None:
-            sanitized_field["visible"] = visible_value
+            if "manual_y" in part_obj:
+                sanitized_part["manual_y"] = bool(part_obj.get("manual_y"))
+            elif "y" in sanitized_part:
+                # Legacy visual-editor saves often persisted an explicit `y`
+                # without the later `manual_y` marker. Treat that as a manual
+                # position so preview/card/PDF flows keep honoring it.
+                sanitized_part["manual_y"] = True
 
-        font_size = _first_int(
-            _int_or_none(field_obj.get("font_size")) if "font_size" in field_obj else None,
-            _int_or_none(value_part.get("font_size")) if "font_size" in value_part else None,
-            _int_or_none(field_obj.get("value_font_size")) if "value_font_size" in field_obj else None,
-            _int_or_none(label_part.get("font_size")) if "font_size" in label_part else None,
-            _int_or_none(field_obj.get("label_font_size")) if "label_font_size" in field_obj else None,
-        )
-        if font_size is not None and 6 <= font_size <= 500:
-            sanitized_field["font_size"] = font_size
+            if "visible" in part_obj:
+                sanitized_part["visible"] = bool(part_obj.get("visible"))
 
-        color_value = None
-        for source in (
-            field_obj.get("color") if "color" in field_obj else None,
-            value_part.get("color") if "color" in value_part else None,
-            field_obj.get("value_color") if "value_color" in field_obj else None,
-            label_part.get("color") if "color" in label_part else None,
-            field_obj.get("label_color") if "label_color" in field_obj else None,
-        ):
-            if source is not None:
-                color_value = source
-                break
-        norm = _normalize_hex_color(color_value)
-        if norm:
-            sanitized_field["color"] = norm
+            if "color" in part_obj:
+                norm = _normalize_hex_color(part_obj.get("color"))
+                if norm:
+                    sanitized_part["color"] = norm
+                else:
+                    sanitized_part.pop("color", None)
+
+            if "grow" in part_obj:
+                grow = part_obj.get("grow")
+                if isinstance(grow, str) and grow.strip().lower() in {"left", "center", "right"}:
+                    sanitized_part["grow"] = grow.strip().lower()
+                else:
+                    sanitized_part.pop("grow", None)
+
+            if "font_size" in part_obj:
+                try:
+                    fs = int(part_obj.get("font_size"))
+                    if 6 <= fs <= 500:
+                        sanitized_part["font_size"] = fs
+                    else:
+                        sanitized_part.pop("font_size", None)
+                except Exception:
+                    sanitized_part.pop("font_size", None)
+
+            sanitized_field[part] = sanitized_part
 
         sanitized_fields[str(field_key)] = sanitized_field
 
@@ -1913,67 +1881,168 @@ def get_field_layout_item(
     """
     Read one field's layout from template.layout_config.
 
-    The unified layout model stores one position per field. Rendering uses that
-    position for the field value only; label/colon placement is intentionally
-    disabled so the editor and final output stay aligned.
+    Returns a dict with effective label/value x/y + visibility + optional colors:
+      - label_x, label_y, label_visible, label_color (rgb tuple)
+      - value_x, value_y, value_visible, value_color (rgb tuple)
+      - colon_x, colon_y, colon_visible, colon_color (rgb tuple)
     """
-    parsed = parse_layout_config(layout_config_raw)
-    fields = parsed.get("fields") if isinstance(parsed, dict) else {}
-    field_obj = fields.get(field_key) if isinstance(fields, dict) else None
-
-    value_x = default_value_x
-    value_y = default_y
-    value_visible = bool(default_value_visible)
-    value_manual_y = False
-    value_font_size = None
-    value_color = None
-
-    if isinstance(field_obj, dict):
-        if "x" in field_obj:
-            try:
-                value_x = int(field_obj.get("x"))
-            except Exception:
-                pass
-        if "y" in field_obj:
-            try:
-                value_y = int(field_obj.get("y"))
-                value_manual_y = True
-            except Exception:
-                pass
-        if "visible" in field_obj:
-            value_visible = bool(field_obj.get("visible")) and bool(default_value_visible)
-        if "font_size" in field_obj:
-            try:
-                fs = int(field_obj.get("font_size"))
-                if fs > 0:
-                    value_font_size = fs
-            except Exception:
-                pass
-        if "color" in field_obj:
-            value_color = _hex_to_rgb_tuple(field_obj.get("color"))
-
     result = {
         "label_x": default_label_x,
-        "label_y": value_y,
-        "label_visible": False,
+        "label_y": default_y,
+        "label_visible": bool(default_label_visible),
         "label_manual_y": False,
         "label_grow": _normalize_grow_mode(None, text_direction),
         "label_font_size": None,
-        "value_x": value_x,
-        "value_y": value_y,
-        "value_visible": value_visible,
-        "value_manual_y": value_manual_y,
+        "value_x": default_value_x,
+        "value_y": default_y,
+        "value_visible": bool(default_value_visible),
+        "value_manual_y": False,
         "value_grow": _normalize_grow_mode(None, text_direction),
-        "value_font_size": value_font_size,
+        "value_font_size": None,
         "colon_x": None,
-        "colon_y": value_y,
-        "colon_visible": False,
+        "colon_y": default_y,
+        "colon_visible": bool(default_label_visible if default_colon_visible is None else default_colon_visible),
         "colon_manual_y": False,
         "colon_grow": "left" if text_direction == "rtl" else "right",
         "colon_font_size": None,
     }
-    if value_color:
-        result["value_color"] = value_color
+
+    if not field_key:
+        return result
+
+    data = layout_config_raw
+    if isinstance(layout_config_raw, str):
+        try:
+            data = json.loads(layout_config_raw)
+        except Exception:
+            data = None
+
+    if not isinstance(data, dict):
+        return result
+
+    fields = data.get("fields")
+    if not isinstance(fields, dict):
+        return result
+
+    field_obj = fields.get(field_key)
+    if not isinstance(field_obj, dict):
+        return result
+
+    def _part_has_explicit_layout(part_name):
+        part_obj = field_obj.get(part_name)
+        if isinstance(part_obj, dict):
+            for key in ("x", "y", "manual_y", "font_size", "color", "grow"):
+                if key in part_obj:
+                    return True
+        flat_keys = [
+            f"{part_name}_font_size",
+            f"{part_name}_color",
+            f"{part_name}_grow",
+        ]
+        if not prefer_nested_part_layout:
+            flat_keys = [f"{part_name}_x", f"{part_name}_y"] + flat_keys
+        for key in flat_keys:
+            if key in field_obj:
+                return True
+        return False
+
+    explicit_visibility = {
+        "label": False,
+        "value": False,
+        "colon": False,
+    }
+
+    # Backward compatibility:
+    # Older visual-editor saves sometimes persisted flat keys like `value_x` / `value_y`
+    # without the newer nested `value: { x, y }` structure. Honor those legacy keys first,
+    # then allow nested part objects to override them when present.
+    for prefix in ("label", "value", "colon"):
+        flat_x = f"{prefix}_x"
+        flat_y = f"{prefix}_y"
+        flat_visible = f"{prefix}_visible"
+        flat_grow = f"{prefix}_grow"
+        flat_font_size = f"{prefix}_font_size"
+        flat_color = f"{prefix}_color"
+
+        if not prefer_nested_part_layout and flat_x in field_obj:
+            try:
+                result[flat_x] = int(field_obj.get(flat_x))
+            except Exception:
+                pass
+        if not prefer_nested_part_layout and flat_y in field_obj:
+            try:
+                flat_y_value = int(field_obj.get(flat_y))
+                try:
+                    default_y_value = int(default_y)
+                except Exception:
+                    default_y_value = flat_y_value
+                # Legacy flat Y positions from the visual editor act as baseline slots
+                # for flowing fields, not absolute locks. This lets inserted dynamic
+                # fields push later standard lines down instead of overlapping them.
+                result[flat_y] = max(flat_y_value, default_y_value)
+            except Exception:
+                pass
+        if flat_visible in field_obj:
+            explicit_visibility[prefix] = True
+            result[flat_visible] = bool(field_obj.get(flat_visible)) and bool(result[flat_visible])
+        if flat_grow in field_obj:
+            result[flat_grow] = _normalize_grow_mode(field_obj.get(flat_grow), text_direction)
+        if flat_font_size in field_obj:
+            try:
+                fs = int(field_obj.get(flat_font_size))
+                if fs > 0:
+                    result[flat_font_size] = fs
+            except Exception:
+                pass
+        if flat_color in field_obj:
+            rgb = _hex_to_rgb_tuple(field_obj.get(flat_color))
+            if rgb:
+                result[flat_color] = rgb
+
+    for part, prefix in (("label", "label"), ("value", "value"), ("colon", "colon")):
+        part_obj = field_obj.get(part)
+        if not isinstance(part_obj, dict):
+            continue
+
+        if "x" in part_obj:
+            try:
+                result[f"{prefix}_x"] = int(part_obj.get("x"))
+            except Exception:
+                pass
+        if "y" in part_obj:
+            try:
+                result[f"{prefix}_y"] = int(part_obj.get("y"))
+                result[f"{prefix}_manual_y"] = bool(part_obj.get("manual_y")) or "manual_y" not in part_obj
+            except Exception:
+                pass
+        if "visible" in part_obj:
+            explicit_visibility[prefix] = True
+            # Side-level field settings are authoritative. Layout visibility can further hide,
+            # but it must not re-enable a part that is disabled for this side.
+            result[f"{prefix}_visible"] = bool(part_obj.get("visible")) and bool(result[f"{prefix}_visible"])
+        if "grow" in part_obj:
+            result[f"{prefix}_grow"] = _normalize_grow_mode(part_obj.get("grow"), text_direction)
+        if "font_size" in part_obj:
+            try:
+                fs = int(part_obj.get("font_size"))
+                if fs > 0:
+                    result[f"{prefix}_font_size"] = fs
+            except Exception:
+                pass
+        if "color" in part_obj:
+            rgb = _hex_to_rgb_tuple(part_obj.get("color"))
+            if rgb:
+                result[f"{prefix}_color"] = rgb
+
+    # If a part has been explicitly positioned/styled in the visual editor, treat it as visible
+    # unless that same layout explicitly set `visible: false`. This keeps old templates with
+    # saved coordinates from disappearing just because their legacy DB side-visibility flags
+    # were left off.
+    for prefix in ("label", "value", "colon"):
+        visible_key = f"{prefix}_visible"
+        if not explicit_visibility[prefix] and _part_has_explicit_layout(prefix):
+            result[visible_key] = True
+
     return result
 
 
@@ -2003,14 +2072,31 @@ def get_layout_flow_start_y(layout_config_raw, default_start_y, field_visibility
             continue
 
         field_vis = visibility_map.get(str(field_key), {})
+        label_visible = bool(field_vis.get("label", True))
         value_visible = bool(field_vis.get("value", True))
-        if "visible" in field_obj:
-            value_visible = bool(field_obj.get("visible")) and value_visible
-        if value_visible and "y" in field_obj:
-            try:
-                y_candidates.append(int(field_obj.get("y")))
-            except Exception:
-                pass
+
+        def _pick_y(part_name, flat_key):
+            part_obj = field_obj.get(part_name)
+            if isinstance(part_obj, dict) and "y" in part_obj:
+                try:
+                    return int(part_obj.get("y"))
+                except Exception:
+                    return None
+            if flat_key in field_obj:
+                try:
+                    return int(field_obj.get(flat_key))
+                except Exception:
+                    return None
+            return None
+
+        if label_visible:
+            y = _pick_y("label", "label_y")
+            if y is not None:
+                y_candidates.append(y)
+        if value_visible:
+            y = _pick_y("value", "value_y")
+            if y is not None:
+                y_candidates.append(y)
 
     return min(y_candidates) if y_candidates else fallback
 

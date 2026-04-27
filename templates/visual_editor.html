@@ -434,7 +434,24 @@
                 <option value="rtl">RTL</option>
               </select>
             </div>
-            <div class="small text-muted" style="margin: 8px 0 10px;">One text object per field. Drag it or edit X/Y from the inspector.</div>
+            <div class="form-check form-switch mb-1">
+              <input class="form-check-input" type="checkbox" id="showLabelColonVE" checked onchange="toggleLabelColon()">
+              <label class="form-check-label" for="showLabelColonVE">Show label colon</label>
+            </div>
+            <div class="form-check form-switch mb-1">
+              <input class="form-check-input" type="checkbox" id="alignLabelColonVE" checked onchange="toggleAlignLabelColon()">
+              <label class="form-check-label" for="alignLabelColonVE">Align colon near value</label>
+            </div>
+            <div class="rowx">
+              <label>Colon Gap</label>
+              <input id="labelColonGapVE" type="number" min="0" max="80" class="form-control form-control-sm" onchange="setLabelColonGap()">
+              <div class="small text-muted">px</div>
+            </div>
+            <div class="rowx">
+              <label>Colon Color</label>
+              <input id="colonColorVE" type="color" class="form-control form-control-sm" onchange="setColonColor()">
+              <div class="small text-muted">hex</div>
+            </div>
             <hr class="my-2">
             <div class="form-check form-switch mb-1">
               <input class="form-check-input" type="checkbox" id="showBleed" checked onchange="toggleGuides()">
@@ -583,7 +600,7 @@
     const initFont = {{ (editor_font_settings or {}) | tojson }};
     const initPhoto = {{ (editor_photo_settings or {}) | tojson }};
     const initQR = {{ (editor_qr_settings or {}) | tojson }};
-    const initLayout = {{ (editor_layout_config or {}) | tojson }};
+    const initLayout = {{ (editor_layout_config or "{}") | safe }};
     const initLanguage = "{{ (editor_language or 'english')|lower }}";
     const initDir = "{{ (editor_text_direction or 'ltr')|lower }}";
     const dynamicFieldDefs = {{ (editor_dynamic_fields or []) | tojson }};
@@ -805,15 +822,23 @@
     function initialFlowYInEditor() {
       const candidates = [];
       keyOrder.forEach((key) => {
-        const fieldState = state.layout.fields[key] || {};
-        const valueVisible = ("visible" in fieldState)
-          ? (fieldState.visible !== false)
-          : defaultVisibilityFor(key, "value");
-        if (valueVisible && ("y" in fieldState)) {
-          const y = parseInt(fieldState.y, 10);
-          if (!Number.isNaN(y)) {
-            candidates.push(y);
-          }
+        const x = state.layout.fields[key] || {};
+        const l = x.label || {};
+        const v = x.value || {};
+        const labelVisible = ("visible" in l)
+          ? (l.visible !== false)
+          : (hasExplicitFieldLayout(key, "label") ? true : defaultVisibilityFor(key, "label"));
+        const valueVisible = ("visible" in v)
+          ? (v.visible !== false)
+          : (hasExplicitFieldLayout(key, "value") ? true : defaultVisibilityFor(key, "value"));
+
+        if (labelVisible) {
+          if (hasManualPartY(l)) candidates.push(parseInt(l.y, 10));
+          else if ("label_y" in x) candidates.push(parseInt(x.label_y, 10));
+        }
+        if (valueVisible) {
+          if (hasManualPartY(v)) candidates.push(parseInt(v.y, 10));
+          else if ("value_y" in x) candidates.push(parseInt(x.value_y, 10));
         }
       });
       if (!candidates.length) return state.font.start_y;
@@ -824,41 +849,71 @@
       const map = {};
       let currentY = initialFlowYInEditor();
       keyOrder.forEach((k) => {
-        const fieldState = state.layout.fields[k] || {};
-        const valueVisible = ("visible" in fieldState)
-          ? (fieldState.visible !== false)
-          : defaultVisibilityFor(k, "value");
-        const valueX = parseInt(("x" in fieldState) ? fieldState.x : state.font.value_x, 10);
-        const valueY = parseInt(("y" in fieldState) ? fieldState.y : currentY, 10);
-        const valueFontSize = parseInt(fieldState.font_size ?? state.font.value_font_size, 10);
+        const x = state.layout.fields[k] || {};
+        const l = x.label || {};
+        const v = x.value || {};
+        const c = x.colon || {};
+        const isDynamicField = Object.prototype.hasOwnProperty.call(dynamicFieldMap, String(k));
+        const labelVisible = ("visible" in l)
+          ? (l.visible !== false)
+          : (hasExplicitFieldLayout(k, "label") ? true : defaultVisibilityFor(k, "label"));
+        const valueVisible = ("visible" in v)
+          ? (v.visible !== false)
+          : (hasExplicitFieldLayout(k, "value") ? true : defaultVisibilityFor(k, "value"));
+        const useLegacyFlatPosition = !isDynamicField;
+        const legacyLabelX = parseInt((useLegacyFlatPosition && ("label_x" in x)) ? x.label_x : state.font.label_x, 10);
+        const legacyValueX = parseInt((useLegacyFlatPosition && ("value_x" in x)) ? x.value_x : state.font.value_x, 10);
+        const labelY = parseInt(
+          hasManualPartY(l)
+            ? l.y
+            : ((useLegacyFlatPosition && ("label_y" in x)) ? Math.max(parseInt(x.label_y, 10), currentY) : currentY),
+          10
+        );
+        const valueY = parseInt(
+          hasManualPartY(v)
+            ? v.y
+            : ((useLegacyFlatPosition && ("value_y" in x)) ? Math.max(parseInt(x.value_y, 10), currentY) : currentY),
+          10
+        );
+        const colonGap = Math.max(0, parseInt(state.font.label_colon_gap || 8, 10) || 0);
+        const effectiveValueX = parseInt(v.x ?? legacyValueX, 10);
+        const defaultColonX = state.direction === "rtl" ? (effectiveValueX + colonGap) : (effectiveValueX - colonGap);
+        const legacyColonX = parseInt((useLegacyFlatPosition && ("colon_x" in x)) ? x.colon_x : defaultColonX, 10);
+        const legacyColonY = parseInt(
+          (useLegacyFlatPosition && ("colon_y" in x)) ? Math.max(parseInt(x.colon_y, 10), labelY) : labelY,
+          10
+        );
+        const advancesFlow = fieldAdvancesFlowInEditor(labelVisible, valueVisible);
         map[k] = {
           label: {
-            x: valueX,
-            y: valueY,
-            font_size: valueFontSize,
-            visible: false,
-            color: DEFAULT_LABEL_FILL,
-            grow: normalizeGrow(null, state.direction)
+            x: parseInt(l.x ?? legacyLabelX, 10),
+            y: labelY,
+            font_size: parseInt(l.font_size ?? state.font.label_font_size, 10),
+            visible: labelVisible,
+            color: _normalizeHex(l.color, DEFAULT_LABEL_FILL),
+            grow: normalizeGrow(l.grow, state.direction)
           },
           value: {
-            x: valueX,
+            x: parseInt(v.x ?? legacyValueX, 10),
             y: valueY,
-            font_size: valueFontSize,
+            font_size: parseInt(v.font_size ?? state.font.value_font_size, 10),
             visible: valueVisible,
-            color: _normalizeHex(fieldState.color, DEFAULT_VALUE_FILL),
-            grow: normalizeGrow(null, state.direction)
+            color: _normalizeHex(v.color, DEFAULT_VALUE_FILL),
+            grow: normalizeGrow(v.grow, state.direction)
           },
           colon: {
-            x: valueX,
-            y: valueY,
-            font_size: valueFontSize,
-            visible: false,
-            color: _fontColorToHex(state.font.colon_font_color, DEFAULT_LABEL_FILL),
-            grow: state.direction === "rtl" ? "left" : "right"
+            x: parseInt(c.x ?? legacyColonX, 10),
+            y: parseInt(hasManualPartY(c) ? c.y : legacyColonY, 10),
+            font_size: parseInt(c.font_size ?? l.font_size ?? state.font.label_font_size, 10),
+            visible: (("visible" in c) ? (c.visible !== false) : (hasExplicitFieldLayout(k, "colon") ? true : defaultVisibilityFor(k, "colon"))) && labelVisible && !!state.font.show_label_colon && !!state.font.align_label_colon,
+            color: _normalizeHex(c.color, _fontColorToHex(state.font.colon_font_color, DEFAULT_LABEL_FILL)),
+            grow: (typeof c.grow === "string" && GROW_MODES.includes(c.grow.trim().toLowerCase()))
+              ? c.grow.trim().toLowerCase()
+              : (state.direction === "rtl" ? "left" : "right")
           }
         };
-        if (valueVisible) {
-          currentY = Math.max(currentY, valueY) + state.font.line_height;
+        if (advancesFlow) {
+          currentY = Math.max(currentY, labelY, valueY) + state.font.line_height;
         }
       });
       return map;
@@ -869,13 +924,13 @@
       if (map[key]) return map[key];
       const fallbackY = state.font.start_y + idx * state.font.line_height;
       return {
-        label: { x: state.font.value_x, y: fallbackY, font_size: state.font.value_font_size, visible: false, color: DEFAULT_LABEL_FILL, grow: normalizeGrow(null, state.direction) },
+        label: { x: state.font.label_x, y: fallbackY, font_size: state.font.label_font_size, visible: defaultVisibilityFor(key, "label"), color: DEFAULT_LABEL_FILL, grow: normalizeGrow(null, state.direction) },
         value: { x: state.font.value_x, y: fallbackY, font_size: state.font.value_font_size, visible: defaultVisibilityFor(key, "value"), color: DEFAULT_VALUE_FILL, grow: normalizeGrow(null, state.direction) },
         colon: {
-          x: state.font.value_x,
+          x: state.direction === "rtl" ? (state.font.value_x + Math.max(0, parseInt(state.font.label_colon_gap || 8, 10) || 0)) : (state.font.value_x - Math.max(0, parseInt(state.font.label_colon_gap || 8, 10) || 0)),
           y: fallbackY,
-          font_size: state.font.value_font_size,
-          visible: false,
+          font_size: state.font.label_font_size,
+          visible: defaultVisibilityFor(key, "colon") && !!state.font.show_label_colon && !!state.font.align_label_colon,
           color: _fontColorToHex(state.font.colon_font_color, DEFAULT_LABEL_FILL),
           grow: state.direction === "rtl" ? "left" : "right"
         }
@@ -933,16 +988,65 @@
       return cfg;
     }
 
-	    function updateLayoutFromObject(obj) {
+	    function updateLayoutFromObject(obj, options = {}) {
 	      const key = obj.fieldKey;
+	      const isDynamicField = Object.prototype.hasOwnProperty.call(dynamicFieldMap, String(key));
 	      if (!state.layout.fields[key]) state.layout.fields[key] = {};
+	      if (!state.layout.fields[key][obj.part]) state.layout.fields[key][obj.part] = {};
+	      const forceManualY = !!options.forceManualY;
 	      const grow = normalizeGrow(obj.growMode, state.direction);
 	      const anchorX = Math.round(anchorFromLeft(obj.left, obj.width || 0, state.direction, grow));
-	      state.layout.fields[key].x = anchorX;
-	      state.layout.fields[key].y = Math.round(obj.top);
-	      state.layout.fields[key].font_size = Math.max(8, Math.round(obj.fontSize || state.font.value_font_size || 8));
-	      state.layout.fields[key].visible = obj.visible !== false;
-	    }
+	      const topY = Math.round(obj.top);
+	      const fontSize = Math.max(8, Math.round(obj.fontSize || 0));
+	      const defaults = defaultFieldPartLayout(key, obj.part);
+	      // NOTE: defaultFieldPartLayout() temporarily rewrites state.layout.fields[key][part]
+	      // which can replace the object identity. Re-acquire the reference after it runs.
+	      const partState = state.layout.fields[key][obj.part] || (state.layout.fields[key][obj.part] = {});
+
+	      // Legacy flat keys are kept only for standard fields. Dynamic fields now
+	      // rely on nested part state so display_order can keep flowing correctly.
+	      if (!isDynamicField) {
+	        if (obj.part === "label") {
+	          state.layout.fields[key]["label_x"] = anchorX;
+	          state.layout.fields[key]["label_y"] = topY;
+          } else if (obj.part === "value") {
+            state.layout.fields[key]["value_x"] = anchorX;
+            state.layout.fields[key]["value_y"] = topY;
+          } else if (obj.part === "colon") {
+            state.layout.fields[key]["colon_x"] = anchorX;
+            state.layout.fields[key]["colon_y"] = topY;
+          }
+        } else if (obj.part === "label") {
+          delete state.layout.fields[key]["label_x"];
+          delete state.layout.fields[key]["label_y"];
+        } else if (obj.part === "value") {
+          delete state.layout.fields[key]["value_x"];
+          delete state.layout.fields[key]["value_y"];
+        } else if (obj.part === "colon") {
+          delete state.layout.fields[key]["colon_x"];
+          delete state.layout.fields[key]["colon_y"];
+        }
+      // Preserve original partState for other properties
+      if (anchorX !== Math.round(defaults.x || 0)) partState.x = anchorX;
+      else delete partState.x;
+
+      if (forceManualY || topY !== Math.round(defaults.y || 0)) {
+        partState.y = topY;
+        partState.manual_y = true;
+      } else {
+        delete partState.y;
+        delete partState.manual_y;
+      }
+
+      if (grow !== normalizeGrow(defaults.grow, state.direction)) partState.grow = grow;
+      else delete partState.grow;
+
+      if (fontSize !== Math.max(8, Math.round(defaults.font_size || 0))) partState.font_size = fontSize;
+      else delete partState.font_size;
+
+      pruneFieldPartLayout(key, obj.part);
+      syncFieldColon(key);
+    }
 
     function normalizeFieldScale(obj) {
       if (!obj || obj.dataType !== "field") return;
@@ -966,7 +1070,9 @@
       obj.setCoords();
 
       if (!state.layout.fields[key]) state.layout.fields[key] = {};
-      state.layout.fields[key].font_size = nextSize;
+      if (!state.layout.fields[key][obj.part]) state.layout.fields[key][obj.part] = {};
+      state.layout.fields[key][obj.part].font_size = nextSize;
+      syncFieldColon(key);
     }
 
     function status(msg, bad=false){ const el=document.getElementById("status"); el.textContent=msg||""; el.style.color=bad?"#b31543":"#5f7893"; }
@@ -1060,17 +1166,44 @@
         row.innerHTML = `
           <div class="ttl">${title}</div>
           <div class="toggles">
-            <div class="form-check"><input class="form-check-input" type="checkbox" id="v_${k}" ${cfg.value.visible ? "checked":""}><label class="form-check-label" for="v_${k}">Show text</label></div>
+            <div class="form-check"><input class="form-check-input" type="checkbox" id="l_${k}" ${cfg.label.visible ? "checked":""}><label class="form-check-label" for="l_${k}">Show label</label></div>
+            <div class="form-check"><input class="form-check-input" type="checkbox" id="v_${k}" ${cfg.value.visible ? "checked":""}><label class="form-check-label" for="v_${k}">Show value</label></div>
+          </div>
+          <div class="grow-block">
+            <div class="grow-line">
+              <div class="cap">Label</div>
+              <div class="grow-options">
+                <div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="gl_${k}" id="gl_${k}_left" value="left" ${cfg.label.grow === "left" ? "checked":""}><label class="form-check-label" for="gl_${k}_left">Left</label></div>
+                <div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="gl_${k}" id="gl_${k}_center" value="center" ${cfg.label.grow === "center" ? "checked":""}><label class="form-check-label" for="gl_${k}_center">Center</label></div>
+                <div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="gl_${k}" id="gl_${k}_right" value="right" ${cfg.label.grow === "right" ? "checked":""}><label class="form-check-label" for="gl_${k}_right">Right</label></div>
+              </div>
+            </div>
+            <div class="grow-line">
+              <div class="cap">Value</div>
+              <div class="grow-options">
+                <div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="gv_${k}" id="gv_${k}_left" value="left" ${cfg.value.grow === "left" ? "checked":""}><label class="form-check-label" for="gv_${k}_left">Left</label></div>
+                <div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="gv_${k}" id="gv_${k}_center" value="center" ${cfg.value.grow === "center" ? "checked":""}><label class="form-check-label" for="gv_${k}_center">Center</label></div>
+                <div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="gv_${k}" id="gv_${k}_right" value="right" ${cfg.value.grow === "right" ? "checked":""}><label class="form-check-label" for="gv_${k}_right">Right</label></div>
+              </div>
+            </div>
           </div>
         `;
         wrap.appendChild(row);
+        row.querySelector(`#l_${k}`).addEventListener("change", (e)=>setVisibility(k,"label",e.target.checked));
         row.querySelector(`#v_${k}`).addEventListener("change", (e)=>setVisibility(k,"value",e.target.checked));
+        row.querySelectorAll(`input[name="gl_${k}"]`).forEach((el) => {
+          el.addEventListener("change", (e) => setGrow(k, "label", e.target.value));
+        });
+        row.querySelectorAll(`input[name="gv_${k}"]`).forEach((el) => {
+          el.addEventListener("change", (e) => setGrow(k, "value", e.target.value));
+        });
       });
     }
 
     function setVisibility(key, part, vis) {
       if (!state.layout.fields[key]) state.layout.fields[key] = {};
-      state.layout.fields[key].visible = !!vis;
+      if (!state.layout.fields[key][part]) state.layout.fields[key][part] = {};
+      state.layout.fields[key][part].visible = !!vis;
       redrawFields();
       recordHistory("toggle-visibility");
     }
@@ -1689,9 +1822,34 @@
 
     function drawFields() {
       clearFieldObjects();
+      const withColon = !!state.font.show_label_colon;
+      const alignColon = withColon && !!state.font.align_label_colon;
+      const colonGap = Math.max(0, parseInt(state.font.label_colon_gap || 8, 10) || 0);
+      const colonColor = _fontColorToHex(state.font.colon_font_color, DEFAULT_LABEL_FILL);
       keyOrder.forEach((k, idx) => {
         const cfg = layoutFor(k, idx);
+        const labelText = fieldLabelFor(k);
         const valueText = fieldValueFor(k);
+        const lText = (!withColon || alignColon)
+          ? `${labelText}`
+          : (state.direction === "rtl" ? `:${labelText}` : `${labelText}:`);
+        const l = new fabric.Text(lText, {
+          left: 0,
+          top: cfg.label.y,
+          fontSize: cfg.label.font_size,
+          fontWeight: "700",
+          padding: 8,
+          cornerSize: 12,
+          transparentCorners: false,
+          borderScaleFactor: 2,
+          lockRotation: true,
+          fill: cfg.label.color,
+          fieldKey: k,
+          part: "label",
+          dataType: "field",
+          visible: cfg.label.visible,
+          growMode: cfg.label.grow
+        });
         const v = new fabric.Text(valueText, {
           left: 0,
           top: cfg.value.y,
@@ -1708,9 +1866,37 @@
           visible: cfg.value.visible,
           growMode: cfg.value.grow
         });
+        let colonObj = null;
+        if (alignColon) {
+          colonObj = new fabric.Text(":", {
+            left: 0,
+            top: cfg.colon.y,
+            fontSize: cfg.colon.font_size,
+            fontWeight: "700",
+            padding: 8,
+            cornerSize: 12,
+            transparentCorners: false,
+            borderScaleFactor: 2,
+            lockRotation: true,
+            fill: cfg.colon.color || colonColor,
+            fieldKey: k,
+            part: "colon",
+            dataType: "field",
+            visible: cfg.colon.visible,
+            growMode: cfg.colon.grow
+          });
+        }
+        l.left = leftFromAnchor(cfg.label.x, l.width || 0, state.direction, cfg.label.grow);
         v.left = leftFromAnchor(cfg.value.x, v.width || 0, state.direction, cfg.value.grow);
+        if (colonObj) {
+          colonObj.left = leftFromAnchor(cfg.colon.x, colonObj.width || 0, state.direction, cfg.colon.grow);
+          colonObj.setCoords();
+        }
+        l.setCoords();
         v.setCoords();
-        fieldObjs[k] = { value: v };
+        fieldObjs[k] = { label: l, colon: colonObj, value: v };
+        canvas.add(l);
+        if (colonObj) canvas.add(colonObj);
         canvas.add(v);
       });
       drawFieldList();
@@ -1810,10 +1996,14 @@
       }
       const selected = o || active;
       if (selected.dataType === "field") {
-        item.value = `${selected.fieldKey}`;
+        item.value = `${selected.fieldKey} (${selected.part})`;
         const key = selected.fieldKey;
-        const stored = ((state.layout.fields[key] || {}).color);
-        color.value = _normalizeHex(stored, _normalizeHex(selected.fill, DEFAULT_VALUE_FILL));
+        const part = selected.part;
+        const stored = (((state.layout.fields[key] || {})[part] || {}).color);
+        const fallback = part === "label"
+          ? DEFAULT_LABEL_FILL
+          : (part === "value" ? DEFAULT_VALUE_FILL : _fontColorToHex(state.font.colon_font_color, DEFAULT_LABEL_FILL));
+        color.value = _normalizeHex(stored, _normalizeHex(selected.fill, fallback));
         textInput.disabled = true;
         textInput.value = "";
         nameInput.disabled = true;
@@ -1872,9 +2062,14 @@
 
     function _setFieldColor(key, part, hex) {
       if (!state.layout.fields[key]) state.layout.fields[key] = {};
-      const finalHex = _normalizeHex(hex, DEFAULT_VALUE_FILL);
-      state.layout.fields[key].color = finalHex;
-      if (fieldObjs[key] && fieldObjs[key].value) fieldObjs[key].value.set({ fill: finalHex });
+      if (!state.layout.fields[key][part]) state.layout.fields[key][part] = {};
+      const fallback = part === "label"
+        ? DEFAULT_LABEL_FILL
+        : (part === "value" ? DEFAULT_VALUE_FILL : _fontColorToHex(state.font.colon_font_color, DEFAULT_LABEL_FILL));
+      const finalHex = _normalizeHex(hex, fallback);
+      state.layout.fields[key][part].color = finalHex;
+      if (fieldObjs[key] && fieldObjs[key][part]) fieldObjs[key][part].set({ fill: finalHex });
+      if (part === "label" || part === "colon") syncFieldColon(key);
       canvas.renderAll();
       recordHistory("field-color");
     }
@@ -1894,10 +2089,14 @@
     }
 
     function _clearFieldColor(key, part) {
-      if (state.layout.fields[key]) {
-        delete state.layout.fields[key].color;
+      if (state.layout.fields[key] && state.layout.fields[key][part]) {
+        delete state.layout.fields[key][part].color;
       }
-      if (fieldObjs[key] && fieldObjs[key].value) fieldObjs[key].value.set({ fill: DEFAULT_VALUE_FILL });
+      const fallback = part === "label"
+        ? DEFAULT_LABEL_FILL
+        : (part === "value" ? DEFAULT_VALUE_FILL : _fontColorToHex(state.font.colon_font_color, DEFAULT_LABEL_FILL));
+      if (fieldObjs[key] && fieldObjs[key][part]) fieldObjs[key][part].set({ fill: fallback });
+      if (part === "label" || part === "colon") syncFieldColon(key);
       canvas.renderAll();
       _syncSelectedUI();
       recordHistory("reset-field-color");
@@ -2269,7 +2468,7 @@
           qr_settings: { ...initQR, ...state.qr },
           layout_config: state.layout
         };
-        const res = await fetch(`/admin/template_layout/${TEMPLATE_ID}?side=${EDITOR_SIDE}`, {
+        const res = await fetch("/update_template_settings", {
           method: "POST",
           headers: { "Content-Type":"application/json", "X-CSRFToken": csrf },
           body: JSON.stringify(payload)
