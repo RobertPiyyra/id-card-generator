@@ -4794,11 +4794,11 @@ def index():
 
     if request.method == "POST":
         try:
-            # === LIMIT CHECK WITH ADMIN BYPASS ===
+            # === LIMIT CHECK: Only super admin bypasses the 3-card limit ===
             is_editing = 'edit_student_id' in session
-            is_admin = _is_admin_session()
+            is_super_admin = session.get("admin_role") == "super_admin"
             
-            if not is_editing and not is_admin:
+            if not is_editing and not is_super_admin:
                 count = Student.query.filter_by(email=session['student_email']).count()
                 
                 # Limit is set to 3 cards
@@ -4845,17 +4845,17 @@ def index():
             # 2. Check Deadline
             is_passed, deadline_date = check_deadline_passed(template_id)
 
-            # Admin sessions can bypass expired generation deadlines.
-            if is_passed and not is_admin:
-                error_msg = f"⛔ The deadline passed on {deadline_date}. Card generation is closed for everyone."
+            # Only super admin can bypass expired generation deadlines.
+            if is_passed and session.get("admin_role") != "super_admin":
+                error_msg = f"⛔ The deadline passed on {deadline_date}. Card generation is closed."
                 return render_template("index.html", 
                                        error=error_msg, 
                                        templates=templates, 
                                        form_data=request.form, 
                                        selected_template_id=template_id,
                                        deadline_info=deadline_info), 403
-            if is_passed and is_admin:
-                logger.info("Admin session bypassed the generation deadline for template %s.", template_id)
+            if is_passed and session.get("admin_role") == "super_admin":
+                logger.info("Super admin bypassed the generation deadline for template %s.", template_id)
 
             # Load Settings
             font_settings, photo_settings, qr_settings, card_orientation = get_template_settings(template_id)
@@ -4871,6 +4871,7 @@ def index():
             dob = request.form.get("dob", "").strip()
             address = request.form.get("address", "").strip()
             phone = request.form.get("phone", "").strip()
+            provided_email = request.form.get("email", "").strip().lower()
             
             form_data = {
                 'name': name, 'father_name': father_name, 'class_name': class_name,
@@ -5497,6 +5498,8 @@ def index():
                     student.dob = dob
                     student.address = address
                     student.phone = phone
+                    if is_admin and provided_email:
+                        student.email = provided_email
                     if STORAGE_BACKEND == "local":
                         student.photo_url = None
                         student.photo_filename = photo_stored
@@ -5521,6 +5524,8 @@ def index():
                     session.pop('edit_student_id', None)
             else:
                 # New Record
+                final_email = (provided_email or None) if is_admin else session.get('student_email')
+
                 student = Student(
                     name=name,
                     father_name=father_name,
@@ -5539,7 +5544,7 @@ def index():
                     data_hash=data_hash,
                     template_id=template_id,
                     school_name=school_name,
-                    email=session.get('student_email'),
+                    email=final_email,
                     custom_data=custom_data
                 )
                 db.session.add(student)
@@ -7899,35 +7904,40 @@ def admin_preview_card():
                     ph = image_open(PLACEHOLDER_PATH)
                 ph = _process_photo_pil(
                     ph,
-                    target_width=photo_settings["photo_width"],
-                    target_height=photo_settings["photo_height"],
+                    target_width=int(float(photo_settings.get("photo_width", 100) or 100)),
+                    target_height=int(float(photo_settings.get("photo_height", 100) or 100)),
                 )
-                radii = [photo_settings.get(f"photo_border_{k}", 0) for k in ["top_left", "top_right", "bottom_right", "bottom_left"]]
+                radii = [int(float(photo_settings.get(f"photo_border_{k}", 0) or 0)) for k in ["top_left", "top_right", "bottom_right", "bottom_left"]]
                 ph = round_photo(ph, radii)
-                template_img.paste(ph, (photo_settings["photo_x"], photo_settings["photo_y"]), ph)
-            except:
+                px = int(float(photo_settings.get("photo_x", 0) or 0))
+                py = int(float(photo_settings.get("photo_y", 0) or 0))
+                template_img.paste(ph, (px, py), ph)
+            except Exception as e:
+                logger.warning(f"Live preview photo error: {e}")
                 pass
         
         if qr_settings.get("enable_qr", False):
             try:
-                code_size = qr_settings.get("qr_size", 120)
-                code_x = qr_settings.get("qr_x", 50)
-                code_y = qr_settings.get("qr_y", 50)
+                code_size = int(float(qr_settings.get("qr_size", 120) or 120))
+                code_x = int(float(qr_settings.get("qr_x", 50) or 50))
+                code_y = int(float(qr_settings.get("qr_y", 50) or 50))
                 qr_img = generate_qr_code("PREVIEW", qr_settings, code_size)
                 qr_img = qr_img.resize((code_size, code_size))
                 template_img.paste(qr_img, (code_x, code_y))
-            except:
+            except Exception as e:
+                logger.warning(f"Live preview QR error: {e}")
                 pass
 
         if qr_settings.get("enable_barcode", False):
             try:
-                barcode_x = qr_settings.get("barcode_x", 50)
-                barcode_y = qr_settings.get("barcode_y", 200)
-                barcode_w = max(40, int(qr_settings.get("barcode_width", 220)))
-                barcode_h = max(30, int(qr_settings.get("barcode_height", 70)))
+                barcode_x = int(float(qr_settings.get("barcode_x", 50) or 50))
+                barcode_y = int(float(qr_settings.get("barcode_y", 200) or 200))
+                barcode_w = max(40, int(float(qr_settings.get("barcode_width", 220) or 220)))
+                barcode_h = max(30, int(float(qr_settings.get("barcode_height", 70) or 70)))
                 barcode_img = generate_barcode_code128("PREVIEW", qr_settings, width=barcode_w, height=barcode_h)
                 template_img.paste(barcode_img, (barcode_x, barcode_y))
-            except:
+            except Exception as e:
+                logger.warning(f"Live preview barcode error: {e}")
                 pass
         apply_layout_custom_objects_pil(template_img, template, font_settings, side=side, language=lang)
         template_img = force_rgb(template_img)
@@ -8701,21 +8711,19 @@ def bulk_generate():
     if not session.get("admin"):
         return jsonify({"success": False, "error": "Unauthorized", "errors": ["Unauthorized"]}), 403
 
+    # Only super admin can generate cards
+    if session.get("admin_role") != "super_admin":
+        return jsonify({"success": False, "error": "Only super admin can generate cards.", "errors": ["Only super admin can generate cards."]}), 403
+
     template_id_raw = request.form.get("template_id")
     if not template_id_raw:
         return jsonify({"success": False, "error": "No template selected", "errors": ["No template selected"]}), 400
     
     template_id = int(template_id_raw)
     
-    # --- RBAC / School Lock Bypass Logic ---
     template_obj = db.session.get(Template, template_id)
     if not template_obj:
         return jsonify({"success": False, "error": "Template not found", "errors": ["Template not found"]}), 404
-        
-    is_super_admin = session.get("admin_role") != "school_admin"
-    if not is_super_admin and template_obj.school_name != session.get("admin_school"):
-        return jsonify({"success": False, "error": "You can only bulk generate cards for your assigned school.", "errors": ["Unauthorized school"]}), 403
-    # ---------------------------------------
 
     if 'excel_file' not in request.files:
         return jsonify({"success": False, "error": "No Excel file uploaded", "errors": ["No Excel file uploaded"]}), 400
