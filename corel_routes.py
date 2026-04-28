@@ -4767,7 +4767,6 @@ def download_compiled_vector_pdf(template_id):
                     address_max_lines = max(
                         1,
                         min(
-                            field_max_lines,
                         config_address_max_lines,
                             int(remaining_h_pt / max(min_font_size_pt * line_height_factor, scale)),
                         ),

@@ -691,6 +691,7 @@ def _render_student_fields(template_img, template_obj, student_like, font_settin
     value_x = font_settings['value_x']
     current_y = get_initial_flow_y_for_side(template_obj, font_settings, side=side)
     line_height = font_settings['line_height']
+    address_max_lines = int(font_settings.get("address_max_lines", 2))
 
     for item in fields:
         label_source = item['label']
@@ -794,7 +795,7 @@ def _render_student_fields(template_img, template_obj, student_like, font_settin
                 avg_char_w = curr_size * 0.50
                 chars_limit = max(5, int(max_w / max(avg_char_w, 1)))
                 wrapped_addr = textwrap.wrap(raw_val, width=chars_limit, break_long_words=True)
-                fits_horizontally = len(wrapped_addr) <= 2
+                fits_horizontally = len(wrapped_addr) <= address_max_lines
                 if fits_horizontally:
                     for line in wrapped_addr:
                         measure_text = process_text_for_drawing(line, lang)
@@ -806,7 +807,7 @@ def _render_student_fields(template_img, template_obj, student_like, font_settin
                 curr_size -= 2
             if curr_size < min_size:
                 addr_font = load_font_dynamic(font_reg_path, 'X', 10**9, min_size, language=lang)
-            for line in wrapped_addr[:2]:
+            for line in wrapped_addr[:address_max_lines]:
                 line_display = process_text_for_drawing(line, lang)
                 if layout_item['value_visible']:
                     value_draw_x = flip_x_for_text_direction(
@@ -5187,7 +5188,7 @@ def index():
                     if 'addr_font' not in locals():
                         addr_font = load_font_dynamic(addr_font_path, "X", 10**9, min_size, language=lang) # type: ignore
 
-                    # Draw up to 2 lines
+                    # Draw address lines
                     for line in wrapped_addr[:address_max_lines]:
                         line_display = process_text_for_drawing(line, lang)
                         # Use slightly tighter spacing if we shrunk the font significantly
@@ -6159,10 +6160,10 @@ def edit_student(student_id):
 
                     # Fallback if still too long
                     if not wrapped_addr:
-                        wrapped_addr = lines[:2]
+                        wrapped_addr = lines[:address_max_lines]
                 
                     # Draw address lines
-                    for line in wrapped_addr[:2]:
+                    for line in wrapped_addr[:address_max_lines]:
                         line_display = process_text_for_drawing(line, lang)
                         if layout_item["value_visible"]:
                             value_draw_x = flip_x_for_text_direction(
@@ -7836,7 +7837,7 @@ def admin_preview_card():
                     avg_char_w = curr_size * 0.55
                     chars_limit = max(5, int(max_w / max(avg_char_w, 1)))
                     wrapped_addr = safe_wrap_preview(raw_val, chars_limit)
-                    if len(wrapped_addr) <= 2: break
+                    if len(wrapped_addr) <= address_max_lines: break
                     curr_size -= 2
                 
                 # Load safe font for address using real shaped text (better glyph matching)
