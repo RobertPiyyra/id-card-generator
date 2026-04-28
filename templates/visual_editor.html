@@ -2703,9 +2703,8 @@
     function _autoTabOnSelect() {
       const o = canvas && canvas.getActiveObject ? canvas.getActiveObject() : null;
       if (!o) return;
-      // Always show the detailed inspector in the Objects tab so X/Y/size controls
-      // are visible for both 'field' and 'custom' selections.
-      switchTab('objects');
+      if (o.dataType === 'custom') switchTab('objects');
+      else if (o.dataType === 'field') switchTab('fields');
     }
 
     // ═══════════════════════════════════════════
@@ -2758,11 +2757,10 @@
 
     init();
 
-    // Hook canvas selection after init — ensure inspector syncs when selection changes
+    // Hook canvas selection after init
     if (typeof canvas !== 'undefined') {
-      canvas.on('selection:created', function() { _autoTabOnSelect(); _syncSelectedUI(); });
-      canvas.on('selection:updated', function() { _autoTabOnSelect(); _syncSelectedUI(); });
-      canvas.on('selection:cleared', function() { _syncSelectedUI(); });
+      canvas.on('selection:created', _autoTabOnSelect);
+      canvas.on('selection:updated', _autoTabOnSelect);
     }
   </script>
 </body>
