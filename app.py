@@ -559,6 +559,24 @@ def _build_payload(settings, student_like, student_id, school_name, prefix):
     return _build_qr_hash(student_like)
 
 
+def safe_get_nested(source, *keys, default=None):
+    """Safely get a nested value from a dict-like structure.
+
+    Returns `default` if any intermediate value is missing or not a dict.
+    """
+    if source is None:
+        return default
+    current = source
+    for key in keys:
+        if isinstance(current, dict):
+            current = current.get(key)
+        else:
+            return default
+        if current is None:
+            return default
+    return current
+
+
 def _render_qr_and_barcode(template_img, qr_settings, student_like, student_id, school_name, scale=1.0, include_qr=True, include_barcode=True):
     qr_id = _build_qr_hash(student_like)
     if include_qr and qr_settings.get('enable_qr', False):

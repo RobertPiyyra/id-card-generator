@@ -1593,27 +1593,6 @@
                                     <input type="number" name="line_height" id="lineHeight" min="0" max="100">
                                 </div>
                             </div>
-
-                            <div class="form-group">
-                                <label><i class="fas fa-align-left"></i> Address Lines</label>
-                                <div class="checkbox-group">
-                                    <label class="checkbox-label">
-                                        <input type="radio" name="address_max_lines" id="addressLines1" value="1">
-                                        <span>1 Line</span>
-                                    </label>
-                                    <label class="checkbox-label">
-                                        <input type="radio" name="address_max_lines" id="addressLines2" value="2" checked>
-                                        <span>2 Lines</span>
-                                    </label>
-                                    <label class="checkbox-label">
-                                        <input type="radio" name="address_max_lines" id="addressLines3" value="3">
-                                        <span>3 Lines</span>
-                                    </label>
-                                </div>
-                                <small style="color: #666; font-size: 0.8rem;">
-                                    <i class="fas fa-info-circle"></i> Address can wrap to the selected number of lines. Other fields still shrink only when needed.
-                                </small>
-                            </div>
                         </div>
 
                         <div class="settings-section">
@@ -1925,6 +1904,9 @@
 
                         <button type="button" class="btn btn-upload" id="saveSettingsBtn" onclick="saveTemplateSettings()" disabled>
                             <i class="fas fa-save"></i> Save Template Settings
+                        </button>
+                        <button type="button" class="btn btn-secondary" id="openVisualEditorBtn" style="margin-left:8px;" disabled>
+                            <i class="fas fa-edit"></i> Open Visual Editor
                         </button>
                         {% if is_admin %}
                         <button type="button" class="btn btn-download" id="validateTemplatesBtn" onclick="validateTemplates()">
@@ -2626,9 +2608,6 @@
                 document.getElementById('valueX').value = fontSettings.value_x || 280;
                 document.getElementById('startY').value = fontSettings.start_y || 275;
                 document.getElementById('lineHeight').value = fontSettings.line_height || 50;
-                const addressLineCount = String(fontSettings.address_max_lines || 2);
-                const addressLineRadio = document.querySelector(`input[name="address_max_lines"][value="${addressLineCount}"]`);
-                if (addressLineRadio) addressLineRadio.checked = true;
                 document.getElementById('textCase').value = fontSettings.text_case || 'normal';
                 document.getElementById('showLabelColon').checked = (fontSettings.show_label_colon !== false);
                 document.getElementById('alignLabelColon').checked = (fontSettings.align_label_colon !== false);
@@ -2679,12 +2658,37 @@
 
                 updateTotal();
                 saveBtn.disabled = false;
+                // Enable text position controls when a template is selected
+                const posIds = ['labelFontSize','valueFontSize','labelX','valueX','startY','lineHeight','textCase','showLabelColon','alignLabelColon','labelColonGap'];
+                posIds.forEach(id => {
+                    const el = document.getElementById(id);
+                    if (!el) return;
+                    // checkbox elements use checked property, ensure not read-only
+                    if (el.type === 'checkbox') el.disabled = false; else el.disabled = false;
+                });
                 saveBtn.innerHTML = '<i class="fas fa-save"></i> Save ' + (activeSide === 'back' ? 'Back' : 'Front') + ' Settings for ' + selectedOption.text;
+                // Enable/Open visual editor for precise layout editing
+                const openVE = document.getElementById('openVisualEditorBtn');
+                if (openVE) {
+                    openVE.disabled = false;
+                    openVE.onclick = function() {
+                        const side = activeSide || 'front';
+                        window.open(`/visual_editor?template_id=${templateId}&side=${side}`, '_blank');
+                    };
+                }
                 updateAdminPreview(); 
             } else {
                 document.getElementById('templateId').value = '';
                 saveBtn.disabled = true;
                 if (sideWrap) sideWrap.style.display = 'none';
+                // Disable text position controls when no template selected
+                const posIds = ['labelFontSize','valueFontSize','labelX','valueX','startY','lineHeight','textCase','showLabelColon','alignLabelColon','labelColonGap'];
+                posIds.forEach(id => {
+                    const el = document.getElementById(id);
+                    if (!el) return;
+                    if (el.type === 'checkbox') el.disabled = true; else el.disabled = true;
+                });
+                const openVE = document.getElementById('openVisualEditorBtn'); if (openVE) { openVE.disabled = true; openVE.onclick = null; }
             }
         }
         
@@ -2769,7 +2773,6 @@
                     value_x: getIntValue('valueX', 280),
                     start_y: getIntValue('startY', 275),
                     line_height: getIntValue('lineHeight', 50),
-                    address_max_lines: parseInt((document.querySelector('input[name="address_max_lines"]:checked') || {}).value || '2', 10),
                     text_case: getStringValue('textCase', 'normal'),
                     show_label_colon: getBoolValue('showLabelColon'),
                     align_label_colon: getBoolValue('alignLabelColon'),
