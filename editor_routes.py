@@ -1,5 +1,4 @@
 from flask import Blueprint, render_template, request, jsonify, session, redirect, url_for, send_file, make_response, current_app
-from models import db, Template, TemplateField, FieldSetting
 from models import db, Template, TemplateField
 from utils import (
     get_template_path,
@@ -153,49 +152,19 @@ def get_template_image(template_id):
 @editor_bp.route('/admin/get_editor_fields/<int:template_id>')
 def get_editor_fields(template_id):
     """
-    Returns JSON list of all text fields and their positions.
-    If no settings exist, it returns a smart default set.
+    Returns JSON of the template's layout_config.
     """
     if not session.get("admin"): return jsonify({"error": "Unauthorized"}), 403
 
-    # 1. Get saved positions from DB
-    settings = FieldSetting.query.filter_by(template_id=template_id).all()
     template = db.session.get(Template, template_id)
     if not template: return jsonify({"error": "Template not found"}), 404
     
-    # 2. If no settings exist, return DEFAULTS based on standard ID card layout
-    if not settings:
-        default_fields = [
-            {'key': 'name', 'label': 'Name', 'x': 50, 'y': 100, 'size': 30, 'color': '#000000', 'bold': True},
-            {'key': 'father_name', 'label': 'Father Name', 'x': 50, 'y': 150, 'size': 30, 'color': '#000000', 'bold': False},
-            {'key': 'class', 'label': 'Class', 'x': 50, 'y': 200, 'size': 30, 'color': '#000000', 'bold': False},
-            {'key': 'dob', 'label': 'D.O.B', 'x': 50, 'y': 250, 'size': 30, 'color': '#000000', 'bold': False},
-            {'key': 'phone', 'label': 'Phone', 'x': 50, 'y': 300, 'size': 30, 'color': '#000000', 'bold': False},
-            {'key': 'address', 'label': 'Address', 'x': 50, 'y': 350, 'size': 25, 'color': '#000000', 'bold': False},
-        ]
-        return jsonify(default_fields)
     side = request.args.get("side", "front").strip().lower()
     if side == "back" and getattr(template, "is_double_sided", False):
         layout_config_raw = template.back_layout_config
     else:
         layout_config_raw = template.layout_config
 
-    # 3. Serialize stored settings
-    output = []
-    for s in settings:
-        output.append({
-            'key': s.field_key,
-            # Generate a nice label from key if custom label is missing (e.g., 'father_name' -> 'Father Name')
-            'label': s.custom_label or s.field_key.replace('_', ' ').title(),
-            'x': s.x_pos,
-            'y': s.y_pos,
-            'size': s.font_size,
-            'color': s.color,
-            'bold': s.is_bold,
-            'visible': s.is_visible
-        })
-        
-    return jsonify(output)
     parsed_layout = parse_layout_config(layout_config_raw)
     return jsonify(parsed_layout)
 

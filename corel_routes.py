@@ -4443,6 +4443,7 @@ def download_compiled_vector_pdf(template_id):
             text_case = font_settings.get("text_case", "normal")
             show_label_colon = bool(font_settings.get("show_label_colon", True))
             align_label_colon = bool(font_settings.get("align_label_colon", True))
+            config_address_max_lines = int(font_settings.get("address_max_lines", 2))
             label_colon_gap = int(font_settings.get("label_colon_gap", 8) or 8)
             
             fields = [
@@ -4767,6 +4768,7 @@ def download_compiled_vector_pdf(template_id):
                         1,
                         min(
                             field_max_lines,
+                        config_address_max_lines,
                             int(remaining_h_pt / max(min_font_size_pt * line_height_factor, scale)),
                         ),
                     )

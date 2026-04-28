@@ -117,35 +117,6 @@ class Student(db.Model):
     sheet_position = Column(Integer)
 
 
-# models.py
-
-# ... (Keep your existing Student, Template, and TemplateField classes) ...
-
-# === ADD THIS NEW CLASS AT THE END ===
-class FieldSetting(db.Model):
-    __tablename__ = 'field_settings'
-    
-    id = db.Column(db.Integer, primary_key=True)
-    template_id = db.Column(db.Integer, db.ForeignKey('templates.id'), nullable=False)
-    
-    # The key (e.g., 'name', 'father_name', 'dob')
-    field_key = db.Column(db.String(50), nullable=False)
-    
-    # Visual Properties
-    x_pos = db.Column(db.Integer, default=50)
-    y_pos = db.Column(db.Integer, default=50)
-    font_size = db.Column(db.Integer, default=30)
-    color = db.Column(db.String(20), default='#000000')
-    font_family = db.Column(db.String(50), default='arial.ttf')
-    is_bold = db.Column(db.Boolean, default=False)
-    is_visible = db.Column(db.Boolean, default=True)
-    
-    # Optional: Custom label text
-    custom_label = db.Column(db.String(50)) 
-
-    # Relationship back to Template
-    template = db.relationship('Template', backref=db.backref('field_positions', lazy=True, cascade="all, delete-orphan"))
-
 # ================== Activity Log Model ==================
 class ActivityLog(db.Model):
     __tablename__ = 'activity_logs'

@@ -1818,6 +1818,7 @@ def build_student_card_text_runs(template_obj, student_like, side="front"):
     current_y = get_initial_flow_y_for_side(template_obj, font_settings, side=side)
     line_height = font_settings["line_height"]
     runs = []
+    address_max_lines = int(font_settings.get("address_max_lines", 2))
 
     for item in all_fields:
         label_source = item['label']
@@ -1933,9 +1934,9 @@ def build_student_card_text_runs(template_obj, student_like, side="front"):
             while curr_size >= min_size:
                 addr_font = load_font_dynamic(font_reg_path, "X", 10**9, curr_size, language=lang)
                 avg_char_w = curr_size * 0.50
-                chars_limit = max(5, int(max_w / max(avg_char_w, 1)))
+                chars_limit = max(5, int(max_w / max(avg_char_w, 1))) if avg_char_w > 0 else 20
                 wrapped_addr = textwrap.wrap(raw_val, width=chars_limit, break_long_words=True)
-                fits_horizontally = len(wrapped_addr) <= 2
+                fits_horizontally = len(wrapped_addr) <= address_max_lines
                 if fits_horizontally:
                     for line in wrapped_addr:
                         measure_text = process_text_for_drawing(line, lang)
@@ -1947,7 +1948,7 @@ def build_student_card_text_runs(template_obj, student_like, side="front"):
                 curr_size -= 2
             if curr_size < min_size:
                 addr_font = load_font_dynamic(font_reg_path, "X", 10**9, min_size, language=lang)
-            for line in wrapped_addr[:2]:
+            for line in wrapped_addr[:address_max_lines]:
                 line_display = process_text_for_drawing(line, lang)
                 if layout_item["value_visible"]:
                     value_draw_x = flip_x_for_text_direction(
@@ -5051,6 +5052,7 @@ def index():
             line_height = font_settings["line_height"]
             text_case = font_settings.get("text_case", "normal")
             show_label_colon = bool(font_settings.get("show_label_colon", True))
+            address_max_lines = int(font_settings.get("address_max_lines", 2))
             align_label_colon = bool(font_settings.get("align_label_colon", True))
             label_colon_gap = int(font_settings.get("label_colon_gap", 8) or 8)
 
@@ -5154,18 +5156,18 @@ def index():
 
                     while curr_size >= min_size:
                         # 1. Load font at this specific size to measure
-                        temp_font = load_font_dynamic(addr_font_path, "X", 10**9, curr_size, language=lang)
+                        temp_font = load_font_dynamic(addr_font_path, "X", 10**9, curr_size, language=lang) # type: ignore
 
                         # 2. Heuristic wrapping
                         avg_char_w = curr_size * 0.50
-                        chars_limit = int(max_w / avg_char_w)
+                        chars_limit = int(max_w / avg_char_w) if avg_char_w > 0 else 20
                         if chars_limit < 5: chars_limit = 5 
 
                         wrapped_addr = textwrap.wrap(raw_val, width=chars_limit, break_long_words=True)
                         
                         # 3. Check pixel width of every line
                         fits_horizontally = True
-                        if len(wrapped_addr) <= 2:
+                        if len(wrapped_addr) <= address_max_lines:
                             for line in wrapped_addr:
                                 # Shape text for accurate length measurement (Urdu/Arabic support)
                                 measure_text = process_text_for_drawing(line, lang)
@@ -5183,10 +5185,10 @@ def index():
                     
                     # Fallback if loop finishes without finding a fit
                     if 'addr_font' not in locals():
-                        addr_font = load_font_dynamic(addr_font_path, "X", 10**9, min_size, language=lang)
+                        addr_font = load_font_dynamic(addr_font_path, "X", 10**9, min_size, language=lang) # type: ignore
 
                     # Draw up to 2 lines
-                    for line in wrapped_addr[:2]:
+                    for line in wrapped_addr[:address_max_lines]:
                         line_display = process_text_for_drawing(line, lang)
                         # Use slightly tighter spacing if we shrunk the font significantly
                         spacing = line_height if curr_size > 20 else curr_size + 5
@@ -5961,6 +5963,7 @@ def edit_student(student_id):
             text_case = font_settings.get("text_case", "normal")
             show_label_colon = bool(font_settings.get("show_label_colon", True))
             align_label_colon = bool(font_settings.get("align_label_colon", True))
+            address_max_lines = int(font_settings.get("address_max_lines", 2))
             label_colon_gap = int(font_settings.get("label_colon_gap", 8) or 8)
             
             # --- DYNAMIC FIELDS HANDLING ---
@@ -6124,11 +6127,11 @@ def edit_student(student_id):
                     curr_size = value_font_size_eff
                     min_size = 12
                     wrapped_addr = []
-                
+
                     while curr_size >= min_size:
                         # Load font at this size
                         addr_font = load_font_dynamic(FONT_REGULAR_PATH, "X", 10**9, curr_size, language=lang)
-                
+
                         # Pixel-based wrapping
                         words = val.split()
                         lines = []
@@ -6143,17 +6146,17 @@ def edit_student(student_id):
                                 if current_line:
                                     lines.append(current_line)
                                 current_line = word
-                
+
                         if current_line:
                             lines.append(current_line)
-                
+
                         # Stop if it fits in 2 lines
-                        if len(lines) <= 2:
+                        if len(lines) <= address_max_lines:
                             wrapped_addr = lines
                             break
-                
+
                         curr_size -= 2
-                
+
                     # Fallback if still too long
                     if not wrapped_addr:
                         wrapped_addr = lines[:2]
@@ -6166,7 +6169,7 @@ def edit_student(student_id):
                                 value_x_eff,
                                 line_display,
                                 addr_font,
-                                card_width,
+                                card_width, # type: ignore
                                 direction,
                                 draw=draw,
                                 grow_mode=layout_item["value_grow"],
@@ -6176,7 +6179,7 @@ def edit_student(student_id):
                                 line_display,
                                 font=addr_font,
                                 fill=value_fill,
-                                **get_draw_text_kwargs(line_display, lang),
+                                **get_draw_text_kwargs(line_display, lang), # type: ignore
                             )
                         value_y_eff += curr_size + 6
                         if advances_flow:
@@ -6197,7 +6200,7 @@ def edit_student(student_id):
                         )
                         draw_aligned_colon_pil(
                             draw,
-                            card_width,
+                            card_width, # type: ignore
                             direction,
                             value_x_eff,
                             colon_y_eff,
@@ -6988,6 +6991,7 @@ def update_template_settings_route():
                 "show_label_colon": safe_get_bool(font_settings_data, "show_label_colon", True),
                 "align_label_colon": safe_get_bool(font_settings_data, "align_label_colon", True),
                 "label_colon_gap": safe_get_int(font_settings_data, "label_colon_gap", 8),
+                "address_max_lines": safe_get_int(font_settings_data, "address_max_lines", 2),
             }
             
             # Handle font colors from JSON with validation
@@ -7046,6 +7050,7 @@ def update_template_settings_route():
                 "show_label_colon": (request.form.get("show_label_colon", "off").strip().lower() in {"1", "true", "yes", "on"}),
                 "align_label_colon": (request.form.get("align_label_colon", "off").strip().lower() in {"1", "true", "yes", "on"}),
                 "label_colon_gap": get_form_int(request.form, "label_colon_gap", 8),
+                "address_max_lines": get_form_int(request.form, "address_max_lines", 2),
             }
             
             # Handle font colors from form data
@@ -7715,6 +7720,7 @@ def admin_preview_card():
         current_y = get_initial_flow_y_for_side(template, font_settings, side=side)
         line_height = font_settings["line_height"]
 
+        address_max_lines = int(font_settings.get("address_max_lines", 2))
         for item in all_fields:
             raw_label = apply_text_case(item['label'], text_case)
             raw_val = apply_text_case(item['val'], text_case)
@@ -7840,8 +7846,7 @@ def admin_preview_card():
                     lang,
                     display_val,
                 )
-
-                for line in wrapped_addr[:2]:
+                for line in wrapped_addr[:address_max_lines]:
                     line_display = process_text_for_drawing(line, lang)
                     spacing = line_height if curr_size > 20 else curr_size + 5
                     if layout_item["value_visible"]:
