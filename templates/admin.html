@@ -1569,7 +1569,7 @@
                                 </div>
                             </div>
                         </div>
-
+z
                         <div class="settings-section">
                             <h4><i class="fas fa-arrows-alt"></i> Text Position Settings</h4>
                             <div class="form-row">
@@ -1933,6 +1933,44 @@
                         {% endif %}
                     </form>
                 </div>
+
+                <!-- School Admin Management Section -->
+                {% if is_admin and session.get('admin_role') != 'school_admin' %}
+                <div class="section full-width">
+                    <h3><i class="fas fa-school"></i> School Admin Management</h3>
+                    <div class="card">
+                        <div class="card-body">
+                            <p class="text-muted">Register new school admins who can login and generate unlimited cards for their school.</p>
+                            
+                            <form id="registerSchoolAdminForm" class="enhanced-form">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label><i class="fas fa-user"></i> Username</label>
+                                        <input type="text" name="username" id="schoolAdminUsername" placeholder="Enter username" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label><i class="fas fa-lock"></i> Password</label>
+                                        <input type="password" name="password" id="schoolAdminPassword" placeholder="Enter password" required>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label><i class="fas fa-school"></i> School Name</label>
+                                    <input type="text" name="school_name" id="schoolAdminSchoolName" placeholder="Enter school name" required>
+                                </div>
+                                <button type="submit" class="btn btn-upload">
+                                    <i class="fas fa-user-plus"></i> Register School Admin
+                                </button>
+                                <a href="{{ url_for('list_school_admins') }}" class="btn btn-download">
+                                    <i class="fas fa-users"></i> View All School Admins
+                                </a>
+                            </form>
+                            
+                            <div id="schoolAdminMessage" class="mt-3" style="display: none;"></div>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
 
                 <div class="section full-width">
                     <h3><i class="fas fa-font"></i> Upload Font</h3>
@@ -4089,6 +4127,55 @@
                 });
             });
         });
+
+        // School Admin Registration
+        const schoolAdminForm = document.getElementById('registerSchoolAdminForm');
+        if (schoolAdminForm) {
+            schoolAdminForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                const username = document.getElementById('schoolAdminUsername').value.trim();
+                const password = document.getElementById('schoolAdminPassword').value;
+                const school_name = document.getElementById('schoolAdminSchoolName').value.trim();
+                const messageDiv = document.getElementById('schoolAdminMessage');
+                
+                if (!username || !password || !school_name) {
+                    messageDiv.innerHTML = '<div class="alert alert-danger">All fields are required</div>';
+                    messageDiv.style.display = 'block';
+                    return;
+                }
+                
+                const formData = new FormData();
+                formData.append('username', username);
+                formData.append('password', password);
+                formData.append('school_name', school_name);
+                
+                messageDiv.innerHTML = '<div class="alert alert-info">Registering...</div>';
+                messageDiv.style.display = 'block';
+                
+                fetch('{{ url_for("register_school_admin") }}', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        messageDiv.innerHTML = '<div class="alert alert-success">' + data.message + '</div>';
+                        schoolAdminForm.reset();
+                    } else {
+                        messageDiv.innerHTML = '<div class="alert alert-danger">' + data.error + '</div>';
+                    }
+                    messageDiv.style.display = 'block';
+                    setTimeout(() => {
+                        messageDiv.style.display = 'none';
+                    }, 5000);
+                })
+                .catch(error => {
+                    messageDiv.innerHTML = '<div class="alert alert-danger">Error: ' + error + '</div>';
+                    messageDiv.style.display = 'block';
+                });
+            });
+        }
     </script>
 </body>
 </html>

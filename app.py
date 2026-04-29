@@ -2170,6 +2170,106 @@ def reset_activity_log():
         return redirect(url_for("view_activity_log", error=f"Failed to clear log: {str(e)}"))
 
 
+# ================== School Admin Management ==================
+@app.route("/admin/school_admins", methods=["GET"])
+def list_school_admins():
+    """List all school admins - only for super admin"""
+    if not session.get("admin") or session.get("admin_role") == "school_admin":
+        flash('Access denied. Super admin only.', 'error')
+        return redirect(url_for('admin'))
+    
+    school_admins = AdminUser.query.filter_by(role='school_admin').order_by(AdminUser.created_at.desc()).all()
+    return render_template("school_admins.html", school_admins=school_admins)
+
+
+@app.route("/admin/register_school_admin", methods=["POST"])
+def register_school_admin():
+    """Register a new school admin - only for super admin"""
+    if not session.get("admin") or session.get("admin_role") == "school_admin":
+        return jsonify({'success': False, 'error': 'Access denied'}), 403
+    
+    username = request.form.get('username', '').strip()
+    password = request.form.get('password', '')
+    school_name = request.form.get('school_name', '').strip()
+    
+    if not username or not password or not school_name:
+        return jsonify({'success': False, 'error': 'All fields are required'}), 400
+    
+    # Check if username already exists
+    existing = AdminUser.query.filter_by(username=username).first()
+    if existing:
+        return jsonify({'success': False, 'error': 'Username already exists'}), 400
+    
+    # Check if school_name already has an admin
+    existing_school = AdminUser.query.filter_by(school_name=school_name, role='school_admin').first()
+    if existing_school:
+        return jsonify({'success': False, 'error': 'School admin already exists for this school'}), 400
+    
+    try:
+        new_admin = AdminUser(
+            username=username,
+            password_hash=generate_password_hash(password),
+            role='school_admin',
+            school_name=school_name
+        )
+        db.session.add(new_admin)
+        db.session.commit()
+        logger.info(f"School admin registered: {username} for school: {school_name}")
+        return jsonify({'success': True, 'message': f'School admin for {school_name} created successfully'})
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error registering school admin: {e}")
+        return jsonify({'success': False, 'error': 'Failed to create school admin'}), 500
+
+
+@app.route("/admin/delete_school_admin/<int:admin_id>", methods=["POST"])
+def delete_school_admin(admin_id):
+    """Delete a school admin - only for super admin"""
+    if not session.get("admin") or session.get("admin_role") == "school_admin":
+        return jsonify({'success': False, 'error': 'Access denied'}), 403
+    
+    try:
+        admin_user = db.session.get(AdminUser, admin_id)
+        if not admin_user:
+            return jsonify({'success': False, 'error': 'School admin not found'}), 404
+        
+        if admin_user.role == 'super_admin':
+            return jsonify({'success': False, 'error': 'Cannot delete super admin'}), 400
+        
+        username = admin_user.username
+        school_name = admin_user.school_name
+        db.session.delete(admin_user)
+        db.session.commit()
+        logger.info(f"School admin deleted: {username} (school: {school_name})")
+        return jsonify({'success': True, 'message': f'School admin for {school_name} deleted'})
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error deleting school admin: {e}")
+        return jsonify({'success': False, 'error': 'Failed to delete school admin'}), 500
+
+
+@app.route("/school_admin_login", methods=["GET", "POST"])
+def school_admin_login():
+    """Login page for school admins"""
+    if request.method == "POST":
+        username = request.form.get('username', '').strip()
+        password = request.form.get('password', '')
+        
+        admin_user = AdminUser.query.filter_by(username=username, role='school_admin').first()
+        
+        if admin_user and check_password_hash(admin_user.password_hash, password):
+            session['admin'] = True
+            session['admin_role'] = 'school_admin'
+            session['admin_school'] = admin_user.school_name
+            session['student_email'] = username  # Reuse for display
+            logger.info(f"School admin logged in: {username} (school: {admin_user.school_name})")
+            return redirect(url_for('index'))
+        
+        flash('Invalid credentials or access denied.', 'error')
+    
+    return render_template("school_admin_login.html")
+
+
 def _quote_db_identifier(identifier):
     """Quote a table or column name for the active SQLAlchemy dialect."""
     return db.engine.dialect.identifier_preparer.quote(identifier)
