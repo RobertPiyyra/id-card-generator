@@ -2289,6 +2289,8 @@ def school_admin_login():
             session['admin_role'] = 'school_admin'
             session['admin_school'] = admin_user.school_name
             session['student_email'] = username  # Reuse for display
+            # Refresh session to extend CSRF token lifetime
+            session.modified = True
             logger.info(f"School admin logged in: {username} (school: {admin_user.school_name})")
             return redirect(url_for('index'))
         
