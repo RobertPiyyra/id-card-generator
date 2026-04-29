@@ -4160,13 +4160,26 @@ z
                     },
                     body: formData
                 })
-                .then(response => response.json())
+                .then(response => {
+                    // For debugging: log status and text
+                    console.log('Response status:', response.status);
+                    return response.text().then(text => {
+                        console.log('Response text:', text);
+                        // Try to parse as JSON
+                        try {
+                            return JSON.parse(text);
+                        } catch (e) {
+                            // If not JSON, return object with error
+                            return { success: false, error: 'Non-JSON response: ' + text.substring(0, 200) };
+                        }
+                    });
+                })
                 .then(data => {
                     if (data.success) {
                         messageDiv.innerHTML = '<div class="alert alert-success">' + data.message + '</div>';
                         schoolAdminForm.reset();
                     } else {
-                        messageDiv.innerHTML = '<div class="alert alert-danger">' + data.error + '</div>';
+                        messageDiv.innerHTML = '<div class="alert alert-danger">' + (data.error || 'Unknown error') + '</div>';
                     }
                     messageDiv.style.display = 'block';
                     setTimeout(() => {

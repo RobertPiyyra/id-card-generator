@@ -1107,6 +1107,33 @@ def handle_rate_limit_error(e):
     # If no referrer, go to the landing page
     return redirect(request.referrer or url_for('landing'))
 
+
+@app.errorhandler(400)
+def handle_bad_request_error(e):
+    """
+    Handles 400 Bad Request errors (including CSRF errors).
+    Returns JSON for API calls, HTML for browser navigation.
+    """
+    error_desc = str(e) or "Bad request"
+    # Check if this is a CSRF error
+    if "CSRF" in error_desc or "token" in error_desc.lower():
+        logger.warning(f"CSRF error: {error_desc} - IP: {request.remote_addr}")
+        if request.is_json or request.path.startswith('/api') or request.path.startswith('/admin'):
+            return jsonify({
+                "success": False, 
+                "error": "CSRF token missing or invalid. Please refresh the page and try again."
+            }), 400
+        flash("CSRF token error. Please refresh the page and try again.", "error")
+        return redirect(request.referrer or url_for('landing'))
+    
+    logger.warning(f"400 Bad Request: {request.path} - {error_desc}")
+    if request.is_json or request.path.startswith('/api') or request.path.startswith('/admin'):
+        return jsonify({
+            "success": False, 
+            "error": f"Bad request: {error_desc}"
+        }), 400
+    return "400 - Bad Request", 400
+
 @app.errorhandler(404)
 def not_found_error(error):
     logger.warning(f"404 Not Found: {request.path}")
