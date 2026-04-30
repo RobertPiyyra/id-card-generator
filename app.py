@@ -1256,6 +1256,10 @@ def resolve_field_layout_for_side(template_obj, field_key, default_label_x, defa
         text_direction = "ltr"
 
     layout_config = getattr(template_obj, "back_layout_config", None) if side_name == "back" else getattr(template_obj, "layout_config", None)
+    if getattr(template_obj, "_ignore_layout_field_overrides", False):
+        parsed_layout = parse_layout_config(layout_config)
+        parsed_layout.pop("fields", None)
+        layout_config = parsed_layout
     field_side_flags = get_template_field_side_flags(template_obj, field_key, side=side_name)
     default_visibility = field_side_flags or {}
     default_label_visible = default_visibility.get("label_visible", True)
@@ -1305,6 +1309,8 @@ def get_initial_flow_y_for_side(template_obj, font_settings, side="front"):
         return default_start_y
 
     layout_config = getattr(template_obj, "back_layout_config", None) if side_name == "back" else getattr(template_obj, "layout_config", None)
+    if getattr(template_obj, "_ignore_layout_field_overrides", False):
+        return default_start_y
     visibility_map = {}
     try:
         db_fields = TemplateField.query.filter_by(template_id=template_obj.id).order_by(TemplateField.display_order.asc()).all()
@@ -1664,7 +1670,9 @@ def apply_layout_custom_objects_pil(template_img, template_obj, font_settings, s
             except Exception as image_err:
                 logger.warning("Skipping custom image object due to render error: %s", image_err)
         elif obj_type == "text":
-            text = str(obj.get("text") or "Text")
+            text = str(obj.get("text") if obj.get("text") is not None else "Text")
+            if not text:
+                continue
             font_size = max(8, int(round((obj.get("font_size", 24) or 24) * scale)))
             font_path = font_bold_path if bool(obj.get("bold")) else font_reg_path
             font = load_font_dynamic(font_path, text, template_img.width, font_size, language=language)
@@ -3346,6 +3354,25 @@ def update_template_settings(template_id, font_settings=None, photo_settings=Non
         db.session.rollback()
         logger.error(f"Error updating template settings: {e}")
         raise
+
+
+def clear_layout_field_overrides(template, side="front"):
+    """
+    Let the normal Template Settings panel take control of text placement/style
+    without deleting custom visual-editor objects like logos, lines, and text blocks.
+    """
+    if not template:
+        return False
+
+    side_name = "back" if str(side or "front").strip().lower() == "back" else "front"
+    attr = "back_layout_config" if side_name == "back" else "layout_config"
+    parsed = parse_layout_config(getattr(template, attr, None))
+    if not parsed or "fields" not in parsed:
+        return False
+
+    parsed.pop("fields", None)
+    setattr(template, attr, json.dumps(parsed, ensure_ascii=False) if parsed else None)
+    return True
     
 # ================== Duplicate Config ==================
 def load_duplicate_config():
@@ -7371,6 +7398,9 @@ def update_template_settings_route():
         
         # Update template settings in the database
         try:
+            if not (request.is_json and isinstance(data, dict) and "layout_config" in data):
+                clear_layout_field_overrides(template, settings_side)
+
             update_kwargs = {
                 "template_id": template_id,
                 "card_orientation": card_orientation,
@@ -7785,6 +7815,14 @@ def admin_preview_card():
         # --- LANGUAGE LOGIC ---
         template = db.session.get(Template, template_id)
         lang, direction = get_template_language_direction(template_id, side=side)
+        if template is not None:
+            setattr(template, "_ignore_layout_field_overrides", bool(data.get("ignore_layout_fields")))
+        incoming_lang = str(data.get("language") or "").strip().lower()
+        incoming_direction = str(data.get("text_direction") or "").strip().lower()
+        if incoming_lang in {"english", "urdu", "hindi", "arabic"}:
+            lang = incoming_lang
+        if incoming_direction in {"ltr", "rtl"}:
+            direction = incoming_direction
 
         # Standard Labels
         std_labels = {
