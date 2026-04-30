@@ -1832,7 +1832,7 @@ def parse_layout_config(layout_config):
                     except Exception:
                         pass
             if obj_type == "text":
-                sanitized["text"] = str(obj.get("text") if obj.get("text") is not None else "Text")
+                sanitized["text"] = str(obj.get("text") or "Text")
             if obj_type == "image":
                 src = str(obj.get("src") or "").strip()
                 if src:

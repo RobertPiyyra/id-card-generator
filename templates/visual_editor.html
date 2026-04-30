@@ -1270,7 +1270,7 @@
         strokeWidth: Math.max(1, parseInt(def.stroke_width || 2, 10)),
       };
       if (type === "text") {
-        return new fabric.Textbox(def.text ?? "Text", {
+        return new fabric.Textbox(def.text || "Text", {
           ...base,
           width: Math.max(80, parseInt(def.width || 180, 10)),
           fontSize: Math.max(8, parseInt(def.font_size || 24, 10)),
@@ -1365,7 +1365,7 @@
       next.stroke = obj.stroke || next.stroke || "#1f4e8c";
       next.stroke_width = Math.max(1, Math.round(obj.strokeWidth || next.stroke_width || 2));
       if (obj.customType === "text") {
-        next.text = obj.text ?? "";
+        next.text = obj.text || "Text";
         next.width = Math.round(obj.width || 180);
         next.height = Math.round(obj.height || obj.fontSize || 30);
         next.font_size = Math.max(8, Math.round(obj.fontSize || next.font_size || 24));
@@ -2463,7 +2463,6 @@
           grid_cols: GRID_COLS,
           language: state.language,
           text_direction: state.direction,
-          language_direction_explicit: true,
           font_settings: { ...initFont, ...state.font },
           photo_settings: { ...initPhoto, ...state.photo },
           qr_settings: { ...initQR, ...state.qr },
@@ -2603,7 +2602,7 @@
       document.getElementById("selText").addEventListener("input", (e) => {
         const o = canvas.getActiveObject();
         if (!o || o.dataType !== "custom" || o.customType !== "text") return;
-        o.set({ text: e.target.value });
+        o.set({ text: e.target.value || "Text" });
         persistCustomObject(o);
         canvas.requestRenderAll();
       });
