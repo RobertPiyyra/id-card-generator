@@ -103,28 +103,4 @@
         }
     </script>
 </body>
-</html>         method: 'P 
-                 O  ST',son',
-                    'X-CSRFToken': document.querySelector('meta[name="crf-token"]').getAttribute('cntet)
-               
-                headers: { 
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    alert(data.message);
-                    location.reload();
-                } else {
-                    alert('Error: ' + data.error);
-                }
-            })
-            .catch(error => {
-                alert('Error: ' + error);
-            });
-        }
-    </script>
-</body>
 </html>
