@@ -1575,7 +1575,7 @@ def _initial_flow_y_px(template_obj, font_settings, *, side="front"):
 
     return get_layout_flow_start_y(layout_config, default_start_y, visibility_map)
 
-def _field_wrap_policy(field_key: str | None) -> dict:
+def _field_wrap_policy(field_key: str | None, address_max_lines: int | None = None) -> dict:
     key = str(field_key or "").strip().upper()
     defaults = {
         "max_lines": 3,
@@ -1593,6 +1593,11 @@ def _field_wrap_policy(field_key: str | None) -> dict:
     }
     policy = dict(defaults)
     policy.update(per_field.get(key, {}))
+    if key == "ADDRESS" and address_max_lines is not None:
+        try:
+            policy["max_lines"] = max(1, min(3, int(address_max_lines)))
+        except Exception:
+            pass
     return policy
 
 
@@ -1644,6 +1649,9 @@ def _draw_custom_editor_objects_pdf(c, layout_config_raw, card_x, card_bottom_y,
         stroke = _hex_to_color(stroke_hex)
         stroke_width = max(0.5, float(obj.get("stroke_width", 2)) * scale)
         if kind == "text":
+            text = str(obj.get("text") if obj.get("text") is not None else "Text")
+            if not text:
+                continue
             c.saveState()
             c.translate(x, y)
             if angle:
@@ -1652,7 +1660,7 @@ def _draw_custom_editor_objects_pdf(c, layout_config_raw, card_x, card_bottom_y,
                 c.setFillAlpha(opacity)
             c.setFillColor(fill)
             c.setFont(reg_font_name, max(6.0, float(obj.get("font_size", 24)) * scale))
-            c.drawString(0, 0, str(obj.get("text") or "Text"))
+            c.drawString(0, 0, text)
             c.restoreState()
         elif kind == "rect":
             w = max(1.0, float(obj.get("width", 120)) * scale)
@@ -2962,6 +2970,7 @@ def _generate_direct_editable_pdf_template_export(
             text_case = font_settings.get("text_case", "normal")
             show_label_colon = bool(font_settings.get("show_label_colon", True))
             align_label_colon = bool(font_settings.get("align_label_colon", True))
+            config_address_max_lines = int(font_settings.get("address_max_lines", 2) or 2)
             label_colon_gap = int(font_settings.get("label_colon_gap", 8) or 8)
 
             try:
@@ -3327,7 +3336,7 @@ def _generate_direct_editable_pdf_template_export(
                 max_width_pt = float(max_w_px) * x_scale
                 remaining_h_px = max(1.0, float(card_h_px - 20) - float(value_y_eff))
                 remaining_h_pt = max(text_scale, remaining_h_px * y_scale)
-                wrap_policy = _field_wrap_policy(field_key)
+                wrap_policy = _field_wrap_policy(field_key, config_address_max_lines)
                 line_height_factor = float(wrap_policy.get("line_height_factor", 1.15))
                 min_font_size_pt = max(8 * text_scale, val_size_pt_eff * float(wrap_policy.get("min_scale", 0.78)))
                 field_max_lines = max(
@@ -4443,7 +4452,7 @@ def download_compiled_vector_pdf(template_id):
             text_case = font_settings.get("text_case", "normal")
             show_label_colon = bool(font_settings.get("show_label_colon", True))
             align_label_colon = bool(font_settings.get("align_label_colon", True))
-            config_address_max_lines = int(font_settings.get("address_max_lines", 2))
+            config_address_max_lines = int(font_settings.get("address_max_lines", 2) or 2)
             label_colon_gap = int(font_settings.get("label_colon_gap", 8) or 8)
             
             fields = [
@@ -4649,7 +4658,7 @@ def download_compiled_vector_pdf(template_id):
                 max_width_pt = float(max_w_px) * scale
                 remaining_h_px = max(1.0, float(card_h_px - 20) - float(value_y_eff))
                 remaining_h_pt = max(scale, remaining_h_px * scale)
-                wrap_policy = _field_wrap_policy(field_key)
+                wrap_policy = _field_wrap_policy(field_key, config_address_max_lines)
                 line_height_factor = float(wrap_policy.get("line_height_factor", 1.15))
                 min_font_size_pt = max(8 * scale, val_size_pt_eff * float(wrap_policy.get("min_scale", 0.78)))
                 field_max_lines = max(
