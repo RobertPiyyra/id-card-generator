@@ -1257,9 +1257,7 @@ def resolve_field_layout_for_side(template_obj, field_key, default_label_x, defa
 
     layout_config = getattr(template_obj, "back_layout_config", None) if side_name == "back" else getattr(template_obj, "layout_config", None)
     if getattr(template_obj, "_ignore_layout_field_overrides", False):
-        parsed_layout = parse_layout_config(layout_config)
-        parsed_layout.pop("fields", None)
-        layout_config = parsed_layout
+        layout_config = keep_layout_field_visibility_only(layout_config)
     field_side_flags = get_template_field_side_flags(template_obj, field_key, side=side_name)
     default_visibility = field_side_flags or {}
     default_label_visible = default_visibility.get("label_visible", True)
@@ -3366,13 +3364,45 @@ def clear_layout_field_overrides(template, side="front"):
 
     side_name = "back" if str(side or "front").strip().lower() == "back" else "front"
     attr = "back_layout_config" if side_name == "back" else "layout_config"
-    parsed = parse_layout_config(getattr(template, attr, None))
-    if not parsed or "fields" not in parsed:
+    current = parse_layout_config(getattr(template, attr, None))
+    if not current or "fields" not in current:
         return False
-
-    parsed.pop("fields", None)
+    parsed = keep_layout_field_visibility_only(current)
     setattr(template, attr, json.dumps(parsed, ensure_ascii=False) if parsed else None)
     return True
+
+
+def keep_layout_field_visibility_only(layout_config_raw):
+    """Strip field position/style overrides while preserving explicit show/hide choices."""
+    parsed = parse_layout_config(layout_config_raw)
+    if not parsed:
+        return {}
+
+    fields = parsed.get("fields")
+    if not isinstance(fields, dict):
+        parsed.pop("fields", None)
+        return parsed
+
+    visibility_fields = {}
+    for field_key, field_obj in fields.items():
+        if not isinstance(field_obj, dict):
+            continue
+        next_field = {}
+        for part in ("label", "value", "colon"):
+            part_obj = field_obj.get(part)
+            visible_key = f"{part}_visible"
+            if isinstance(part_obj, dict) and "visible" in part_obj:
+                next_field[part] = {"visible": bool(part_obj.get("visible"))}
+            elif visible_key in field_obj:
+                next_field[part] = {"visible": bool(field_obj.get(visible_key))}
+        if next_field:
+            visibility_fields[str(field_key)] = next_field
+
+    if visibility_fields:
+        parsed["fields"] = visibility_fields
+    else:
+        parsed.pop("fields", None)
+    return parsed
     
 # ================== Duplicate Config ==================
 def load_duplicate_config():
