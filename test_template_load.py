@@ -23,10 +23,9 @@ def test_templates():
         
         for tmpl in templates:
             print(f"Template ID: {tmpl.id}")
-            print(f"  Name: {tmpl.name}")
+            print(f"  School Name: {tmpl.school_name}")
             print(f"  Filename: {tmpl.filename}")
             print(f"  Template URL: {tmpl.template_url}")
-            print(f"  School ID: {tmpl.school_id}")
             
             # Check if URL is valid
             if tmpl.template_url:
