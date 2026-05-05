@@ -2,7 +2,6 @@ from dotenv import load_dotenv
 load_dotenv()  # Load environment variables BEFORE any other imports
 import socket  # <--- Make sure this is imported at the top
 from flask import Flask, render_template, request, url_for, Response, redirect, session, send_file, jsonify, flash, Blueprint
-from PIL import Image, ImageDraw, ImageFont,ImageOps
 import os
 import json
 from flask_login import current_user
@@ -22,31 +21,22 @@ import string
 from collections import defaultdict
 from functools import lru_cache
 import textwrap
-import pandas as pd
 import tempfile
 import glob
 import io
 from io import BytesIO
 import base64
 import uuid
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 import time
-from flask_wtf.csrf import CSRFProtect 
-from reportlab.pdfgen import canvas
+from flask_wtf.csrf import CSRFProtect
 from redis import Redis
 from redis.exceptions import RedisError
 from rq import Queue, get_current_job
-from reportlab.lib.pagesizes import A4, landscape
-# Ensure fitz is available (it was used in load_template)
-import fitz  # PyMuPDF
-import qrcode
 from itsdangerous import URLSafeTimedSerializer, SignatureExpired, BadTimeSignature
-from qrcode.image.pil import PilImage
-from qrcode.image.styles.moduledrawers import SquareModuleDrawer, RoundedModuleDrawer, CircleModuleDrawer
 from sqlalchemy import text, inspect
 from sqlalchemy.exc import IntegrityError
 
-import numpy as np
 from corel_routes import corel_bp
 from editor_routes import editor_bp
 from utils import (
@@ -78,9 +68,91 @@ from flask_limiter.util import get_remote_address
 from flask_limiter.errors import RateLimitExceeded
 from apscheduler.schedulers.background import BackgroundScheduler
 import atexit
+
+# ================== Lazy Imports for Performance ==================
+def _lazy_import_pil():
+    global Image, ImageDraw, ImageFont, ImageOps
+    if 'Image' not in globals():
+        from PIL import Image, ImageDraw, ImageFont, ImageOps
+
+def _lazy_import_pandas():
+    global pd
+    if 'pd' not in globals():
+        import pandas as pd
+
+def _lazy_import_numpy():
+    global np
+    if 'np' not in globals():
+        import numpy as np
+
+def _lazy_import_reportlab():
+    global canvas, A4, landscape
+    if 'canvas' not in globals():
+        from reportlab.pdfgen import canvas
+        from reportlab.lib.pagesizes import A4, landscape
+
+def _lazy_import_fitz():
+    global fitz
+    if 'fitz' not in globals():
+        import fitz
+
+def _lazy_import_openpyxl():
+    global openpyxl
+    if 'openpyxl' not in globals():
+        import openpyxl
+
+def _read_excel_without_pandas(excel_path):
+    """Read Excel file using openpyxl instead of pandas for better performance."""
+    _lazy_import_openpyxl()
+    wb = openpyxl.load_workbook(excel_path, read_only=True)
+    ws = wb.active
+    
+    # Get headers
+    headers = []
+    for col in range(1, ws.max_column + 1):
+        cell = ws.cell(row=1, column=col)
+        headers.append(str(cell.value or '').strip().lower())
+    
+    # Get data
+    data = []
+    for row in range(2, ws.max_row + 1):
+        row_data = {}
+        for col, header in enumerate(headers, 1):
+            cell = ws.cell(row=row, column=col)
+            row_data[header] = cell.value
+        data.append(row_data)
+    
+    wb.close()
+    return data
+
+class SimpleDataFrame:
+    """Simple DataFrame-like class to replace pandas operations."""
+    def __init__(self, data):
+        self.data = data
+        self.columns = list(data[0].keys()) if data else []
+    
+    def __iter__(self):
+        return iter(self.data)
+    
+    def __len__(self):
+        return len(self.data)
+    
+    def __getitem__(self, key):
+        if isinstance(key, str):
+            return [row.get(key) for row in self.data]
+        return self.data[key]
+    
+    def iterrows(self):
+        for idx, row in enumerate(self.data):
+            yield idx, row
+
 # Initialize Thread Executor (limit workers to prevent memory overload)
 max_workers = min(32, os.cpu_count() * 2)
 executor = ThreadPoolExecutor(max_workers=max_workers)
+
+# Initialize Process Pool for CPU-bound tasks
+cpu_executor = ProcessPoolExecutor(max_workers=min(4, os.cpu_count()))
+
 # In-memory dictionary to track job progress
 # Structure: { 'task_id': { 'state': 'PENDING', 'current': 0, 'total': 0, 'status': '' } }
 jobs = {}
@@ -393,6 +465,7 @@ def _get_cached_final_card(
     include_barcode=True,
     include_text=True,
 ):
+    _lazy_import_pil()  # Lazy load PIL
     cache_key = _redis_cache_key(
         "final_card",
         template_obj.id,
@@ -467,6 +540,7 @@ STORAGE_BACKEND = get_storage_backend()
 
 
 def _get_cached_media_image(key_prefix, buffer_bytes, generate_fn):
+    _lazy_import_pil()  # Lazy load PIL
     cache_key = _redis_cache_key(key_prefix, buffer_bytes)
     cached = _redis_get(cache_key)
     if cached is not None:
@@ -600,6 +674,7 @@ def _photo_settings_dimensions(photo_settings, scale=1.0):
 
 
 def _load_card_photo_image(student_like, photo_settings, photo_w, photo_h):
+    _lazy_import_pil()  # Lazy load PIL
     photo_img = load_student_photo_rgba(
         student_like,
         photo_w,
@@ -874,6 +949,7 @@ def render_student_card_side(
     include_barcode=True,
     include_text=True,
 ):
+    _lazy_import_pil()  # Lazy load PIL
     if not template_obj:
         return None
 
@@ -8538,6 +8614,7 @@ def background_bulk_generate(task_id, template_id, excel_path, photo_map):
     Background thread to process bulk generation without blocking the server.
     Uses SQLAlchemy ORM for all database operations.
     """
+    _lazy_import_pandas()  # Lazy load pandas
     with app.app_context():
         success_count = 0
         skipped_count = 0
@@ -8548,11 +8625,12 @@ def background_bulk_generate(task_id, template_id, excel_path, photo_map):
             _set_bulk_job_state(task_id, state='PROCESSING', status='Reading Excel file...')
 
             if excel_path.endswith('.csv'):
+                _lazy_import_pandas()
                 df = pd.read_csv(excel_path)
+                df.columns = df.columns.str.strip().str.lower()
             else:
-                df = pd.read_excel(excel_path, engine='openpyxl')
-
-            df.columns = df.columns.str.strip().str.lower()
+                data = _read_excel_without_pandas(excel_path)
+                df = SimpleDataFrame(data)
             required_columns = ["name"]
             missing_required = [col for col in required_columns if col not in df.columns]
             if missing_required:
