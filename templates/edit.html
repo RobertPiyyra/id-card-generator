@@ -519,7 +519,7 @@
     
     <form method="POST" enctype="multipart/form-data" id="idCardForm"
        
-          action="{% if form_data and form_data['id'] %}{{ url_for('edit_student', student_id=form_data['id']) }}{% else %}#{% endif %}">
+          action="{% if form_data and form_data['id'] %}{{ url_for('dashboard.edit_student', student_id=form_data['id']) }}{% else %}#{% endif %}">
       
       <input type="hidden" name="student_id" id="student_id" value="{% if form_data and form_data['id'] %}{{ form_data['id'] }}{% else %}0{% endif %}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
@@ -635,7 +635,7 @@
       </div>
       <div class="form-actions">
         <button type="submit" id="submit-btn"><i class="fas fa-save"></i> <span>Update ID Card</span></button>
-        <a href="{{ url_for('index') }}" class="action-btn btn-outline">
+        <a href="{{ url_for('dashboard.index') }}" class="action-btn btn-outline">
             <i class="fas fa-times"></i> <span>Cancel</span>
         </a>
       </div>
@@ -790,7 +790,19 @@
         input.addEventListener('blur', function() {
           this.parentElement.style.transform = 'translateY(0)';
         });
-      });
+      
+      // 7. Client-side photo file size check (Fix 18)
+      const photoInput = document.getElementById('photo');
+      if (photoInput) {
+          photoInput.addEventListener('change', function() {
+              if (this.files && this.files[0]) {
+                  const fileSizeMB = this.files[0].size / (1024 * 1024);
+                  if (fileSizeMB > 5) {
+                      showNotification('Warning: Selected photo file size exceeds 5MB. Upload may fail or be slow.', 'error');
+                  }
+              }
+          });
+      }
     });
   </script>
 </body>

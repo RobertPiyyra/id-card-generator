@@ -12,6 +12,8 @@ from models import db, Template
 import hashlib
 import qrcode
 from qrcode.image.pil import PilImage
+from qrcode.image.styledpil import StyledPilImage
+from qrcode.image.styles.colormasks import SolidFillColorMask
 from qrcode.image.styles.moduledrawers import SquareModuleDrawer, RoundedModuleDrawer, CircleModuleDrawer
 import arabic_reshaper
 from bidi.algorithm import get_display
@@ -502,7 +504,15 @@ def get_default_font_config():
         "show_label_colon": True,
         "align_label_colon": True,
         "label_colon_gap": 8,
+        # Gradient settings — default off
+        "enable_label_gradient": False,
+        "label_font_color_bottom": [51, 51, 51],
+        "enable_value_gradient": False,
+        "value_font_color_bottom": [51, 51, 51],
+        "enable_colon_gradient": False,
+        "colon_font_color_bottom": [51, 51, 51],
     }
+
 
 def get_default_photo_config():
     """Return default photo configuration for landscape orientation"""
@@ -673,6 +683,53 @@ def _language_font_fallbacks(language: str):
     return existing or candidates
 
 
+def download_font_if_missing(font_family: str) -> str:
+    """
+    Downloads the .ttf file for the given Google Font family if it does not exist locally.
+    Saves it to static/fonts/font_family.ttf.
+    Returns the absolute path to the local .ttf file or None if it fails.
+    """
+    if not font_family:
+        return None
+
+    # Standard fonts do not need downloading
+    standard_fonts = {"arial", "times new roman", "courier new", "helvetica", "georgia"}
+    if font_family.lower() in standard_fonts:
+        return None
+
+    font_filename = f"{font_family.replace(' ', '')}.ttf"
+    local_path = os.path.join(FONTS_FOLDER, font_filename)
+    if os.path.exists(local_path):
+        return local_path
+
+    import requests
+    import re
+    logger.info(f"Downloading Google Font: {font_family}")
+    try:
+        url = f"https://fonts.googleapis.com/css?family={font_family.replace(' ', '+')}"
+        headers = {
+            "User-Agent": "Mozilla/5.0"
+        }
+        res = requests.get(url, headers=headers, timeout=10)
+        if res.status_code == 200:
+            content = res.text
+            urls = re.findall(r'url\((https://[^)]+\.ttf)\)', content)
+            if urls:
+                font_url = urls[0]
+                logger.info(f"Downloading font file from {font_url}")
+                font_res = requests.get(font_url, timeout=15)
+                if font_res.status_code == 200:
+                    with open(local_path, "wb") as f:
+                        f.write(font_res.content)
+                    logger.info(f"Successfully saved font {font_family} to {local_path}")
+                    return local_path
+        logger.warning(f"Could not download font {font_family} from Google Fonts")
+    except Exception as e:
+        logger.error(f"Error downloading font {font_family}: {e}")
+
+    return None
+
+
 def load_font_dynamic(font_path, text, max_width, start_size, language="english"):
     """
     Load a font and dynamically adjust its size to fit within max_width.
@@ -691,6 +748,10 @@ def load_font_dynamic(font_path, text, max_width, start_size, language="english"
             return ""
         if os.path.isabs(p):
             return p
+        base, ext = os.path.splitext(p)
+        if not ext:
+            download_font_if_missing(p)
+            p = f"{p.replace(' ', '')}.ttf"
         return os.path.join(FONTS_FOLDER, p)
 
     start_size_int = int(start_size) if start_size else 10
@@ -847,13 +908,27 @@ def load_template_from_url(url):
     """
     try:
         import requests
+        import time
         
         if not url:
             raise ValueError("Template URL is required")
         
-        # Fetch image from Cloudinary
-        response = requests.get(url, timeout=10)
-        response.raise_for_status()
+        # Fetch image from Cloudinary with retries
+        last_err = None
+        response = None
+        for attempt in range(3):
+            try:
+                response = requests.get(url, timeout=10)
+                response.raise_for_status()
+                last_err = None
+                break
+            except requests.exceptions.RequestException as e:
+                last_err = e
+                if attempt < 2:
+                    time.sleep(0.5 * (attempt + 1))
+        
+        if last_err is not None or response is None:
+            raise RuntimeError(f"Failed to fetch template from URL: {last_err}")
         
         logger.info(f"Fetched template from Cloudinary: {url[:50]}...")
         
@@ -884,7 +959,7 @@ def load_template_from_url(url):
     except Exception as e:
         logger.error(f"Error loading template from Cloudinary URL {url}: {e}")
         raise
-        raise
+
 
       
 def load_template_smart(path_or_url):
@@ -1070,11 +1145,12 @@ def load_template(path):
         draw.text((100, 200), "Using fallback template", fill="blue")
         return fallback
 
-def round_photo(image, radii):
+def round_photo(image, radii, border_color=None, border_thickness=0):
     """
     Apply rounded corners using subtractive masking.
     Starts with an opaque mask and 'cuts out' only the specific corners needed.
     This prevents opposite corners from interfering with each other.
+    Optionally draws a rounded border around the photo of the specified color and thickness.
     """
     image = image.convert("RGBA")
     w, h = image.size
@@ -1112,22 +1188,79 @@ def round_photo(image, radii):
 
     # Apply the new mask to the image
     image.putalpha(mask)
+
+    # 3. Draw border if color and thickness are provided
+    t = int(border_thickness or 0)
+    if border_color and t > 0:
+        try:
+            # Parse border_color (can be hex string, or list/tuple of RGB/RGBA)
+            if isinstance(border_color, (list, tuple)) and len(border_color) >= 3:
+                try:
+                    color = (int(border_color[0]), int(border_color[1]), int(border_color[2]), 255)
+                except (ValueError, TypeError):
+                    color = (140, 36, 64, 255)
+            else:
+                color_hex = str(border_color).strip()
+                if color_hex.startswith("#"):
+                    color_hex = color_hex[1:]
+                if len(color_hex) == 6:
+                    try:
+                        r = int(color_hex[0:2], 16)
+                        g = int(color_hex[2:4], 16)
+                        b = int(color_hex[4:6], 16)
+                        color = (r, g, b, 255)
+                    except ValueError:
+                        color = (140, 36, 64, 255)
+                else:
+                    color = (140, 36, 64, 255)
+
+            overlay = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+            draw_ov = ImageDraw.Draw(overlay)
+            offset = t / 2.0
+            
+            # Straight edges (using explicit integer coordinates to avoid float issues in older PIL)
+            draw_ov.line([(int(tl), int(offset)), (int(w - tr), int(offset))], fill=color, width=t)
+            draw_ov.line([(int(w - offset), int(tr)), (int(w - offset), int(h - br))], fill=color, width=t)
+            draw_ov.line([(int(w - br), int(h - offset)), (int(bl), int(h - offset))], fill=color, width=t)
+            draw_ov.line([(int(offset), int(h - bl)), (int(offset), int(tl))], fill=color, width=t)
+            
+            # Corners (Only draw arc if radius is larger than half the border thickness to avoid inverted bounding boxes)
+            if tl > 0 and tl * 2 > t:
+                draw_ov.arc([int(offset), int(offset), int(tl * 2 - offset), int(tl * 2 - offset)], 180, 270, fill=color, width=t)
+            if tr > 0 and tr * 2 > t:
+                draw_ov.arc([int(w - tr * 2 + offset), int(offset), int(w - offset), int(tr * 2 - offset)], 270, 360, fill=color, width=t)
+            if br > 0 and br * 2 > t:
+                draw_ov.arc([int(w - br * 2 + offset), int(h - br * 2 + offset), int(w - offset), int(h - offset)], 0, 90, fill=color, width=t)
+            if bl > 0 and bl * 2 > t:
+                draw_ov.arc([int(offset), int(h - bl * 2 + offset), int(bl * 2 - offset), int(h - offset)], 90, 180, fill=color, width=t)
+                
+            image = Image.alpha_composite(image, overlay)
+        except Exception as border_err:
+            # Fallback gracefully to original rounded image without crashing the route
+            import logging
+            logging.getLogger("legacy_app").warning(f"Error rendering photo border: {border_err}")
+
     return image
 
 def generate_qr_code(data, qr_settings, size=120):
     """
-    Generate QR code image using settings
+    Generate QR code image using settings.
+    Internally renders at high resolution so the logo is visually prominent,
+    then downscales to the requested final size.
     """
+    # Use a high internal resolution so the logo is large enough to be visible
+    INTERNAL_SIZE = max(size, 300)
+
     try:
         qr = qrcode.QRCode(
             version=1,
-            error_correction=qrcode.constants.ERROR_CORRECT_L,
-            box_size=size // 21, # Approximate for standard QR
+            error_correction=qrcode.constants.ERROR_CORRECT_H,
+            box_size=INTERNAL_SIZE // 21,
             border=qr_settings.get("qr_border", 2),
         )
         qr.add_data(data)
         qr.make(fit=True)
-       
+
         # Get style
         style = qr_settings.get("qr_style", "square")
         if style == "rounded":
@@ -1138,32 +1271,52 @@ def generate_qr_code(data, qr_settings, size=120):
             module_drawer = SquareModuleDrawer()  # Fallback
         else:
             module_drawer = SquareModuleDrawer()
-       
+
         # Colors
         fill_color = tuple(qr_settings.get("qr_fill_color", [0, 0, 0]))
         back_color = tuple(qr_settings.get("qr_back_color", [255, 255, 255]))
-       
-        # Generate image
+
+        # Generate image at internal resolution
         img = qr.make_image(
-            image_factory=PilImage,
+            image_factory=StyledPilImage,
             module_drawer=module_drawer,
-            color_mask=back_color,  # Background
-            color_dark=fill_color    # Foreground
+            color_mask=SolidFillColorMask(back_color=back_color, front_color=fill_color)
         )
-       
-        # Add logo if enabled
-        if qr_settings.get("qr_include_logo", False) and qr_settings.get("qr_logo_path"):
-            logo_path = os.path.join(STATIC_DIR, qr_settings["qr_logo_path"])
+
+        # Convert StyledPilImage wrapper to a real PIL image for manipulation
+        if hasattr(img, 'get_image'):
+            img = img.get_image()
+        else:
+            img = img.convert("RGB")
+
+        # Resize to internal working resolution
+        img = img.resize((INTERNAL_SIZE, INTERNAL_SIZE), Image.LANCZOS)
+
+        # Add logo if enabled — composite at internal size so logo is visually large
+        include_logo = qr_settings.get("qr_include_logo", False)
+        logo_rel_path = qr_settings.get("qr_logo_path", "")
+        if include_logo and logo_rel_path:
+            logo_path = os.path.join(STATIC_DIR, logo_rel_path)
             if os.path.exists(logo_path):
                 logo = Image.open(logo_path).convert("RGBA")
-                # Scale logo to 1/5 of QR size
-                logo_size = size // 5
+                # Scale logo to ~28% of internal QR size (safe for ERROR_CORRECT_H)
+                logo_size = int(round(INTERNAL_SIZE * 0.28))
                 logo = logo.resize((logo_size, logo_size), Image.LANCZOS)
-                # Center logo
-                pos = ((img.size[0] - logo_size) // 2, (img.size[1] - logo_size) // 2)
-                # Paste with transparency
+                # Convert QR to RGBA so paste with alpha mask works correctly
+                img = img.convert("RGBA")
+                # Center logo on the QR
+                pos = ((INTERNAL_SIZE - logo_size) // 2, (INTERNAL_SIZE - logo_size) // 2)
                 img.paste(logo, pos, logo)
-       
+
+        # Downscale to requested final size
+        img = img.resize((size, size), Image.LANCZOS)
+
+        # Composite RGBA image over the QR background color (not black) before RGB conversion
+        # This preserves transparent logo backgrounds properly (prevents black corners)
+        if img.mode == "RGBA":
+            bg = Image.new("RGB", img.size, back_color)
+            bg.paste(img, mask=img.split()[3])  # Use alpha channel as mask
+            return bg
         return img.convert("RGB")
     except Exception as e:
         logger.error(f"Error generating QR code: {e}")
@@ -1172,7 +1325,8 @@ def generate_qr_code(data, qr_settings, size=120):
             qr = qrcode.QRCode(version=1, box_size=size // 21, border=4)
             qr.add_data(data)
             qr.make(fit=True)
-            return qr.make_image(fill_color="black", back_color="white")
+            fallback_img = qr.make_image(fill_color="black", back_color="white")
+            return fallback_img.resize((size, size), Image.LANCZOS).convert("RGB")
         except:
             # Ultimate fallback
             fallback = Image.new("RGB", (size, size), "white")
@@ -1825,12 +1979,27 @@ def parse_layout_config(layout_config):
             }
             if "name" in obj:
                 sanitized["name"] = str(obj.get("name") or "").strip()[:120]
-            for key in ("x", "y", "width", "height", "x2", "y2", "font_size", "stroke_width", "opacity", "angle"):
+            for key in ("x", "y", "width", "height", "x2", "y2", "font_size", "stroke_width", "opacity", "angle", "rx", "ry", "shadow_blur", "shadow_offset_x", "shadow_offset_y", "char_spacing"):
                 if key in obj:
                     try:
                         sanitized[key] = int(obj.get(key))
                     except Exception:
                         pass
+            if "line_height" in obj:
+                try:
+                    sanitized["line_height"] = float(obj.get("line_height"))
+                except Exception:
+                    pass
+            for key in ("underline", "flip_x", "flip_y", "bold", "italic"):
+                if key in obj:
+                    sanitized[key] = bool(obj.get(key))
+            for key in ("font_family", "font_weight", "font_style", "text_align", "stroke_dash_array"):
+                if key in obj:
+                    sanitized[key] = str(obj.get(key) or "").strip()[:100]
+            if "shadow_color" in obj:
+                norm = _normalize_hex_color(obj.get("shadow_color"))
+                if norm:
+                    sanitized["shadow_color"] = norm
             if obj_type == "text":
                 sanitized["text"] = str(obj.get("text") if obj.get("text") is not None else "Text")
             if obj_type == "image":
@@ -1851,6 +2020,110 @@ def parse_layout_config(layout_config):
     else:
         out.pop("objects", None)
     return out
+
+
+_LAYOUT_STANDARD_FIELD_ORDER = ("NAME", "F_NAME", "CLASS", "DOB", "MOBILE", "ADDRESS")
+
+
+def _layout_int(value):
+    try:
+        if value is None or value == "":
+            return None
+        return int(value)
+    except Exception:
+        return None
+
+
+def _layout_part_int(field_obj, part_name, nested_key, flat_key=None):
+    if not isinstance(field_obj, dict):
+        return None
+
+    part_obj = field_obj.get(part_name)
+    if isinstance(part_obj, dict):
+        value = _layout_int(part_obj.get(nested_key))
+        if value is not None:
+            return value
+
+    if flat_key:
+        return _layout_int(field_obj.get(flat_key))
+    return None
+
+
+def _ordered_layout_field_keys(fields):
+    if not isinstance(fields, dict):
+        return []
+
+    keys = [key for key in _LAYOUT_STANDARD_FIELD_ORDER if key in fields]
+    for key in fields.keys():
+        if key not in keys:
+            keys.append(key)
+    return keys
+
+
+def derive_font_settings_from_layout_config(layout_config, font_settings=None):
+    """
+    Derive the legacy/global text controls from visual-editor field layout.
+
+    Visual Editor stores exact per-field coordinates in layout_config, while the
+    admin settings panel exposes the older global label/value/start/line controls.
+    This helper lets both editors show and save the same effective positions.
+    """
+    settings = dict(font_settings or {})
+    parsed = parse_layout_config(layout_config)
+    fields = parsed.get("fields") if isinstance(parsed, dict) else None
+    if not isinstance(fields, dict) or not fields:
+        return settings
+
+    row_y_values = []
+    label_x_set = False
+    value_x_set = False
+    label_size_set = False
+    value_size_set = False
+    for key in _ordered_layout_field_keys(fields):
+        field_obj = fields.get(key)
+        if not isinstance(field_obj, dict):
+            continue
+
+        label_x = _layout_part_int(field_obj, "label", "x", "label_x")
+        value_x = _layout_part_int(field_obj, "value", "x", "value_x")
+        label_y = _layout_part_int(field_obj, "label", "y", "label_y")
+        value_y = _layout_part_int(field_obj, "value", "y", "value_y")
+        label_size = _layout_part_int(field_obj, "label", "font_size", "label_font_size")
+        value_size = _layout_part_int(field_obj, "value", "font_size", "value_font_size")
+
+        if label_x is not None and not label_x_set:
+            settings["label_x"] = label_x
+            label_x_set = True
+
+        if value_x is not None and not value_x_set:
+            settings["value_x"] = value_x
+            value_x_set = True
+
+        if label_size is not None and not label_size_set:
+            settings["label_font_size"] = label_size
+            label_size_set = True
+
+        if value_size is not None and not value_size_set:
+            settings["value_font_size"] = value_size
+            value_size_set = True
+
+        y_candidates = [value for value in (label_y, value_y) if value is not None]
+        if y_candidates:
+            row_y_values.append(min(y_candidates))
+
+    if row_y_values:
+        settings["start_y"] = row_y_values[0]
+        positive_diffs = []
+        last_y = row_y_values[0]
+        for row_y in row_y_values[1:]:
+            diff = int(row_y) - int(last_y)
+            if diff > 0:
+                positive_diffs.append(diff)
+                last_y = row_y
+        if positive_diffs:
+            settings["line_height"] = positive_diffs[0]
+
+    return settings
 
 
 def _hex_to_rgb_tuple(value):
@@ -1972,14 +2245,11 @@ def get_field_layout_item(
         if not prefer_nested_part_layout and flat_y in field_obj:
             try:
                 flat_y_value = int(field_obj.get(flat_y))
-                try:
-                    default_y_value = int(default_y)
-                except Exception:
-                    default_y_value = flat_y_value
-                # Legacy flat Y positions from the visual editor act as baseline slots
-                # for flowing fields, not absolute locks. This lets inserted dynamic
-                # fields push later standard lines down instead of overlapping them.
-                result[flat_y] = max(flat_y_value, default_y_value)
+                # Flat coordinates are saved by older/current visual-editor payloads.
+                # Treat them as real manual positions so one hidden/moved field does
+                # not drag every later row through the automatic flow cursor.
+                result[flat_y] = flat_y_value
+                result[f"{prefix}_manual_y"] = True
             except Exception:
                 pass
         if flat_visible in field_obj:

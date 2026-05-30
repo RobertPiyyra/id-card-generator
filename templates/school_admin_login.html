@@ -77,7 +77,7 @@
             {% endif %}
         {% endwith %}
         
-        <form method="POST" action="{{ url_for('school_admin_login') }}">
+        <form method="POST" action="{{ url_for('auth.school_admin_login') }}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
             <div class="mb-3">
                 <label class="form-label">Username</label>
@@ -101,7 +101,7 @@
         </form>
         
         <div class="back-link">
-            <a href="{{ url_for('landing') }}" class="text-muted">
+            <a href="{{ url_for('dashboard.landing') }}" class="text-muted">
                 <i class="fas fa-arrow-left"></i> Back to Home
             </a>
         </div>

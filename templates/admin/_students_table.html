@@ -1,0 +1,269 @@
+<div class="grid-container">
+    <div class="section">
+        <h3><i class="fas fa-key"></i> Student Credentials Management</h3>
+        <div class="credentials-section">
+            <div class="card-header">
+                <span class="card-title" style="color: #8b5cf6;"><i class="fas fa-user-lock"></i> Student Login Credentials</span>
+                <i class="fas fa-shield-alt glow" style="color: #8b5cf6;"></i>
+            </div>
+            <p>Manage student login credentials for the portal. View usernames and reset passwords as needed.</p>
+            <div class="action-buttons">
+             <a href="{{ url_for('auth.admin_student_credentials') }}" class="btn btn-credentials">
+                <i class="fas fa-list"></i> View All Credentials
+             </a>
+            </div>
+        </div>
+    </div>
+
+    {% if is_admin %}
+    <div class="section full-width">
+        <h3><i class="fas fa-file-pdf"></i> PDF Sheets by Template</h3>
+        {% if templates %}
+            {% for template in templates %}
+                <div class="card">
+                    <div class="card-header">
+                        <span class="card-title">{{ template.school_name }}</span>
+                        <i class="fas fa-file-pdf" style="color: var(--accent-color);"></i>
+                    </div>
+                        <div class="action-buttons" style="margin: 15px 0; padding: 10px; background: #f8f9fa; border-radius: 8px;">
+                            <a href="{{ url_for('dashboard.download_compiled_school_pdf', template_id=template.id, mode='editable') }}" class="btn btn-primary btn-sm">
+                                <i class="fas fa-file-pdf"></i> Download Editable PDF
+                            </a>
+                            <a href="{{ url_for('dashboard.download_compiled_school_pdf', template_id=template.id, mode='print') }}" class="btn btn-secondary btn-sm">
+                                <i class="fas fa-print"></i> Download Print PDF
+                            </a>
+                            <a href="{{ url_for('dashboard.download_school_excel', template_id=template.id) }}" class="btn btn-excel btn-sm">
+                                <i class="fas fa-file-excel"></i> Download Excel Data
+                            </a>
+                            <form action="{{ url_for('dashboard.delete_school_sheets', template_id=template.id) }}" method="POST" style="display:inline;" onsubmit="return confirm('WARNING: This will delete ALL generated A4 sheets for {{ template.school_name }}. \n\nOnly do this AFTER you have downloaded and printed the merged PDF.\n\nAre you sure?');">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                <button type="submit" class="btn btn-delete btn-sm">
+                                  <i class="fas fa-trash-alt"></i> Clear All Sheets
+                                </button>
+                            </form>
+                        </div>
+
+                    <ul>
+                        {% set pdf_list = pdf_sheets_by_template.get(template.id, []) %}
+                        {% if pdf_list %}
+                            {% for file in pdf_list %}
+                                <li>
+                                    <span><i class="fas fa-file-pdf" style="color: var(--accent-color);"></i> {{ file }}</span>
+                                    <a href="{{ url_for('static', filename='generated/' + file) }}" class="btn btn-download btn-sm" download>
+                                        <i class="fas fa-download"></i>
+                                    </a>
+                                    <form action="{{ url_for('dashboard.delete_pdf', filename=file) }}" method="post" style="display:inline;">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                        <button type="submit" class="btn btn-delete btn-sm"
+                                            onclick="return confirm('Are you sure you want to delete this PDF?');">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </form>
+                                </li>
+                            {% endfor %}
+                        {% else %}
+                            <li>No PDF sheets for this template</li>
+                        {% endif %}
+                    </ul>
+                </div>
+            {% endfor %}
+        {% else %}
+            <p>No templates or PDF sheets available.</p>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {% if not is_admin %}
+    <div class="section">
+        <h3><i class="fas fa-user-edit"></i> Update Email</h3>
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title">Student Email Update</span>
+                <i class="fas fa-envelope" style="color: var(--primary-color);"></i>
+            </div>
+            <form action="{{ url_for('student.update_email') }}" method="post" id="emailUpdateForm" onsubmit="return confirm('Are you sure you want to update your email?');" class="enhanced-form">
+               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                <div class="form-group">
+                    <label><i class="fas fa-envelope"></i> New Email</label>
+                    <input type="email" name="email" required pattern="[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$" title="Enter a valid email address">
+                </div>
+                <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Update Email</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="section">
+        <h3><i class="fas fa-lock"></i> Update Password</h3>
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title">Student Password Update</span>
+                <i class="fas fa-lock" style="color: var(--primary-color);"></i>
+            </div>
+            <form action="{{ url_for('student.update_password') }}" method="post" id="passwordUpdateForm" onsubmit="return confirm('Are you sure you want to update your password?');" class="enhanced-form">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                <div class="form-group">
+                    <label><i class="fas fa-key"></i> Current Password</label>
+                    <input type="password" name="current_password" required minlength="6" title="Enter your current password">
+                </div>
+                <div class="form-group">
+                    <label><i class="fas fa-key"></i> New Password</label>
+                    <input type="password" name="new_password" required minlength="6" title="New password must be at least 6 characters">
+                </div>
+                <div class="form-group">
+                    <label><i class="fas fa-key"></i> Confirm New Password</label>
+                    <input type="password" name="confirm_password" required minlength="6" title="Confirm your new password">
+                </div>
+                <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Update Password</button>
+            </form>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if is_admin %}
+    <div class="section">
+        <h3><i class="fas fa-trash"></i> Data Management</h3>
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title">Danger Zone</span>
+                <i class="fas fa-exclamation-triangle" style="color: var(--accent-color);"></i>
+            </div>
+            <p>This will permanently delete all data and files. This action cannot be undone.</p>
+            <form action="{{ url_for('dashboard.delete_all') }}" method="post" onsubmit="return confirmDelete()" class="enhanced-form">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                <button type="submit" class="btn btn-delete"><i class="fas fa-trash"></i> Delete All Data & Files</button>
+            </form>
+        </div>
+        <div class="card shadow mb-4">
+          <div class="card-header py-3">
+              <h6 class="m-0 font-weight-bold text-warning"><i class="fas fa-broom"></i> Maintenance</h6>
+          </div>
+          <div class="card-body">
+              <p class="text-muted small">Delete temporary files (photos and generated PDFs) older than 30 days to free up space.</p>
+              <form action="{{ url_for('dashboard.run_cleanup') }}" method="POST" onsubmit="return confirm('Are you sure? This will permanently delete old files.');">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                <button type="submit" class="btn btn-warning btn-sm">
+                      <i class="fas fa-trash-alt"></i> Clean Old Files
+                  </button>
+              </form>
+          </div>
+      </div>
+
+        <div class="card" style="margin-top: 20px;">
+            <div class="card-header">
+                <span class="card-title">Export Data</span>
+                <i class="fas fa-database" style="color: var(--primary-color);"></i>
+            </div>
+            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                <span><i class="fas fa-history me-1"></i> Recent Activity</span>
+                <a href="{{ url_for('dashboard.view_activity_log') }}" class="btn btn-sm btn-light text-primary" style="font-size: 0.7rem; font-weight: bold;">
+                    View Full History
+                </a>
+            </div>
+            <p>Export all user data as a CSV file</p>
+            <a href="{{ url_for('dashboard.export_csv') }}" class="btn btn-download"><i class="fas fa-file-export"></i> Export CSV</a>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="section full-width">
+        <h3><i class="fas fa-school"></i> ID Cards by School</h3>
+        {% if templates %}
+            {% for template in templates %}
+                <div class="card">
+                   <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <i class="fas fa-school" style="color: var(--primary-color); margin-right: 8px;"></i>
+                            <span class="card-title">{{ template.school_name }}</span>
+                        </div>
+                        
+                        <form action="{{ url_for('dashboard.delete_all_students_by_template', template_id=template.id) }}" method="POST" 
+                              onsubmit="return confirm('⚠️ DANGER: Are you sure you want to delete ALL students and files for {{ template.school_name }}? This action cannot be undone.');" 
+                              style="margin: 0;">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                            <button type="submit" class="btn btn-delete btn-sm" style="font-size: 0.8rem; padding: 6px 12px;">
+                                <i class="fas fa-trash-alt"></i> Delete All Cards
+                            </button>
+                        </form>
+                    </div>
+
+                    <div class="table-wrapper">
+                        <table class="school-table" data-school-id="{{ template.id }}">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Preview</th>
+                                    <th>Name</th>
+                                    <th>Father</th>
+                                    <th>Class</th>
+                                    <th>DOB</th>
+                                    <th>Address</th>
+                                    <th>Phone</th>
+                                    <th>Generated File</th>
+                                    <th>Created At</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% if template_rows[template.id] %}
+                                    {% for row in template_rows[template.id] %}
+                                        <tr>
+                                            <td>{{ row.id }}</td>
+                                            <td>
+                                                {% if row.image_url %}
+                                                    <img src="{{ row.image_url }}" alt="Preview" onerror="this.src='{{ url_for('static', filename='photo_placeholder.png') }}'; this.alt='No preview available';">
+                                                {% elif row.generated_filename %}
+                                                    {% set preview_name = row.generated_filename[:-4] + '.jpg' if row.generated_filename.lower().endswith('.pdf') else row.generated_filename %}
+                                                    <img src="{{ url_for('static', filename='generated/' + preview_name) }}" alt="Preview" onerror="this.src='{{ url_for('static', filename='photo_placeholder.png') }}'; this.alt='No preview available';">
+                                                {% else %}
+                                                    <img src="{{ url_for('static', filename='photo_placeholder.png') }}" alt="No preview available">
+                                                {% endif %}
+                                            </td>
+                                            <td>{{ row.name }}</td>
+                                            <td>{{ row.father_name }}</td>
+                                            <td>{{ row.class_name }}</td>
+                                            <td>{{ row.dob }}</td>
+                                            <td>{{ row.address }}</td>
+                                            <td>{{ row.phone }}</td>
+                                            <td>
+                                                {% if row.generated_filename %}
+                                                    <a href="{{ url_for('dashboard.download_student_pdf', student_id=row.id) }}" class="btn btn-download btn-sm">
+                                                        {{ row.generated_filename[:-4] + '.pdf' if row.generated_filename.lower().endswith(('.jpg', '.jpeg', '.png', '.webp')) else row.generated_filename }}
+                                                    </a>
+                                                {% else %}
+                                                    No file
+                                                {% endif %}
+                                            </td>
+                                            <td>{{ row.created_at }}</td>
+                                            <td>
+                                                <div class="action-buttons" style="justify-content: center; gap: 5px;">
+                                                    <button class="btn btn-primary btn-sm" onclick="editUser({{ row.id }})" title="Edit Student">
+                                                        <i class="fas fa-edit"></i>
+                                                    </button>
+                                                    <button class="btn btn-credentials btn-sm" onclick="manageCredentials({{ row.id }}, '{{ row.name }}')" title="Manage Credentials">
+                                                        <i class="fas fa-key"></i>
+                                                    </button>
+                                                    <form action="{{ url_for('delete_student', student_id=row.id) }}" method="post" style="display: inline;" onsubmit="return confirm('Are you sure you want to delete this user?');">
+                                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                                        <button type="submit" class="btn btn-delete btn-sm" title="Delete Student">
+                                                            <i class="fas fa-trash"></i>
+                                                        </button>
+                                                    </form>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                {% else %}
+                                    <tr>
+                                        <td colspan="11">No student data for this template.</td>
+                                    </tr>
+                                {% endif %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            {% endfor %}
+        {% else %}
+            <p>No templates or student data available.</p>
+        {% endif %}
+    </div>
+</div>

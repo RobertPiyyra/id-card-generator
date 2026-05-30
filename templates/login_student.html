@@ -496,7 +496,7 @@
         {% endif %}
         
 
-        <form method="POST" action="{{ url_for('student_login') }}">
+        <form method="POST" action="{{ url_for('auth.student_login') }}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
             <div class="form-group">
                 <label for="email"><i class="fas fa-envelope"></i> Email</label>
@@ -523,7 +523,7 @@
                 
             </button>
              <button type="submit" class="login-btn">
-                <a href="{{ url_for('forgot_password') }}" style="color: white;">? Forgot Password</a>
+                <a href="{{ url_for('auth.forgot_password') }}" style="color: white;">? Forgot Password</a>
                 
             </button>
             
@@ -531,13 +531,13 @@
 
         <div class="register-link">
             <p>Don't have an account?</p>
-            <a href="{{ url_for('register') }}" class="register-btn">
+            <a href="{{ url_for('auth.register') }}" class="register-btn">
                 <i class="fas fa-user-plus"></i> Create New Account
             </a>
         </div>
 
         <div class="back-link">
-            <a href="{{ url_for('landing') }}">
+            <a href="{{ url_for('dashboard.landing') }}">
                 <i class="fas fa-arrow-left"></i> Back to Homepage
             </a>
         </div>

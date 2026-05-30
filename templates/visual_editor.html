@@ -6,6 +6,8 @@
   <title>Visual Editor - {{ template.school_name }}</title>
   <meta name="csrf-token" content="{{ csrf_token() }}">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
+  <script src="https://ajax.googleapis.com/ajax/libs/webfont/1.6.26/webfont.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <style>
     /* ═══════════════════════════════════════════
@@ -373,6 +375,7 @@
           <button class="btn btn-soft btn-sm" onclick="setSnap(1)">Snap 1</button>
           <button class="btn btn-soft btn-sm" onclick="setSnap(10)">Snap 10</button>
           <button class="btn btn-soft btn-sm" onclick="toggleGridVisibility()">Grid</button>
+          <button class="btn btn-soft btn-sm" onclick="toggleRulersVisibility()">Rulers</button>
         </div>
         <div class="tool-sep"></div>
         <div class="tool-group">
@@ -397,6 +400,8 @@
           <button class="btn btn-soft btn-sm" onclick="rotateSelected(15)">↻+15</button>
           <button class="btn btn-soft btn-sm" onclick="toggleLockSelected(true)">Lock</button>
           <button class="btn btn-soft btn-sm" onclick="toggleLockSelected(false)">Unlock</button>
+          <button class="btn btn-soft btn-sm" onclick="groupSelected()">Group</button>
+          <button class="btn btn-soft btn-sm" onclick="ungroupSelected()">Ungroup</button>
         </div>
       </div>
       <div class="canvas-scroll">
@@ -465,32 +470,75 @@
               <input class="form-check-input" type="checkbox" id="showGrid" onchange="toggleGridVisibility(this.checked)">
               <label class="form-check-label" for="showGrid">Editor grid</label>
             </div>
+            <div class="form-check form-switch mb-1">
+              <input class="form-check-input" type="checkbox" id="showRulers" onchange="toggleRulersVisibility(this.checked)">
+              <label class="form-check-label" for="showRulers">Rulers</label>
+            </div>
             <div class="rowx">
               <label>Grid Size</label>
               <input id="gridSizeVE" type="number" min="5" max="100" value="20" class="form-control form-control-sm" onchange="setGridSize()">
               <div class="small text-muted">px</div>
             </div>
           </div>
+
+          <div class="cardx" style="border-left-color: #20c997;">
+            <h6>Template Portability</h6>
+            <div class="mini-actions mb-2">
+              <button class="btn btn-outline-success btn-sm w-100 mb-2" onclick="exportLayoutJSON()">📥 Export JSON Layout</button>
+              <button class="btn btn-outline-primary btn-sm w-100" onclick="triggerImportLayoutJSON()">📤 Import JSON Layout</button>
+              <input type="file" id="importLayoutInput" accept=".json" style="display:none" onchange="importLayoutJSON(event)">
+            </div>
+          </div>
+
+          <div class="cardx" style="border-left-color: #6f42c1;">
+            <h6>Design Themes</h6>
+            <div class="small text-muted mb-2">Apply a curated color scheme to all labels, colons, and custom shape fills.</div>
+            <div class="d-grid grid-template-columns-3 gap-2" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px;">
+              <button class="btn btn-sm btn-outline-dark theme-btn" onclick="applyCuratedTheme('#1e3a8a', '#3b82f6')" style="background: linear-gradient(135deg, #1e3a8a 50%, #3b82f6 50%); color: #fff; height: 32px; border: none; border-radius: 6px;" title="Royal Blue"></button>
+              <button class="btn btn-sm btn-outline-dark theme-btn" onclick="applyCuratedTheme('#065f46', '#10b981')" style="background: linear-gradient(135deg, #065f46 50%, #10b981 50%); color: #fff; height: 32px; border: none; border-radius: 6px;" title="Forest Emerald"></button>
+              <button class="btn btn-sm btn-outline-dark theme-btn" onclick="applyCuratedTheme('#7c2d12', '#f97316')" style="background: linear-gradient(135deg, #7c2d12 50%, #f97316 50%); color: #fff; height: 32px; border: none; border-radius: 6px;" title="Warm Amber"></button>
+              <button class="btn btn-sm btn-outline-dark theme-btn" onclick="applyCuratedTheme('#581c87', '#a855f7')" style="background: linear-gradient(135deg, #581c87 50%, #a855f7 50%); color: #fff; height: 32px; border: none; border-radius: 6px;" title="Regal Purple"></button>
+              <button class="btn btn-sm btn-outline-dark theme-btn" onclick="applyCuratedTheme('#1f2937', '#6b7280')" style="background: linear-gradient(135deg, #1f2937 50%, #6b7280 50%); color: #fff; height: 32px; border: none; border-radius: 6px;" title="Slate Charcoal"></button>
+              <button class="btn btn-sm btn-outline-dark theme-btn" onclick="applyCuratedTheme('#991b1b', '#ef4444')" style="background: linear-gradient(135deg, #991b1b 50%, #ef4444 50%); color: #fff; height: 32px; border: none; border-radius: 6px;" title="Crimson Red"></button>
+            </div>
+          </div>
+
         </div><!-- /#panel-guides -->
 
-        <!-- ── PHOTO / QR ── -->
+        <!-- ── PHOTO / QR / BARCODE ── -->
         <div class="panel-section" id="panel-photo">
           <div class="cardx photo">
-            <h6>Photo &amp; QR Position</h6>
+            <h6>Photo Position</h6>
             <div class="toggles mb-2">
               <div class="form-check">
                 <input class="form-check-input" type="checkbox" id="enablePhotoVE" onchange="toggleBlockVisibility('photo', this.checked)">
                 <label class="form-check-label" for="enablePhotoVE">Show photo</label>
               </div>
+            </div>
+            <div class="rowx"><label>Photo X/Y</label><input id="photoX" type="number" class="form-control form-control-sm" onchange="applyBlockInputs()"><input id="photoY" type="number" class="form-control form-control-sm" onchange="applyBlockInputs()"></div>
+            <div class="rowx"><label>Photo W/H</label><input id="photoW" type="number" class="form-control form-control-sm" onchange="applyBlockInputs()"><input id="photoH" type="number" class="form-control form-control-sm" onchange="applyBlockInputs()"></div>
+          </div>
+          <div class="cardx" style="border-left-color:#00a589;">
+            <h6>QR Code</h6>
+            <div class="toggles mb-2">
               <div class="form-check">
                 <input class="form-check-input" type="checkbox" id="enableQrVE" onchange="toggleBlockVisibility('qr', this.checked)">
                 <label class="form-check-label" for="enableQrVE">Show QR</label>
               </div>
             </div>
-            <div class="rowx"><label>Photo X/Y</label><input id="photoX" type="number" class="form-control form-control-sm" onchange="applyBlockInputs()"><input id="photoY" type="number" class="form-control form-control-sm" onchange="applyBlockInputs()"></div>
-            <div class="rowx"><label>Photo W/H</label><input id="photoW" type="number" class="form-control form-control-sm" onchange="applyBlockInputs()"><input id="photoH" type="number" class="form-control form-control-sm" onchange="applyBlockInputs()"></div>
             <div class="rowx"><label>QR X/Y</label><input id="qrX" type="number" class="form-control form-control-sm" onchange="applyBlockInputs()"><input id="qrY" type="number" class="form-control form-control-sm" onchange="applyBlockInputs()"></div>
             <div class="rowx"><label>QR Size</label><input id="qrS" type="number" class="form-control form-control-sm" onchange="applyBlockInputs()"><div class="small text-muted">px</div></div>
+          </div>
+          <div class="cardx" style="border-left-color:#7c4dff;">
+            <h6>Barcode</h6>
+            <div class="toggles mb-2">
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="enableBarcodeVE" onchange="toggleBlockVisibility('barcode', this.checked)">
+                <label class="form-check-label" for="enableBarcodeVE">Show Barcode</label>
+              </div>
+            </div>
+            <div class="rowx"><label>BC X/Y</label><input id="barcodeX" type="number" class="form-control form-control-sm" onchange="applyBlockInputs()"><input id="barcodeY" type="number" class="form-control form-control-sm" onchange="applyBlockInputs()"></div>
+            <div class="rowx"><label>BC W/H</label><input id="barcodeW" type="number" class="form-control form-control-sm" onchange="applyBlockInputs()"><input id="barcodeH" type="number" class="form-control form-control-sm" onchange="applyBlockInputs()"></div>
           </div>
         </div><!-- /#panel-photo -->
 
@@ -555,14 +603,62 @@
                 <label>H</label><input id="selH" class="form-control form-control-sm" type="number" disabled>
               </div>
               <div class="rowx" style="margin-top:8px">
-                <label>Font</label>
+                <label>Font Size</label>
                 <input id="selFontSize" class="form-control form-control-sm" type="number" disabled>
                 <button class="btn btn-outline-primary btn-sm" id="applyMetricsBtn" disabled>Apply</button>
+              </div>
+              <div class="rowx" id="selFontFamilyRow" style="display:none; margin-top:8px">
+                <label>Family</label>
+                <select id="selFontFamily" class="form-select form-select-sm" style="grid-column: 2 / span 2">
+                  <option value="Arial">Arial</option>
+                  <option value="Times New Roman">Times New Roman</option>
+                  <option value="Courier New">Courier New</option>
+                  <option value="Inter">Inter</option>
+                  <option value="Roboto">Roboto</option>
+                  <option value="Outfit">Outfit</option>
+                  <option value="Montserrat">Montserrat</option>
+                  <option value="Playfair Display">Playfair Display</option>
+                  <option value="Poppins">Poppins</option>
+                  <option value="Lora">Lora</option>
+                </select>
               </div>
               <div class="inspector-grid">
                 <label>Angle</label><input id="selAngle" class="form-control form-control-sm" type="number" min="-360" max="360" disabled>
                 <label>Opacity</label><input id="selOpacity" class="form-control form-control-sm" type="number" min="0" max="100" disabled>
                 <label>Stroke</label><input id="selStrokeWidth" class="form-control form-control-sm" type="number" min="0" max="40" disabled>
+              </div>
+              <div class="rowx" id="selCornerRadiusRow" style="display:none; margin-top:8px">
+                <label>Corners</label>
+                <input id="selCornerRadius" class="form-control form-control-sm" type="number" min="0" max="100" value="0">
+                <span class="small text-muted">px</span>
+              </div>
+              <div class="rowx" id="selFlipRow" style="display:none; margin-top:8px">
+                <label>Flip</label>
+                <div class="d-flex gap-2">
+                  <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="selFlipX">
+                    <label class="form-check-label" for="selFlipX">Horiz</label>
+                  </div>
+                  <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="selFlipY">
+                    <label class="form-check-label" for="selFlipY">Vert</label>
+                  </div>
+                </div>
+              </div>
+              <div class="grid-field" id="selShadowSection" style="margin-top:8px; display:none">
+                <div class="ttl">Drop Shadow</div>
+                <div class="rowx">
+                  <label>Shadow</label>
+                  <input id="selShadowColor" type="color" class="form-control form-control-sm" value="#000000">
+                  <div class="form-check form-switch" style="padding-left: 2.5em;">
+                    <input class="form-check-input" type="checkbox" id="selShadowEnabled">
+                  </div>
+                </div>
+                <div class="metrics-grid">
+                  <label>Blur</label><input id="selShadowBlur" class="form-control form-control-sm" type="number" min="0" max="100" value="0">
+                  <label>X-Off</label><input id="selShadowOffsetX" class="form-control form-control-sm" type="number" value="0">
+                  <label>Y-Off</label><input id="selShadowOffsetY" class="form-control form-control-sm" type="number" value="0">
+                </div>
               </div>
             </div>
           </div>
@@ -620,6 +716,7 @@
     const historyStack = [];
     const redoStack = [];
     let clipboardDefs = [];
+    let alignGuides = [];
     let historyMuted = false;
     const asBool = (v, fallback=true) => {
       if (typeof v === "boolean") return v;
@@ -657,6 +754,13 @@
         qr_y: parseInt(initQR.qr_y || 50, 10),
         qr_size: parseInt(initQR.qr_size || 120, 10),
       },
+      barcode: {
+        enable_barcode: !!initQR.enable_barcode,
+        barcode_x: parseInt(initQR.barcode_x || 50, 10),
+        barcode_y: parseInt(initQR.barcode_y || 200, 10),
+        barcode_width: parseInt(initQR.barcode_width || 220, 10),
+        barcode_height: parseInt(initQR.barcode_height || 70, 10),
+      },
       layout: (typeof initLayout === "object" && initLayout) ? initLayout : { fields: {} },
     };
     if (!state.layout.fields) state.layout.fields = {};
@@ -669,6 +773,7 @@
         font: state.font,
         photo: state.photo,
         qr: state.qr,
+        barcode: state.barcode,
         layout: state.layout
       }));
     }
@@ -865,13 +970,13 @@
         const legacyValueX = parseInt((useLegacyFlatPosition && ("value_x" in x)) ? x.value_x : state.font.value_x, 10);
         const labelY = parseInt(
           hasManualPartY(l)
-            ? l.y
+            ? l.y  // pinned by user drag (manual_y=true) → exact position, never overridden
             : ((useLegacyFlatPosition && ("label_y" in x)) ? Math.max(parseInt(x.label_y, 10), currentY) : currentY),
           10
         );
         const valueY = parseInt(
           hasManualPartY(v)
-            ? v.y
+            ? v.y  // pinned by user drag → exact position
             : ((useLegacyFlatPosition && ("value_y" in x)) ? Math.max(parseInt(x.value_y, 10), currentY) : currentY),
           10
         );
@@ -988,35 +1093,37 @@
       return cfg;
     }
 
-	    function updateLayoutFromObject(obj, options = {}) {
-	      const key = obj.fieldKey;
-	      const isDynamicField = Object.prototype.hasOwnProperty.call(dynamicFieldMap, String(key));
-	      if (!state.layout.fields[key]) state.layout.fields[key] = {};
-	      if (!state.layout.fields[key][obj.part]) state.layout.fields[key][obj.part] = {};
-	      const forceManualY = !!options.forceManualY;
-	      const grow = normalizeGrow(obj.growMode, state.direction);
-	      const anchorX = Math.round(anchorFromLeft(obj.left, obj.width || 0, state.direction, grow));
-	      const topY = Math.round(obj.top);
-	      const fontSize = Math.max(8, Math.round(obj.fontSize || 0));
-	      const defaults = defaultFieldPartLayout(key, obj.part);
-	      // NOTE: defaultFieldPartLayout() temporarily rewrites state.layout.fields[key][part]
-	      // which can replace the object identity. Re-acquire the reference after it runs.
-	      const partState = state.layout.fields[key][obj.part] || (state.layout.fields[key][obj.part] = {});
+    function updateLayoutFromObject(obj, options = {}) {
+      const key = obj.fieldKey;
+      const isDynamicField = Object.prototype.hasOwnProperty.call(dynamicFieldMap, String(key));
+      if (!state.layout.fields[key]) state.layout.fields[key] = {};
+      if (!state.layout.fields[key][obj.part]) state.layout.fields[key][obj.part] = {};
+      const forceManualY = !!options.forceManualY;
+      const grow = normalizeGrow(obj.growMode, state.direction);
+      const anchorX = Math.round(anchorFromLeft(obj.left, obj.width || 0, state.direction, grow));
+      const topY = Math.round(obj.top);
+      const fontSize = Math.max(8, Math.round(obj.fontSize || 0));
+      const defaults = defaultFieldPartLayout(key, obj.part);
+      // NOTE: defaultFieldPartLayout() temporarily rewrites state.layout.fields[key][part]
+      // which can replace the object identity. Re-acquire the reference after it runs.
+      const partState = state.layout.fields[key][obj.part] || (state.layout.fields[key][obj.part] = {});
 
-	      // Legacy flat keys are kept only for standard fields. Dynamic fields now
-	      // rely on nested part state so display_order can keep flowing correctly.
-	      if (!isDynamicField) {
-	        if (obj.part === "label") {
-	          state.layout.fields[key]["label_x"] = anchorX;
-	          state.layout.fields[key]["label_y"] = topY;
-          } else if (obj.part === "value") {
-            state.layout.fields[key]["value_x"] = anchorX;
-            state.layout.fields[key]["value_y"] = topY;
-          } else if (obj.part === "colon") {
-            state.layout.fields[key]["colon_x"] = anchorX;
-            state.layout.fields[key]["colon_y"] = topY;
-          }
-        } else if (obj.part === "label") {
+      // Legacy flat keys are kept only for standard fields. Dynamic fields now
+      // rely on nested part state so display_order can keep flowing correctly.
+      if (!isDynamicField) {
+        if (obj.part === "label") {
+          state.layout.fields[key]["label_x"] = anchorX;
+          state.layout.fields[key]["label_y"] = topY;
+        } else if (obj.part === "value") {
+          state.layout.fields[key]["value_x"] = anchorX;
+          state.layout.fields[key]["value_y"] = topY;
+        } else if (obj.part === "colon") {
+          state.layout.fields[key]["colon_x"] = anchorX;
+          state.layout.fields[key]["colon_y"] = topY;
+        }
+      } else {
+        // Dynamic field: remove legacy flat keys so nested part state takes priority
+        if (obj.part === "label") {
           delete state.layout.fields[key]["label_x"];
           delete state.layout.fields[key]["label_y"];
         } else if (obj.part === "value") {
@@ -1026,7 +1133,9 @@
           delete state.layout.fields[key]["colon_x"];
           delete state.layout.fields[key]["colon_y"];
         }
-      // Preserve original partState for other properties
+      }
+
+      // Always update the nested partState — runs for BOTH standard AND dynamic fields
       if (anchorX !== Math.round(defaults.x || 0)) partState.x = anchorX;
       else delete partState.x;
 
@@ -1095,6 +1204,7 @@
       state.font = { ...state.font, ...(snapshot.font || {}) };
       state.photo = { ...state.photo, ...(snapshot.photo || {}) };
       state.qr = { ...state.qr, ...(snapshot.qr || {}) };
+      state.barcode = { ...state.barcode, ...(snapshot.barcode || {}) };
       state.layout = snapshot.layout || { fields: {}, objects: [] };
       if (!state.layout.fields) state.layout.fields = {};
       if (!Array.isArray(state.layout.objects)) state.layout.objects = [];
@@ -1126,6 +1236,19 @@
           selectable: !!state.qr.enable_qr
         });
       }
+      if (barcodeRect) {
+        barcodeRect.set({
+          left: state.barcode.barcode_x,
+          top: state.barcode.barcode_y,
+          width: state.barcode.barcode_width,
+          height: state.barcode.barcode_height,
+          scaleX: 1,
+          scaleY: 1,
+          visible: !!state.barcode.enable_barcode,
+          evented: !!state.barcode.enable_barcode,
+          selectable: !!state.barcode.enable_barcode
+        });
+      }
       syncTags();
       canvas.requestRenderAll();
       historyMuted = false;
@@ -1155,6 +1278,50 @@
       status("Redo applied.");
     }
 
+    function setFieldFontSize(key, part, fontSize) {
+      const sz = Math.max(8, Math.min(200, parseInt(fontSize, 10) || 8));
+      if (!state.layout.fields[key]) state.layout.fields[key] = {};
+      if (!state.layout.fields[key][part]) state.layout.fields[key][part] = {};
+      const globalDefault = part === "label" ? state.font.label_font_size : state.font.value_font_size;
+      if (sz !== Math.max(8, parseInt(globalDefault, 10) || 8)) {
+        state.layout.fields[key][part].font_size = sz;
+      } else {
+        delete state.layout.fields[key][part].font_size;
+      }
+      // Update live canvas object immediately
+      if (fieldObjs[key] && fieldObjs[key][part]) {
+        fieldObjs[key][part].set({ fontSize: sz });
+        fieldObjs[key][part].setCoords();
+      }
+      canvas.requestRenderAll();
+      recordHistory("field-font-size");
+      status(`${key} ${part} font size → ${sz}px`);
+    }
+
+    function setFieldX(key, part, xVal) {
+      const anchorX = Math.round(parseInt(xVal, 10) || 0);
+      if (!state.layout.fields[key]) state.layout.fields[key] = {};
+      if (!state.layout.fields[key][part]) state.layout.fields[key][part] = {};
+      state.layout.fields[key][part].x = anchorX;
+      // Also write the flat legacy key for non-dynamic fields
+      const isDynamic = Object.prototype.hasOwnProperty.call(dynamicFieldMap, String(key));
+      if (!isDynamic) {
+        if (part === "label") state.layout.fields[key]["label_x"] = anchorX;
+        else if (part === "value") state.layout.fields[key]["value_x"] = anchorX;
+        else if (part === "colon") state.layout.fields[key]["colon_x"] = anchorX;
+      }
+      // Update live canvas object
+      const obj = fieldObjs[key] && fieldObjs[key][part];
+      if (obj) {
+        const grow = normalizeGrow(obj.growMode, state.direction);
+        obj.set({ left: leftFromAnchor(anchorX, obj.width || 0, state.direction, grow) });
+        obj.setCoords();
+      }
+      canvas.requestRenderAll();
+      recordHistory("field-x");
+      status(`${key} ${part} X → ${anchorX}`);
+    }
+
     function drawFieldList() {
       const wrap = document.getElementById("fieldList");
       wrap.innerHTML = "";
@@ -1169,9 +1336,26 @@
             <div class="form-check"><input class="form-check-input" type="checkbox" id="l_${k}" ${cfg.label.visible ? "checked":""}><label class="form-check-label" for="l_${k}">Show label</label></div>
             <div class="form-check"><input class="form-check-input" type="checkbox" id="v_${k}" ${cfg.value.visible ? "checked":""}><label class="form-check-label" for="v_${k}">Show value</label></div>
           </div>
+          <div class="field-pos-row" style="display:flex;gap:6px;margin:4px 0;align-items:center;flex-wrap:wrap">
+            <span style="font-size:11px;color:#7a9;font-weight:600;min-width:42px">Label X</span>
+            <input type="number" id="lx_${k}" value="${cfg.label.x}" min="0" max="2000" style="width:62px;padding:2px 4px;border:1px solid #2a4a7a;border-radius:4px;background:#0d1a2b;color:#e0eaff;font-size:12px">
+            <span style="font-size:11px;color:#7a9;font-weight:600;min-width:42px">Val X</span>
+            <input type="number" id="vx_${k}" value="${cfg.value.x}" min="0" max="2000" style="width:62px;padding:2px 4px;border:1px solid #2a4a7a;border-radius:4px;background:#0d1a2b;color:#e0eaff;font-size:12px">
+          </div>
+          <div class="field-size-row" style="display:flex;gap:6px;margin:4px 0;align-items:center;flex-wrap:wrap">
+            <span style="font-size:11px;color:#a97;font-weight:600;min-width:42px">L.Size</span>
+            <input type="number" id="lfs_${k}" value="${cfg.label.font_size}" min="8" max="200" style="width:52px;padding:2px 4px;border:1px solid #2a4a7a;border-radius:4px;background:#0d1a2b;color:#e0eaff;font-size:12px">
+            <span style="font-size:11px;color:#a97;font-weight:600;min-width:42px">V.Size</span>
+            <input type="number" id="vfs_${k}" value="${cfg.value.font_size}" min="8" max="200" style="width:52px;padding:2px 4px;border:1px solid #2a4a7a;border-radius:4px;background:#0d1a2b;color:#e0eaff;font-size:12px">
+          </div>
+          <div class="field-color-row" style="display:flex;gap:6px;margin:4px 0;align-items:center;flex-wrap:wrap">
+            <span style="font-size:11px;color:#97a;font-weight:600;min-width:55px">Colon Color</span>
+            <input type="color" id="cc_${k}" value="${cfg.colon.color}" style="width:40px;height:24px;padding:0;border:1px solid #2a4a7a;border-radius:4px;background:#0d1a2b;cursor:pointer">
+            <button type="button" class="btn btn-sm btn-outline-danger btn-reset-field" id="reset_${k}" style="font-size:10px;padding:1px 6px;margin-left:auto;border-radius:4px;background:transparent;border:1px solid #dc3545;color:#dc3545;font-weight:600;cursor:pointer">Reset</button>
+          </div>
           <div class="grow-block">
             <div class="grow-line">
-              <div class="cap">Label</div>
+              <div class="cap">Label align</div>
               <div class="grow-options">
                 <div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="gl_${k}" id="gl_${k}_left" value="left" ${cfg.label.grow === "left" ? "checked":""}><label class="form-check-label" for="gl_${k}_left">Left</label></div>
                 <div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="gl_${k}" id="gl_${k}_center" value="center" ${cfg.label.grow === "center" ? "checked":""}><label class="form-check-label" for="gl_${k}_center">Center</label></div>
@@ -1179,7 +1363,7 @@
               </div>
             </div>
             <div class="grow-line">
-              <div class="cap">Value</div>
+              <div class="cap">Value align</div>
               <div class="grow-options">
                 <div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="gv_${k}" id="gv_${k}_left" value="left" ${cfg.value.grow === "left" ? "checked":""}><label class="form-check-label" for="gv_${k}_left">Left</label></div>
                 <div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="gv_${k}" id="gv_${k}_center" value="center" ${cfg.value.grow === "center" ? "checked":""}><label class="form-check-label" for="gv_${k}_center">Center</label></div>
@@ -1191,6 +1375,12 @@
         wrap.appendChild(row);
         row.querySelector(`#l_${k}`).addEventListener("change", (e)=>setVisibility(k,"label",e.target.checked));
         row.querySelector(`#v_${k}`).addEventListener("change", (e)=>setVisibility(k,"value",e.target.checked));
+        row.querySelector(`#lx_${k}`).addEventListener("change", (e)=>setFieldX(k,"label",e.target.value));
+        row.querySelector(`#vx_${k}`).addEventListener("change", (e)=>setFieldX(k,"value",e.target.value));
+        row.querySelector(`#lfs_${k}`).addEventListener("change", (e)=>setFieldFontSize(k,"label",e.target.value));
+        row.querySelector(`#vfs_${k}`).addEventListener("change", (e)=>setFieldFontSize(k,"value",e.target.value));
+        row.querySelector(`#cc_${k}`).addEventListener("change", (e)=>setFieldColonColor(k, e.target.value));
+        row.querySelector(`#reset_${k}`).addEventListener("click", (e)=>resetFieldToDefault(k));
         row.querySelectorAll(`input[name="gl_${k}"]`).forEach((el) => {
           el.addEventListener("change", (e) => setGrow(k, "label", e.target.value));
         });
@@ -1248,6 +1438,17 @@
 
     function buildCustomObject(def) {
       const type = String(def.type || "").toLowerCase();
+      
+      let shadowObj = null;
+      if (def.shadow_color && def.shadow_blur) {
+        shadowObj = new fabric.Shadow({
+          color: def.shadow_color,
+          blur: parseInt(def.shadow_blur || 0, 10),
+          offsetX: parseInt(def.shadow_offset_x || 0, 10),
+          offsetY: parseInt(def.shadow_offset_y || 0, 10)
+        });
+      }
+
       const base = {
         left: parseInt(def.x || 80, 10),
         top: parseInt(def.y || 80, 10),
@@ -1268,13 +1469,22 @@
         fill: def.fill || "#1f4e8c",
         stroke: def.stroke || "#1f4e8c",
         strokeWidth: Math.max(1, parseInt(def.stroke_width || 2, 10)),
+        shadow: shadowObj,
+        flipX: !!def.flip_x,
+        flipY: !!def.flip_y,
       };
       if (type === "text") {
         return new fabric.Textbox(def.text ?? "Text", {
           ...base,
           width: Math.max(80, parseInt(def.width || 180, 10)),
           fontSize: Math.max(8, parseInt(def.font_size || 24, 10)),
-          fontWeight: def.bold ? "700" : "400",
+          fontWeight: def.bold ? "700" : (def.font_weight || "400"),
+          fontStyle: def.font_style || "normal",
+          fontFamily: def.font_family || "Arial",
+          textAlign: def.text_align || "left",
+          underline: !!def.underline,
+          charSpacing: parseInt(def.char_spacing || 0, 10),
+          lineHeight: parseFloat(def.line_height || 1.16),
           fill: def.fill || "#0b3f8a",
           strokeWidth: 0,
         });
@@ -1284,6 +1494,8 @@
           ...base,
           width: Math.max(20, parseInt(def.width || 140, 10)),
           height: Math.max(20, parseInt(def.height || 80, 10)),
+          rx: parseInt(def.rx || 0, 10),
+          ry: parseInt(def.ry || 0, 10),
         });
       }
       if (type === "circle") {
@@ -1303,6 +1515,28 @@
         );
       }
       return null;
+    }
+
+    function loadFontOnCanvas(fontFamily, onComplete) {
+      const standardFonts = ["Arial", "Times New Roman", "Courier New", "Helvetica", "Georgia"];
+      if (!fontFamily || standardFonts.includes(fontFamily)) {
+        if (onComplete) onComplete();
+        return;
+      }
+      status(`Loading web font ${fontFamily}...`);
+      WebFont.load({
+        google: {
+          families: [fontFamily]
+        },
+        active: function() {
+          status(`Font ${fontFamily} loaded.`);
+          if (onComplete) onComplete();
+        },
+        inactive: function() {
+          status(`Failed to load font ${fontFamily}, using fallback.`, true);
+          if (onComplete) onComplete();
+        }
+      });
     }
 
     function createCustomObject(def, onReady) {
@@ -1347,6 +1581,12 @@
         }, { crossOrigin: "anonymous" });
         return;
       }
+      if (type === "text" && def.font_family) {
+        loadFontOnCanvas(def.font_family, () => {
+          onReady(buildCustomObject(def));
+        });
+        return;
+      }
       onReady(buildCustomObject(def));
     }
 
@@ -1364,12 +1604,34 @@
       next.fill = obj.fill || next.fill || "#1f4e8c";
       next.stroke = obj.stroke || next.stroke || "#1f4e8c";
       next.stroke_width = Math.max(1, Math.round(obj.strokeWidth || next.stroke_width || 2));
+      next.flip_x = !!obj.flipX;
+      next.flip_y = !!obj.flipY;
+
+      if (obj.shadow && typeof obj.shadow === "object") {
+        next.shadow_color = obj.shadow.color || "#000000";
+        next.shadow_blur = Math.round(obj.shadow.blur || 0);
+        next.shadow_offset_x = Math.round(obj.shadow.offsetX || 0);
+        next.shadow_offset_y = Math.round(obj.shadow.offsetY || 0);
+      } else {
+        next.shadow_color = null;
+        next.shadow_blur = 0;
+        next.shadow_offset_x = 0;
+        next.shadow_offset_y = 0;
+      }
+
       if (obj.customType === "text") {
         next.text = obj.text ?? "";
         next.width = Math.round(obj.width || 180);
         next.height = Math.round(obj.height || obj.fontSize || 30);
         next.font_size = Math.max(8, Math.round(obj.fontSize || next.font_size || 24));
-        next.bold = obj.fontWeight === "700";
+        next.bold = obj.fontWeight === "700" || obj.fontWeight === "bold";
+        next.underline = !!obj.underline;
+        next.font_family = obj.fontFamily || "Arial";
+        next.font_style = obj.fontStyle || "normal";
+        next.font_weight = obj.fontWeight || "normal";
+        next.text_align = obj.textAlign || "left";
+        next.char_spacing = Math.round(obj.charSpacing || 0);
+        next.line_height = parseFloat(obj.lineHeight || 1.16);
       } else if (obj.customType === "image") {
         next.width = Math.round(obj.getScaledWidth ? obj.getScaledWidth() : (obj.width || 120));
         next.height = Math.round(obj.getScaledHeight ? obj.getScaledHeight() : (obj.height || 120));
@@ -1377,9 +1639,13 @@
       } else if (obj.customType === "rect") {
         next.width = Math.round(obj.width || 120);
         next.height = Math.round(obj.height || 60);
+        next.rx = Math.round(obj.rx || 0);
+        next.ry = Math.round(obj.ry || 0);
       } else if (obj.customType === "circle") {
         next.width = Math.round((obj.rx || 40) * 2);
         next.height = Math.round((obj.ry || 40) * 2);
+        next.rx = Math.round(obj.rx || 40);
+        next.ry = Math.round(obj.ry || 40);
       } else if (obj.customType === "line") {
         next.x2 = Math.round((obj.left || 0) + (obj.x2 || 120));
         next.y2 = Math.round((obj.top || 0) + (obj.y2 || 0));
@@ -1412,6 +1678,7 @@
         const row = document.createElement("div");
         const obj = customObjs[item.id];
         row.className = `layer-item${active && active.objectId === item.id ? " active" : ""}`;
+        row.setAttribute("data-id", item.id);
         const title = String(item.name || item.type || "object").trim();
         row.innerHTML = `
           <div>
@@ -1437,6 +1704,242 @@
         });
         wrap.appendChild(row);
       });
+      initLayersSortable();
+    }
+
+    let sortableLayers = null;
+    function initLayersSortable() {
+      const wrap = document.getElementById("layersList");
+      if (!wrap) return;
+      if (sortableLayers) sortableLayers.destroy();
+      sortableLayers = new Sortable(wrap, {
+        animation: 150,
+        onEnd: function (evt) {
+          const rows = Array.from(wrap.querySelectorAll(".layer-item"));
+          const orderedIds = rows.map(row => row.getAttribute("data-id")).reverse().filter(Boolean);
+          const byId = new Map(state.layout.objects.map((item) => [item.id, item]));
+          state.layout.objects = orderedIds.map((id) => byId.get(id)).filter(Boolean);
+          reorderObjectsFromLayers(orderedIds);
+          recordHistory("reorder-layers");
+          status("Layers reordered.");
+        }
+      });
+    }
+
+    function reorderObjectsFromLayers(orderedIds) {
+      const canvasObjects = canvas.getObjects();
+      const customIndices = [];
+      canvasObjects.forEach((obj, idx) => {
+        if (obj && obj.dataType === "custom" && obj.objectId) {
+          customIndices.push(idx);
+        }
+      });
+      const customMap = {};
+      canvasObjects.forEach((obj) => {
+        if (obj && obj.dataType === "custom" && obj.objectId) {
+          customMap[obj.objectId] = obj;
+        }
+      });
+      orderedIds.forEach((id, idx) => {
+        const targetIdx = customIndices[idx];
+        if (targetIdx !== undefined && customMap[id]) {
+          canvas._objects[targetIdx] = customMap[id];
+        }
+      });
+      canvas.requestRenderAll();
+    }
+
+    function groupSelected() {
+      const activeObj = canvas.getActiveObject();
+      if (!activeObj || activeObj.type !== "activeSelection") {
+        status("Select multiple custom objects to group.", true);
+        return;
+      }
+      activeObj.toGroup();
+      canvas.requestRenderAll();
+      renderLayersList();
+      status("Selected objects grouped.");
+    }
+
+    function ungroupSelected() {
+      const activeObj = canvas.getActiveObject();
+      if (!activeObj || activeObj.type !== "group") {
+        status("Select a grouped object to ungroup.", true);
+        return;
+      }
+      activeObj.toActiveSelection();
+      canvas.requestRenderAll();
+      renderLayersList();
+      status("Group dissolved.");
+    }
+
+    function flattenGroupsAndSerialize() {
+      const groups = canvas.getObjects().filter(o => o && o.type === "group");
+      const groupData = [];
+      groups.forEach((g) => {
+        const children = g.getObjects();
+        const ids = children.map(c => c.objectId);
+        g.toActiveSelection();
+        canvas.discardActiveObject();
+        groupData.push(ids);
+      });
+      canvas.getObjects().forEach((obj) => {
+        if (obj && obj.dataType === "custom") {
+          persistCustomObject(obj);
+        }
+      });
+      groupData.forEach((ids) => {
+        const objsToGroup = ids.map(id => customObjs[id]).filter(Boolean);
+        if (objsToGroup.length) {
+          const sel = new fabric.ActiveSelection(objsToGroup, { canvas });
+          sel.toGroup();
+        }
+      });
+      canvas.discardActiveObject();
+      canvas.requestRenderAll();
+    }
+
+    function applyCuratedTheme(primary, secondary) {
+      recordHistory("before-theme");
+      state.font.colon_font_color = primary;
+      keyOrder.forEach((k) => {
+        if (!state.layout.fields[k]) state.layout.fields[k] = {};
+        if (!state.layout.fields[k].label) state.layout.fields[k].label = {};
+        if (!state.layout.fields[k].value) state.layout.fields[k].value = {};
+        if (!state.layout.fields[k].colon) state.layout.fields[k].colon = {};
+        
+        state.layout.fields[k].label.color = primary;
+        state.layout.fields[k].value.color = secondary;
+        state.layout.fields[k].colon.color = primary;
+        
+        const parts = fieldObjs[k];
+        if (parts) {
+          if (parts.label) parts.label.set({ fill: primary });
+          if (parts.value) parts.value.set({ fill: secondary });
+          if (parts.colon) parts.colon.set({ fill: primary });
+        }
+      });
+      canvas.getObjects().forEach((obj) => {
+        if (obj && obj.dataType === "custom") {
+          if (obj.customType === "text") {
+            obj.set({ fill: primary });
+          } else if (obj.customType === "rect" || obj.customType === "circle") {
+            obj.set({ fill: secondary, stroke: primary });
+          } else if (obj.customType === "line") {
+            obj.set({ stroke: primary });
+          }
+          persistCustomObject(obj);
+        }
+      });
+      canvas.requestRenderAll();
+      drawFieldList();
+      _syncSelectedUI();
+      recordHistory("apply-theme");
+      status("Theme applied successfully.");
+    }
+
+    function exportLayoutJSON() {
+      flattenGroupsAndSerialize();
+      const payload = {
+        version: "1.0",
+        template_id: TEMPLATE_ID,
+        settings_side: EDITOR_SIDE,
+        language: state.language,
+        direction: state.direction,
+        font: state.font,
+        photo: state.photo,
+        qr: state.qr,
+        barcode: state.barcode,
+        layout: state.layout
+      };
+      const jsonStr = JSON.stringify(payload, null, 2);
+      const blob = new Blob([jsonStr], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `layout_template_${TEMPLATE_ID}_${EDITOR_SIDE}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      status("Layout exported successfully.");
+    }
+
+    function triggerImportLayoutJSON() {
+      const input = document.getElementById("importLayoutInput");
+      if (input) input.click();
+    }
+
+    function importLayoutJSON(event) {
+      const file = event && event.target && event.target.files ? event.target.files[0] : null;
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const data = JSON.parse(e.target.result);
+          if (!data || typeof data !== "object") {
+            throw new Error("Invalid JSON format");
+          }
+          recordHistory("before-import");
+          if (data.language) state.language = data.language;
+          if (data.direction) state.direction = data.direction;
+          if (data.font) state.font = { ...state.font, ...data.font };
+          if (data.photo) state.photo = { ...state.photo, ...data.photo };
+          if (data.qr) state.qr = { ...state.qr, ...data.qr };
+          if (data.barcode) state.barcode = { ...state.barcode, ...data.barcode };
+          if (data.layout) {
+            state.layout = {
+              fields: data.layout.fields || {},
+              objects: Array.isArray(data.layout.objects) ? data.layout.objects : []
+            };
+          }
+          syncBlockInputs();
+          redrawFields();
+          if (photoRect) {
+            photoRect.set({
+              left: state.photo.photo_x,
+              top: state.photo.photo_y,
+              width: state.photo.photo_width,
+              height: state.photo.photo_height,
+              visible: !!state.photo.enable_photo,
+              evented: !!state.photo.enable_photo,
+              selectable: !!state.photo.enable_photo
+            });
+          }
+          if (qrRect) {
+            qrRect.set({
+              left: state.qr.qr_x,
+              top: state.qr.qr_y,
+              width: state.qr.qr_size,
+              height: state.qr.qr_size,
+              visible: !!state.qr.enable_qr,
+              evented: !!state.qr.enable_qr,
+              selectable: !!state.qr.enable_qr
+            });
+          }
+          if (barcodeRect) {
+            barcodeRect.set({
+              left: state.barcode.barcode_x,
+              top: state.barcode.barcode_y,
+              width: state.barcode.barcode_width,
+              height: state.barcode.barcode_height,
+              visible: !!state.barcode.enable_barcode,
+              evented: !!state.barcode.enable_barcode,
+              selectable: !!state.barcode.enable_barcode
+            });
+          }
+          syncTags();
+          drawFields();
+          canvas.discardActiveObject();
+          canvas.requestRenderAll();
+          recordHistory("import-layout");
+          status("Layout imported successfully! Remember to save.");
+        } catch (err) {
+          status(`Import failed: ${err.message}`, true);
+        }
+      };
+      reader.readAsText(file);
+      event.target.value = "";
     }
 
     function objectMetrics(obj) {
@@ -1515,10 +2018,50 @@
           opacity: clamp(opacity || 100, 0, 100) / 100
         });
         obj.objectName = objectName;
-        if (obj.customType === "text") {
+
+        if (obj.customType === "rect") {
+          const rx = parseInt(document.getElementById("selCornerRadius").value || "0", 10);
           obj.set({
-            width: Math.max(40, w || obj.width || 40),
-            fontSize: Math.max(8, fontSize || obj.fontSize || 8)
+            rx: rx,
+            ry: rx
+          });
+        }
+
+        if (obj.customType === "image") {
+          const flipX = document.getElementById("selFlipX").checked;
+          const flipY = document.getElementById("selFlipY").checked;
+          obj.set({
+            flipX: flipX,
+            flipY: flipY
+          });
+        }
+
+        const shadowEnabled = document.getElementById("selShadowEnabled").checked;
+        if (shadowEnabled) {
+          const sColor = document.getElementById("selShadowColor").value;
+          const sBlur = parseInt(document.getElementById("selShadowBlur").value || "0", 10);
+          const sOffsetX = parseInt(document.getElementById("selShadowOffsetX").value || "0", 10);
+          const sOffsetY = parseInt(document.getElementById("selShadowOffsetY").value || "0", 10);
+          obj.set("shadow", new fabric.Shadow({
+            color: sColor,
+            blur: sBlur,
+            offsetX: sOffsetX,
+            offsetY: sOffsetY
+          }));
+        } else {
+          obj.set("shadow", null);
+        }
+
+        if (obj.customType === "text") {
+          const fontName = document.getElementById("selFontFamily").value;
+          loadFontOnCanvas(fontName, () => {
+            obj.set({
+              width: Math.max(40, w || obj.width || 40),
+              fontSize: Math.max(8, fontSize || obj.fontSize || 8),
+              fontFamily: fontName
+            });
+            persistObjectState(obj);
+            canvas.requestRenderAll();
           });
         } else if (obj.customType === "image") {
           const width = Math.max(20, w || (obj.getScaledWidth ? obj.getScaledWidth() : obj.width) || 20);
@@ -1829,7 +2372,10 @@
       keyOrder.forEach((k, idx) => {
         const cfg = layoutFor(k, idx);
         const labelText = fieldLabelFor(k);
-        const valueText = fieldValueFor(k);
+        let valueText = fieldValueFor(k);
+        if (k === "ADDRESS") {
+          valueText = wrapText(valueText, 25);
+        }
         const lText = (!withColon || alignColon)
           ? `${labelText}`
           : (state.direction === "rtl" ? `:${labelText}` : `${labelText}:`);
@@ -1939,6 +2485,65 @@
       return o;
     }
 
+    function wrapText(text, maxChars) {
+      if (!text) return "";
+      const words = text.split(" ");
+      let lines = [];
+      let currentLine = "";
+      for (let i = 0; i < words.length; i++) {
+        const word = words[i];
+        if ((currentLine + " " + word).trim().length <= maxChars) {
+          currentLine = (currentLine + " " + word).trim();
+        } else {
+          if (currentLine) lines.push(currentLine);
+          currentLine = word;
+        }
+      }
+      if (currentLine) lines.push(currentLine);
+      return lines.join("\n");
+    }
+
+    function setFieldColonColor(key, hexColor) {
+      if (!state.layout.fields[key]) state.layout.fields[key] = {};
+      if (!state.layout.fields[key].colon) state.layout.fields[key].colon = {};
+      state.layout.fields[key].colon.color = hexColor;
+      
+      const parts = fieldObjs[key];
+      if (parts && parts.colon) {
+        parts.colon.set({ fill: hexColor });
+        canvas.renderAll();
+      }
+      recordHistory("field-colon-color");
+      status(`${key} colon color → ${hexColor}`);
+    }
+
+    function resetFieldToDefault(key) {
+      if (state.layout.fields[key]) {
+        delete state.layout.fields[key];
+        redrawFields();
+        drawFieldList();
+        recordHistory("reset-field");
+        status(`Reset ${key} overrides to default`);
+      }
+    }
+
+    function syncSidebarInputsFor(key) {
+      const idx = Math.max(0, keyOrder.indexOf(key));
+      const cfg = layoutFor(key, idx);
+      
+      const lxInput = document.getElementById(`lx_${key}`);
+      const vxInput = document.getElementById(`vx_${key}`);
+      const lfsInput = document.getElementById(`lfs_${key}`);
+      const vfsInput = document.getElementById(`vfs_${key}`);
+      const ccInput = document.getElementById(`cc_${key}`);
+      
+      if (lxInput) lxInput.value = cfg.label.x;
+      if (vxInput) vxInput.value = cfg.value.x;
+      if (lfsInput) lfsInput.value = cfg.label.font_size;
+      if (vfsInput) vfsInput.value = cfg.value.font_size;
+      if (ccInput) ccInput.value = cfg.colon.color;
+    }
+
     function _syncSelectedUI() {
       const item = document.getElementById("selItem");
       const nameInput = document.getElementById("selName");
@@ -1955,8 +2560,24 @@
       const opacityInput = document.getElementById("selOpacity");
       const strokeWidthInput = document.getElementById("selStrokeWidth");
       const applyBtn = document.getElementById("applyMetricsBtn");
+      const fontFamilyRow = document.getElementById("selFontFamilyRow");
+      if (fontFamilyRow) fontFamilyRow.style.display = "none";
+
+      const cornerRadiusRow = document.getElementById("selCornerRadiusRow");
+      const cornerRadiusInput = document.getElementById("selCornerRadius");
+      const flipRow = document.getElementById("selFlipRow");
+      const flipXInput = document.getElementById("selFlipX");
+      const flipYInput = document.getElementById("selFlipY");
+      const shadowSection = document.getElementById("selShadowSection");
+      const shadowColorInput = document.getElementById("selShadowColor");
+      const shadowEnabledInput = document.getElementById("selShadowEnabled");
+      const shadowBlurInput = document.getElementById("selShadowBlur");
+      const shadowOffsetXInput = document.getElementById("selShadowOffsetX");
+      const shadowOffsetYInput = document.getElementById("selShadowOffsetY");
+
       const o = _activeFieldText();
       const active = canvas.getActiveObject();
+
       if (active && active.type === "activeSelection") {
         const selectionItems = active.getObjects().filter(Boolean);
         item.value = `${selectionItems.length} item(s) selected`;
@@ -1973,6 +2594,7 @@
           input.value = "";
         });
         applyBtn.disabled = true;
+        [cornerRadiusRow, flipRow, shadowSection].forEach(el => el.style.display = "none");
         renderLayersList();
         return;
       }
@@ -1991,6 +2613,7 @@
           input.value = "";
         });
         applyBtn.disabled = true;
+        [cornerRadiusRow, flipRow, shadowSection].forEach(el => el.style.display = "none");
         renderLayersList();
         return;
       }
@@ -2010,6 +2633,9 @@
         nameInput.value = "";
         lockInput.disabled = true;
         lockInput.checked = false;
+        
+        syncSidebarInputsFor(key);
+        [cornerRadiusRow, flipRow, shadowSection].forEach(el => el.style.display = "none");
       } else if (selected.dataType === "custom") {
         item.value = `${selected.customType} (${selected.objectId})`;
         nameInput.disabled = false;
@@ -2019,6 +2645,44 @@
         textInput.value = selected.customType === "text" ? (selected.text || "") : "";
         lockInput.disabled = false;
         lockInput.checked = !!(selected.lockMovementX || selected.lockMovementY);
+
+        if (selected.customType === "rect") {
+          cornerRadiusRow.style.display = "grid";
+          cornerRadiusInput.value = selected.rx || 0;
+        } else {
+          cornerRadiusRow.style.display = "none";
+        }
+
+        if (selected.customType === "image") {
+          flipRow.style.display = "grid";
+          flipXInput.checked = !!selected.flipX;
+          flipYInput.checked = !!selected.flipY;
+        } else {
+          flipRow.style.display = "none";
+        }
+
+        if (selected.customType === "text") {
+          if (fontFamilyRow) {
+            fontFamilyRow.style.display = "grid";
+            document.getElementById("selFontFamily").value = selected.fontFamily || "Arial";
+          }
+        }
+
+        shadowSection.style.display = "block";
+        const sh = selected.shadow;
+        if (sh && sh.color) {
+          shadowEnabledInput.checked = true;
+          shadowColorInput.value = _normalizeHex(sh.color, "#000000");
+          shadowBlurInput.value = sh.blur || 0;
+          shadowOffsetXInput.value = sh.offsetX || 0;
+          shadowOffsetYInput.value = sh.offsetY || 0;
+        } else {
+          shadowEnabledInput.checked = false;
+          shadowColorInput.value = "#000000";
+          shadowBlurInput.value = 0;
+          shadowOffsetXInput.value = 0;
+          shadowOffsetYInput.value = 0;
+        }
       } else {
         item.value = selected.dataType === "photo" ? "Photo Box" : "QR Box";
         nameInput.disabled = true;
@@ -2028,6 +2692,7 @@
         textInput.value = "";
         lockInput.disabled = true;
         lockInput.checked = false;
+        [cornerRadiusRow, flipRow, shadowSection].forEach(el => el.style.display = "none");
       }
       color.disabled = selected.dataType === "photo"
         || selected.dataType === "qr"
@@ -2201,6 +2866,13 @@
         state.qr.qr_size = Math.round(obj.width);
         syncTags();
         syncBlockInputs();
+      } else if (obj.dataType === "barcode") {
+        state.barcode.barcode_x = Math.round(obj.left);
+        state.barcode.barcode_y = Math.round(obj.top);
+        state.barcode.barcode_width = Math.round(obj.width);
+        state.barcode.barcode_height = Math.round(obj.height);
+        syncTags();
+        syncBlockInputs();
       }
       obj.setCoords();
     }
@@ -2289,8 +2961,23 @@
       return true;
     }
 
-    function setZoom(delta){ zoom = clamp(zoom + delta,0.2,3); canvas.setZoom(zoom); document.getElementById("zoomLabel").textContent=`${Math.round(zoom*100)}%`; canvas.requestRenderAll(); }
-    function fitCanvas(){ const s=document.getElementById("stage"); zoom = clamp(Math.min((s.clientWidth-60)/CARD_W,(s.clientHeight-80)/CARD_H),0.2,2.4); canvas.setZoom(zoom); document.getElementById("zoomLabel").textContent=`${Math.round(zoom*100)}%`; canvas.requestRenderAll(); }
+    function setZoom(delta) {
+      zoom = clamp(zoom + delta, 0.2, 3);
+      canvas.setZoom(zoom);
+      document.getElementById("zoomLabel").textContent = `${Math.round(zoom * 100)}%`;
+      canvas.requestRenderAll();
+      // Fix 17: persist zoom to localStorage
+      try { localStorage.setItem('ve_zoom_' + TEMPLATE_ID, zoom); } catch(e) {}
+    }
+    function fitCanvas() {
+      const s = document.getElementById("stage");
+      zoom = clamp(Math.min((s.clientWidth - 60) / CARD_W, (s.clientHeight - 80) / CARD_H), 0.2, 2.4);
+      canvas.setZoom(zoom);
+      document.getElementById("zoomLabel").textContent = `${Math.round(zoom * 100)}%`;
+      canvas.requestRenderAll();
+      // Fix 17: persist zoom
+      try { localStorage.setItem('ve_zoom_' + TEMPLATE_ID, zoom); } catch(e) {}
+    }
     function setSnap(v){ snap = Math.max(1, parseInt(v||1,10)); }
 
     function applyBlockInputs() {
@@ -2301,7 +2988,11 @@
       state.qr.qr_x = parseInt(document.getElementById("qrX").value || "0", 10);
       state.qr.qr_y = parseInt(document.getElementById("qrY").value || "0", 10);
       state.qr.qr_size = parseInt(document.getElementById("qrS").value || "120", 10);
-      photoRect.set({
+      state.barcode.barcode_x = parseInt(document.getElementById("barcodeX").value || "50", 10);
+      state.barcode.barcode_y = parseInt(document.getElementById("barcodeY").value || "200", 10);
+      state.barcode.barcode_width = parseInt(document.getElementById("barcodeW").value || "220", 10);
+      state.barcode.barcode_height = parseInt(document.getElementById("barcodeH").value || "70", 10);
+      if (photoRect) photoRect.set({
         left: state.photo.photo_x,
         top: state.photo.photo_y,
         width: state.photo.photo_width,
@@ -2312,7 +3003,7 @@
         evented: !!state.photo.enable_photo,
         selectable: !!state.photo.enable_photo
       });
-      qrRect.set({
+      if (qrRect) qrRect.set({
         left: state.qr.qr_x,
         top: state.qr.qr_y,
         width: state.qr.qr_size,
@@ -2322,6 +3013,17 @@
         visible: !!state.qr.enable_qr,
         evented: !!state.qr.enable_qr,
         selectable: !!state.qr.enable_qr
+      });
+      if (barcodeRect) barcodeRect.set({
+        left: state.barcode.barcode_x,
+        top: state.barcode.barcode_y,
+        width: state.barcode.barcode_width,
+        height: state.barcode.barcode_height,
+        scaleX:1,
+        scaleY:1,
+        visible: !!state.barcode.enable_barcode,
+        evented: !!state.barcode.enable_barcode,
+        selectable: !!state.barcode.enable_barcode
       });
       syncTags();
       canvas.renderAll();
@@ -2338,6 +3040,11 @@
         state.qr.enable_qr = !!enabled;
         if (qrRect) {
           qrRect.set({ visible: !!enabled, evented: !!enabled, selectable: !!enabled });
+        }
+      } else if (type === "barcode") {
+        state.barcode.enable_barcode = !!enabled;
+        if (barcodeRect) {
+          barcodeRect.set({ visible: !!enabled, evented: !!enabled, selectable: !!enabled });
         }
       }
       syncTags();
@@ -2369,14 +3076,25 @@
       document.getElementById("qrS").value = Math.round(state.qr.qr_size);
       const enableQrEl = document.getElementById("enableQrVE");
       if (enableQrEl) enableQrEl.checked = !!state.qr.enable_qr;
+      const bxEl = document.getElementById("barcodeX");
+      const byEl = document.getElementById("barcodeY");
+      const bwEl = document.getElementById("barcodeW");
+      const bhEl = document.getElementById("barcodeH");
+      if (bxEl) bxEl.value = Math.round(state.barcode.barcode_x);
+      if (byEl) byEl.value = Math.round(state.barcode.barcode_y);
+      if (bwEl) bwEl.value = Math.round(state.barcode.barcode_width);
+      if (bhEl) bhEl.value = Math.round(state.barcode.barcode_height);
+      const enableBarcodeEl = document.getElementById("enableBarcodeVE");
+      if (enableBarcodeEl) enableBarcodeEl.checked = !!state.barcode.enable_barcode;
     }
 
-    let bleedRect, safeRect, photoRect, qrRect, pTag, qTag;
+    let bleedRect, safeRect, photoRect, qrRect, barcodeRect, pTag, qTag, bTag;
     let gridGroup = null;
     function toggleGuides(){ bleedRect.set({visible:document.getElementById("showBleed").checked}); safeRect.set({visible:document.getElementById("showSafe").checked}); canvas.renderAll(); }
     function syncTags(){
-      pTag.set({left:photoRect.left+6, top:photoRect.top-18, visible: !!state.photo.enable_photo});
-      qTag.set({left:qrRect.left+6, top:qrRect.top-18, visible: !!state.qr.enable_qr});
+      if (pTag && photoRect) pTag.set({left:photoRect.left+6, top:photoRect.top-18, visible: !!state.photo.enable_photo});
+      if (qTag && qrRect) qTag.set({left:qrRect.left+6, top:qrRect.top-18, visible: !!state.qr.enable_qr});
+      if (bTag && barcodeRect) bTag.set({left:barcodeRect.left+6, top:barcodeRect.top-18, visible: !!state.barcode.enable_barcode});
     }
     function rebuildGrid() {
       if (gridGroup) {
@@ -2421,6 +3139,7 @@
       if (qrRect) canvas.bringToFront(qrRect);
       if (pTag) canvas.bringToFront(pTag);
       if (qTag) canvas.bringToFront(qTag);
+      if (rulerGroup) canvas.bringToFront(rulerGroup);
       canvas.requestRenderAll();
     }
     function toggleGridVisibility(forceValue) {
@@ -2438,49 +3157,160 @@
       status(`Grid size: ${gridSize}px`);
     }
 
+    let rulerGroup = null;
+    let rulersVisible = false;
+
+    function rebuildRulers() {
+      if (rulerGroup) {
+        canvas.remove(rulerGroup);
+        rulerGroup = null;
+      }
+      if (!rulersVisible) {
+        canvas.requestRenderAll();
+        return;
+      }
+      const items = [];
+      const tickColor = "rgba(11, 99, 209, 0.4)";
+      const textColor = "rgba(11, 99, 209, 0.7)";
+
+      for (let x = 0; x <= CARD_W; x += 10) {
+        let len = 4;
+        if (x % 50 === 0) len = 8;
+        if (x % 100 === 0) len = 14;
+
+        items.push(new fabric.Line([x, 0, x, len], {
+          stroke: tickColor,
+          strokeWidth: 1,
+          selectable: false,
+          evented: false,
+          excludeFromExport: true
+        }));
+
+        if (x % 100 === 0 && x > 0) {
+          items.push(new fabric.Text(String(x), {
+            left: x + 2,
+            top: 15,
+            fontSize: 9,
+            fill: textColor,
+            fontFamily: "Arial",
+            fontWeight: "bold",
+            selectable: false,
+            evented: false,
+            excludeFromExport: true
+          }));
+        }
+      }
+
+      for (let y = 0; y <= CARD_H; y += 10) {
+        let len = 4;
+        if (y % 50 === 0) len = 8;
+        if (y % 100 === 0) len = 14;
+
+        items.push(new fabric.Line([0, y, len, y], {
+          stroke: tickColor,
+          strokeWidth: 1,
+          selectable: false,
+          evented: false,
+          excludeFromExport: true
+        }));
+
+        if (y % 100 === 0 && y > 0) {
+          items.push(new fabric.Text(String(y), {
+            left: 15,
+            top: y - 5,
+            fontSize: 9,
+            fill: textColor,
+            fontFamily: "Arial",
+            fontWeight: "bold",
+            selectable: false,
+            evented: false,
+            excludeFromExport: true
+          }));
+        }
+      }
+
+      rulerGroup = new fabric.Group(items, {
+        selectable: false,
+        evented: false,
+        excludeFromExport: true,
+        objectCaching: false
+      });
+      canvas.add(rulerGroup);
+      canvas.bringToFront(rulerGroup);
+      canvas.requestRenderAll();
+    }
+
+    function toggleRulersVisibility(forceValue) {
+      rulersVisible = typeof forceValue === "boolean" ? forceValue : !rulersVisible;
+      const checkbox = document.getElementById("showRulers");
+      if (checkbox) checkbox.checked = rulersVisible;
+      rebuildRulers();
+      status(rulersVisible ? "Rulers enabled." : "Rulers hidden.");
+    }
+
     async function saveLayout() {
       const btn = document.getElementById("saveBtn");
-      const csrf = document.querySelector('meta[name="csrf-token"]').getAttribute("content");
+      const csrfEl = document.querySelector('meta[name="csrf-token"]');
+      const csrf = csrfEl ? csrfEl.getAttribute("content") : "";
       btn.disabled = true; btn.textContent = "Saving...";
       try {
+        // Persist all canvas objects back to state before building payload
         Object.values(fieldObjs).forEach((parts) => {
           ["label", "colon", "value"].forEach((part) => {
             if (parts && parts[part]) persistObjectState(parts[part]);
           });
         });
-        Object.values(customObjs).forEach((obj) => persistObjectState(obj));
+        flattenGroupsAndSerialize();
         if (photoRect) persistObjectState(photoRect);
         if (qrRect) persistObjectState(qrRect);
+        if (barcodeRect) persistObjectState(barcodeRect);
+
+        // Build merged photo_settings (merges initPhoto + editor state)
+        const mergedPhoto = {
+          ...initPhoto,
+          ...state.photo,
+        };
+
+        // Build merged qr_settings (merges initQR + editor qr state + editor barcode state)
+        // Backend stores barcode inside qr_settings
+        const mergedQr = {
+          ...initQR,
+          ...state.qr,
+          enable_barcode: !!state.barcode.enable_barcode,
+          barcode_x: state.barcode.barcode_x,
+          barcode_y: state.barcode.barcode_y,
+          barcode_width: state.barcode.barcode_width,
+          barcode_height: state.barcode.barcode_height,
+        };
+
         const payload = {
           template_id: TEMPLATE_ID,
           settings_side: EDITOR_SIDE,
-          card_orientation: CARD_ORIENTATION,
-          card_width: CARD_W,
-          card_height: CARD_H,
-          sheet_width: SHEET_W,
-          sheet_height: SHEET_H,
-          grid_rows: GRID_ROWS,
-          grid_cols: GRID_COLS,
           language: state.language,
           text_direction: state.direction,
           language_direction_explicit: true,
           font_settings: { ...initFont, ...state.font },
-          photo_settings: { ...initPhoto, ...state.photo },
-          qr_settings: { ...initQR, ...state.qr },
-          layout_config: state.layout
+          photo_settings: mergedPhoto,
+          qr_settings: mergedQr,
+          layout_config: state.layout,
         };
-        const res = await fetch("/update_template_settings", {
+
+        const res = await fetch("/admin/save_field_settings", {
           method: "POST",
-          headers: { "Content-Type":"application/json", "X-CSRFToken": csrf },
+          headers: { "Content-Type": "application/json", "X-CSRFToken": csrf },
           body: JSON.stringify(payload)
         });
         const data = await res.json();
         if (!res.ok || !data.success) throw new Error(data.error || "Save failed");
-        status("Saved successfully.");
+        status("✅ Layout saved successfully!");
+        // Fix 6: Clear undo history after successful save so Ctrl+Z can't undo past this point
+        historyStack.length = 0;
+        redoStack.length = 0;
+        recordHistory("post-save");  // record current state as new baseline
       } catch (e) {
-        status(`Save failed: ${e.message}`, true);
+        status(`❌ Save failed: ${e.message}`, true);
       } finally {
-        btn.disabled = false; btn.textContent = "Save Layout";
+        btn.disabled = false; btn.textContent = "💾 Save Layout";
       }
     }
 
@@ -2495,9 +3325,11 @@
         safeRect = new fabric.Rect({ left:24, top:24, width:CARD_W-48, height:CARD_H-48, fill:"rgba(0,0,0,0)", stroke:"rgba(0,145,110,0.8)", strokeDashArray:[6,6], selectable:false, evented:false });
         photoRect = new fabric.Rect({ left:state.photo.photo_x, top:state.photo.photo_y, width:state.photo.photo_width, height:state.photo.photo_height, fill:"rgba(214,59,98,0.16)", stroke:"#d63b62", strokeWidth:2, cornerColor:"#d63b62", dataType:"photo", visible: !!state.photo.enable_photo, evented: !!state.photo.enable_photo, selectable: !!state.photo.enable_photo });
         qrRect = new fabric.Rect({ left:state.qr.qr_x, top:state.qr.qr_y, width:state.qr.qr_size, height:state.qr.qr_size, fill:"rgba(0,165,137,0.16)", stroke:"#00a589", strokeWidth:2, cornerColor:"#00a589", lockUniScaling:true, dataType:"qr", visible: !!state.qr.enable_qr, evented: !!state.qr.enable_qr, selectable: !!state.qr.enable_qr });
+        barcodeRect = new fabric.Rect({ left:state.barcode.barcode_x, top:state.barcode.barcode_y, width:state.barcode.barcode_width, height:state.barcode.barcode_height, fill:"rgba(124,77,255,0.12)", stroke:"#7c4dff", strokeWidth:2, cornerColor:"#7c4dff", dataType:"barcode", visible: !!state.barcode.enable_barcode, evented: !!state.barcode.enable_barcode, selectable: !!state.barcode.enable_barcode });
         pTag = new fabric.Text("PHOTO", { left:photoRect.left+6, top:photoRect.top-18, fontSize:13, fill:"#c42f55", selectable:false, evented:false, visible: !!state.photo.enable_photo });
         qTag = new fabric.Text("QR", { left:qrRect.left+6, top:qrRect.top-18, fontSize:13, fill:"#008d75", selectable:false, evented:false, visible: !!state.qr.enable_qr });
-        canvas.add(bleedRect, safeRect, photoRect, qrRect, pTag, qTag);
+        bTag = new fabric.Text("BARCODE", { left:barcodeRect.left+6, top:barcodeRect.top-18, fontSize:13, fill:"#5e35b1", selectable:false, evented:false, visible: !!state.barcode.enable_barcode });
+        canvas.add(bleedRect, safeRect, photoRect, qrRect, barcodeRect, pTag, qTag, bTag);
         drawFields();
         toggleGuides();
         const gridInput = document.getElementById("gridSizeVE");
@@ -2507,15 +3339,43 @@
         rebuildGrid();
         syncBlockInputs();
         fitCanvas();
+        // Fix 17: restore saved zoom if available
+        try {
+          const savedZoom = parseFloat(localStorage.getItem('ve_zoom_' + TEMPLATE_ID));
+          if (savedZoom && savedZoom >= 0.2 && savedZoom <= 3) {
+            zoom = savedZoom;
+            canvas.setZoom(zoom);
+            document.getElementById("zoomLabel").textContent = `${Math.round(zoom * 100)}%`;
+            canvas.requestRenderAll();
+          }
+        } catch(e) {}
         syncCanvasTouchBehavior();
         renderLayersList();
         recordHistory("init");
         status("Ready. Drag any label/value block; uncheck to hide.");
         _syncSelectedUI();
 
+        function clearGuides() {
+          alignGuides.forEach((line) => canvas.remove(line));
+          alignGuides = [];
+        }
+
+        function drawGuideLine(x1, y1, x2, y2) {
+          const line = new fabric.Line([x1, y1, x2, y2], {
+            stroke: "#f53c5a",
+            strokeWidth: 1,
+            selectable: false,
+            evented: false,
+            strokeDashArray: [4, 4],
+            dataType: "guide"
+          });
+          alignGuides.push(line);
+          canvas.add(line);
+        }
+
         canvas.on("object:moving", (e) => {
           const o = e.target; if (!o) return;
-          // Auto-unlock custom objects before drag and persist unlock state
+          
           if (o.dataType === "custom") {
             o.set({
               lockMovementX: false,
@@ -2523,9 +3383,95 @@
               lockScalingX: false,
               lockScalingY: false
             });
-            persistCustomObject(o); // persist unlock state immediately
+            persistCustomObject(o);
           }
-          o.set({ left:sround(o.left), top:sround(o.top) });
+
+          let targetLeft = sround(o.left);
+          let targetTop = sround(o.top);
+          o.set({ left: targetLeft, top: targetTop });
+
+          clearGuides();
+          if (o.type !== "activeSelection") {
+            const threshold = 8;
+            const w = o.width * (o.scaleX || 1);
+            const h = o.height * (o.scaleY || 1);
+            const snapPoints = {
+              left: o.left,
+              right: o.left + w,
+              top: o.top,
+              bottom: o.top + h,
+              centerX: o.left + w / 2,
+              centerY: o.top + h / 2,
+            };
+
+            let snappedX = false;
+            let snappedY = false;
+
+            canvas.getObjects().forEach((targetObj) => {
+              if (targetObj === o || targetObj === bleedRect || targetObj === safeRect || targetObj.dataType === "guide") return;
+              if (!targetObj.visible) return;
+
+              const tw = targetObj.width * (targetObj.scaleX || 1);
+              const th = targetObj.height * (targetObj.scaleY || 1);
+              const targetPoints = {
+                left: targetObj.left,
+                right: targetObj.left + tw,
+                top: targetObj.top,
+                bottom: targetObj.top + th,
+                centerX: targetObj.left + tw / 2,
+                centerY: targetObj.top + th / 2,
+              };
+
+              if (!snappedX) {
+                if (Math.abs(snapPoints.left - targetPoints.left) < threshold) {
+                  o.set({ left: targetPoints.left });
+                  drawGuideLine(targetPoints.left, Math.min(snapPoints.top, targetPoints.top) - 30, targetPoints.left, Math.max(snapPoints.bottom, targetPoints.bottom) + 30);
+                  snappedX = true;
+                } else if (Math.abs(snapPoints.left - targetPoints.right) < threshold) {
+                  o.set({ left: targetPoints.right });
+                  drawGuideLine(targetPoints.right, Math.min(snapPoints.top, targetPoints.top) - 30, targetPoints.right, Math.max(snapPoints.bottom, targetPoints.bottom) + 30);
+                  snappedX = true;
+                } else if (Math.abs(snapPoints.right - targetPoints.left) < threshold) {
+                  o.set({ left: targetPoints.left - w });
+                  drawGuideLine(targetPoints.left, Math.min(snapPoints.top, targetPoints.top) - 30, targetPoints.left, Math.max(snapPoints.bottom, targetPoints.bottom) + 30);
+                  snappedX = true;
+                } else if (Math.abs(snapPoints.right - targetPoints.right) < threshold) {
+                  o.set({ left: targetPoints.right - w });
+                  drawGuideLine(targetPoints.right, Math.min(snapPoints.top, targetPoints.top) - 30, targetPoints.right, Math.max(snapPoints.bottom, targetPoints.bottom) + 30);
+                  snappedX = true;
+                } else if (Math.abs(snapPoints.centerX - targetPoints.centerX) < threshold) {
+                  o.set({ left: targetPoints.centerX - w / 2 });
+                  drawGuideLine(targetPoints.centerX, Math.min(snapPoints.top, targetPoints.top) - 30, targetPoints.centerX, Math.max(snapPoints.bottom, targetPoints.bottom) + 30);
+                  snappedX = true;
+                }
+              }
+
+              if (!snappedY) {
+                if (Math.abs(snapPoints.top - targetPoints.top) < threshold) {
+                  o.set({ top: targetPoints.top });
+                  drawGuideLine(Math.min(snapPoints.left, targetPoints.left) - 30, targetPoints.top, Math.max(snapPoints.right, targetPoints.right) + 30, targetPoints.top);
+                  snappedY = true;
+                } else if (Math.abs(snapPoints.top - targetPoints.bottom) < threshold) {
+                  o.set({ top: targetPoints.bottom });
+                  drawGuideLine(Math.min(snapPoints.left, targetPoints.left) - 30, targetPoints.bottom, Math.max(snapPoints.right, targetPoints.right) + 30, targetPoints.bottom);
+                  snappedY = true;
+                } else if (Math.abs(snapPoints.bottom - targetPoints.top) < threshold) {
+                  o.set({ top: targetPoints.top - h });
+                  drawGuideLine(Math.min(snapPoints.left, targetPoints.left) - 30, targetPoints.top, Math.max(snapPoints.right, targetPoints.right) + 30, targetPoints.top);
+                  snappedY = true;
+                } else if (Math.abs(snapPoints.bottom - targetPoints.bottom) < threshold) {
+                  o.set({ top: targetPoints.bottom - h });
+                  drawGuideLine(Math.min(snapPoints.left, targetPoints.left) - 30, targetPoints.bottom, Math.max(snapPoints.right, targetPoints.right) + 30, targetPoints.bottom);
+                  snappedY = true;
+                } else if (Math.abs(snapPoints.centerY - targetPoints.centerY) < threshold) {
+                  o.set({ top: targetPoints.centerY - h / 2 });
+                  drawGuideLine(Math.min(snapPoints.left, targetPoints.left) - 30, targetPoints.centerY, Math.max(snapPoints.right, targetPoints.right) + 30, targetPoints.centerY);
+                  snappedY = true;
+                }
+              }
+            });
+          }
+
           if (o.dataType === "field") updateLayoutFromObject(o);
           if (o.dataType === "custom") persistCustomObject(o);
         });
@@ -2533,6 +3479,7 @@
           const o = e.target; if (!o) return;
           if (o.dataType === "photo") o.set({ width: clamp(sround(o.getScaledWidth()),20,CARD_W), height: clamp(sround(o.getScaledHeight()),20,CARD_H), scaleX:1, scaleY:1 });
           if (o.dataType === "qr") { const side = clamp(sround(Math.max(o.getScaledWidth(),o.getScaledHeight())),20,500); o.set({ width: side, height: side, scaleX:1, scaleY:1 }); }
+          if (o.dataType === "barcode") o.set({ width: clamp(sround(o.getScaledWidth()),40,CARD_W), height: clamp(sround(o.getScaledHeight()),20,CARD_H), scaleX:1, scaleY:1 });
           if (o.dataType === "field") normalizeFieldScale(o);
           if (o.dataType === "custom" && o.customType !== "line") {
             if (o.customType === "circle") {
@@ -2577,6 +3524,7 @@
 	            }
 	            if (o.dataType === "photo") { state.photo.photo_x=Math.round(o.left); state.photo.photo_y=Math.round(o.top); state.photo.photo_width=Math.round(o.width); state.photo.photo_height=Math.round(o.height); syncTags(); syncBlockInputs(); }
 	            if (o.dataType === "qr") { state.qr.qr_x=Math.round(o.left); state.qr.qr_y=Math.round(o.top); state.qr.qr_size=Math.round(o.width); syncTags(); syncBlockInputs(); }
+	            if (o.dataType === "barcode") { state.barcode.barcode_x=Math.round(o.left); state.barcode.barcode_y=Math.round(o.top); state.barcode.barcode_width=Math.round(o.width); state.barcode.barcode_height=Math.round(o.height); syncTags(); syncBlockInputs(); }
 	            if (o.dataType === "custom") persistCustomObject(o);
 	            if (o.dataType === "custom") syncLayerOrderFromCanvas();
 	          }
@@ -2585,8 +3533,8 @@
 	        });
         canvas.on("selection:created", _syncSelectedUI);
         canvas.on("selection:updated", _syncSelectedUI);
-        canvas.on("selection:cleared", _syncSelectedUI);
-        canvas.on("mouse:up", _syncSelectedUI);
+        canvas.on("selection:cleared", () => { _syncSelectedUI(); clearGuides(); });
+        canvas.on("mouse:up", () => { _syncSelectedUI(); clearGuides(); });
       }, { crossOrigin: "anonymous" });
       document.getElementById("saveBtn").addEventListener("click", saveLayout);
       document.getElementById("imageUploadInput").addEventListener("change", handleImageUpload);
@@ -2606,6 +3554,16 @@
         o.set({ text: e.target.value });
         persistCustomObject(o);
         canvas.requestRenderAll();
+      });
+      document.getElementById("selFontFamily").addEventListener("change", (e) => {
+        const o = canvas.getActiveObject();
+        if (!o || o.dataType !== "custom" || o.customType !== "text") return;
+        const fontName = e.target.value;
+        loadFontOnCanvas(fontName, () => {
+          o.set("fontFamily", fontName);
+          persistCustomObject(o);
+          canvas.requestRenderAll();
+        });
       });
       document.getElementById("selName").addEventListener("input", (e) => {
         const o = canvas.getActiveObject();

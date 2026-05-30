@@ -549,8 +549,8 @@
     <!-- navigation - responsive brand -->
     <nav class="navbar navbar-expand-lg navbar-light nav-custom fixed-top">
         <div class="container">
-            <a class="navbar-brand" href="{{ url_for('landing') }}">
-                <img src="{{ url_for('static', filename='images/logo.png') }}" alt="Noor Graphics Logo" style="height: auto; max-height: 55px; width: auto;">
+            <a class="navbar-brand" href="{{ url_for('dashboard.landing') }}">
+                <img src="{{ url_for('static', filename='images/logo.jpg') }}" alt="Noor Graphics Logo" style="height: auto; max-height: 55px; width: auto;">
                 Noor Graphics
             </a>
         </div>
@@ -688,10 +688,10 @@
 
                     <!-- action buttons group responsive -->
                     <div class="text-center mt-5 d-flex flex-column flex-sm-row gap-3 justify-content-center align-items-center">
-                        <a href="{{ url_for('student_login') }}" class="start-btn">
+                        <a href="{{ url_for('auth.student_login') }}" class="start-btn">
                             <i class="fas fa-play-circle"></i> Start Generating ID Cards
                         </a>
-                        <a href="{{ url_for('landing') }}" class="back-btn">
+                        <a href="{{ url_for('dashboard.landing') }}" class="back-btn">
                             <i class="fas fa-arrow-left"></i> Back to Home
                         </a>
                     </div>

@@ -274,13 +274,109 @@
             text-align: center;
         }
 
+        /* tables - horizontal scroll for mobile */
+        .table-wrapper {
+            overflow-x: auto;
+            margin: 16px 0 8px;
+            border-radius: 12px;
+            border: 1px solid var(--line);
+        }
+
         @media (max-width: 960px) {
             .layout {
                 grid-template-columns: 1fr;
+                gap: 20px;
             }
             .toc {
                 position: static;
+                margin-bottom: 8px;
             }
+            .toc ol {
+                display: grid;
+                grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+                gap: 8px 20px;
+            }
+            .toc li {
+                margin-left: 0;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .page {
+                padding: 16px 16px 32px;
+            }
+            .hero {
+                padding: 20px 18px;
+            }
+            .card {
+                padding: 16px 18px;
+            }
+            .card h2 {
+                font-size: 1.25rem;
+                padding-left: 12px;
+            }
+            .btn {
+                padding: 8px 14px;
+                font-size: 0.85rem;
+                white-space: normal;
+                word-break: keep-all;
+            }
+            .topbar {
+                gap: 10px;
+            }
+            .badge {
+                font-size: 0.7rem;
+                padding: 4px 10px;
+            }
+        }
+
+        @media (max-width: 560px) {
+            .topbar {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .btn {
+                justify-content: center;
+                width: 100%;
+            }
+            .hero h1 {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 8px;
+            }
+            .step {
+                padding: 10px 12px;
+            }
+            .note, .warn, .good {
+                padding: 12px 14px;
+            }
+            .toc {
+                padding: 14px;
+            }
+            .toc h2 {
+                font-size: 1.1rem;
+            }
+            .toc a {
+                font-size: 0.85rem;
+            }
+            th, td {
+                padding: 8px 10px;
+            }
+        }
+
+        /* touch-friendly improvements */
+        a, .btn, .badge {
+            -webkit-tap-highlight-color: rgba(15, 107, 79, 0.2);
+        }
+
+        /* smooth scroll offset for anchors */
+        html {
+            scroll-padding-top: 24px;
+        }
+
+        /* extra spacing for lists inside cards */
+        .card ul, .card ol {
+            margin-top: 4px;
         }
     </style>
 </head>
@@ -318,6 +414,7 @@
                     <li><a href="#dynamic-fields">Dynamic Form Fields</a></li>
                     <li><a href="#data-management">Data Management and Safety</a></li>
                     <li><a href="#preview-verify">Preview and Verification</a></li>
+                    <li><a href="#advanced-features">Advanced Features & Custom Styling</a></li>
                     <li><a href="#troubleshooting">Troubleshooting</a></li>
                 </ol>
             </aside>
@@ -335,37 +432,39 @@
 
                 <article id="tabs-overview" class="card">
                     <h2>2. Admin Tabs Overview</h2>
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Tab</th>
-                                <th>Main Use</th>
-                                <th>Important Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td>Settings</td>
-                                <td>Template upload, template configuration, bulk generation, font upload</td>
-                                <td>Upload template, save settings, run bulk generate, configure duplicate controls</td>
-                            </tr>
-                            <tr>
-                                <td>Data Management</td>
-                                <td>Manage existing student cards and files</td>
-                                <td>Edit student, delete entries, cleanup files, export records, delete by school</td>
-                            </tr>
-                            <tr>
-                                <td>Preview</td>
-                                <td>Preview student cards from admin side</td>
-                                <td>Load preview, regenerate latest preview, download student PDF</td>
-                            </tr>
-                            <tr>
-                                <td>Form Fields</td>
-                                <td>Per-template dynamic inputs</td>
-                                <td>Add/edit/delete custom fields, set type, required flag, display order</td>
-                            </tr>
-                        </tbody>
-                    </table>
+                    <div class="table-wrapper">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Tab</th>
+                                    <th>Main Use</th>
+                                    <th>Important Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Settings</td>
+                                    <td>Template upload, template configuration, bulk generation, font upload</td>
+                                    <td>Upload template, save settings, run bulk generate, configure duplicate controls</td>
+                                </tr>
+                                <tr>
+                                    <td>Data Management</td>
+                                    <td>Manage existing student cards and files</td>
+                                    <td>Edit student, delete entries, cleanup files, export records, delete by school</td>
+                                </tr>
+                                <tr>
+                                    <td>Preview</td>
+                                    <td>Preview student cards from admin side</td>
+                                    <td>Load preview, regenerate latest preview, download student PDF</td>
+                                </tr>
+                                <tr>
+                                    <td>Form Fields</td>
+                                    <td>Per-template dynamic inputs</td>
+                                    <td>Add/edit/delete custom fields, set type, required flag, display order</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
                 </article>
 
                 <article id="template-upload" class="card">
@@ -385,42 +484,49 @@
                     <h2>4. Template Settings Reference</h2>
                     <p class="muted">All settings are stored per selected template.</p>
 
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Section</th>
-                                <th>Fields</th>
-                                <th>What It Controls</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td>Dimensions and Paper</td>
-                                <td>Card Width/Height, A4 Width/Height</td>
-                                <td>Card render size and A4 compiled sheet layout.</td>
-                            </tr>
-                            <tr>
-                                <td>Typography</td>
-                                <td>Label Font, Value Font, Label/Value Size, Label X, Value X, Start Y, Line Height, Label Color, Value Color, Text Case</td>
-                                <td>Position, spacing, appearance, and capitalization rules for all text.</td>
-                            </tr>
-                            <tr>
-                                <td>Language Settings</td>
-                                <td>Template Language, Text Direction</td>
-                                <td>Text shaping and RTL/LTR behavior.</td>
-                            </tr>
-                            <tr>
-                                <td>Photo Box</td>
-                                <td>X/Y, Width/Height, corner radius</td>
-                                <td>Where and how student photo appears on card.</td>
-                            </tr>
-                            <tr>
-                                <td>QR/Barcode</td>
-                                <td>Enable flags, position, size, payload type, URL/text/json settings</td>
-                                <td>Machine-readable verification and data encoding on card.</td>
-                            </tr>
-                        </tbody>
-                    </table>
+                    <div class="table-wrapper">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Section</th>
+                                    <th>Fields</th>
+                                    <th>What It Controls</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Dimensions and Paper</td>
+                                    <td>Card Width/Height, Sheet Width/Height, Columns, Rows</td>
+                                    <td>Card render size, target sheet page boundaries, and card grids per sheet (e.g. 10 cards on an A4 sheet).</td>
+                                </tr>
+                                <tr>
+                                    <td>Typography & Layout</td>
+                                    <td>Bold Font, Regular Font, Label/Value/Colon Sizes & Colors, Text Case, Show Colon, Align Colon, Colon Gap, Address Lines, Submission Deadline</td>
+                                    <td>Font files, positioning, text sizing, vertical flow, separator styling, custom case transformations, and date/time submission locking.</td>
+                                </tr>
+                                <tr>
+                                    <td>Text Positioning</td>
+                                    <td>Label X Position, Value X Position, Start Y Position, Line Height</td>
+                                    <td>Aligning columns and lines of text fields horizontally and vertically.</td>
+                                </tr>
+                                <tr>
+                                    <td>Photo settings</td>
+                                    <td>Photo X/Y, Photo Width/Height, Photo Border Color, Corel Photo Export Mode, Corner Radius controls (TL, TR, BR, BL, All)</td>
+                                    <td>Sizing, absolute positioning, custom border color stroke, editable vector output modes, and custom corner rounding.</td>
+                                </tr>
+                                <tr>
+                                    <td>QR Code Settings</td>
+                                    <td>Enable QR, X/Y Position, Size, Style, Border Size, Fill Color, Background Color, QR Content Type, Include Logo, Logo Path</td>
+                                    <td>Adding verification codes with styles (square, rounded, circle, gapped), branding colors, and optional embedded school logo badge in center.</td>
+                                </tr>
+                                <tr>
+                                    <td>Barcode Settings</td>
+                                    <td>Enable Barcode, X/Y Position, Width/Height, Fill/Background Colors, Content Type, Custom Text/URL</td>
+                                    <td>Horizontal scan bar coordinates, scaling size, colors, and payload data formats.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
                 </article>
 
                 <article id="text-language" class="card">
@@ -490,39 +596,87 @@
                     <p class="muted">Preview image URLs include cache-busting so newest image should load after regeneration.</p>
                 </article>
 
+                <article id="advanced-features" class="card">
+                    <h2>10. Advanced Features & Custom Styling</h2>
+                    
+                    <h3>Submission Deadline & Portal Locking</h3>
+                    <ul>
+                        <li>Set a strict date and time under <strong>Font Settings</strong>.</li>
+                        <li>Once the deadline passes, students are blocked from editing details or uploading new pictures. Leave empty to allow continuous updates.</li>
+                    </ul>
+
+                    <h3>Advanced Photo Styling</h3>
+                    <ul>
+                        <li><strong>Photo Border Color:</strong> Click the color picker in <strong>Photo Settings</strong> to set a custom frame color stroke around the student photo.</li>
+                        <li><strong>Corner Rounding:</strong> Set the corner radius in pixels. You can round all corners uniformly or specify unique values for the <strong>Top-Left</strong>, <strong>Top-Right</strong>, <strong>Bottom-Right</strong>, and <strong>Bottom-Left</strong> corners to create asymmetrical styles.</li>
+                    </ul>
+
+                    <h3>Corel Draw Integration (Photo Export Modes)</h3>
+                    <ul>
+                        <li><strong>Frame Only:</strong> Generates an empty vector vector rectangle in the PDF sheet. Use this when you intend to import the PDF into CorelDraw and load photos using the Corel PowerClip feature.</li>
+                        <li><strong>Embed Photo:</strong> Embeds the cropped student photo directly in the exported PDF sheet. Recommended for immediate printing without manual assembly in CorelDraw.</li>
+                    </ul>
+
+                    <h3>Custom QR & Barcode Styling</h3>
+                    <ul>
+                        <li><strong>QR Dot Styles:</strong> Toggle between <code>Square Dots</code>, <code>Rounded Dots</code>, <code>Circular Dots</code>, and <code>Gapped Square</code> to match the card theme.</li>
+                        <li><strong>Custom QR/Barcode Colors:</strong> Set custom color pickers for both the fill stroke and the background color. Ensure high color contrast (e.g. dark text/fill on white/light background) for reliable scanner reading.</li>
+                        <li><strong>Verification logo:</strong> Enable <code>Include Logo in QR Center</code> and set a path (e.g. <code>logos/school_logo.png</code>) to render a small school badge in the center of the QR code.</li>
+                    </ul>
+
+                    <h3>Text Separation and Case Modifications</h3>
+                    <ul>
+                        <li><strong>Text Case:</strong> Set dropdown to <code>UPPERCASE</code>, <code>lowercase</code>, or <code>Capitalize First Letters</code> to sanitize user inputs automatically on the card.</li>
+                        <li><strong>Label Colon:</strong> Toggle <code>Show Colon After Label</code> off to hide colons. Toggle <code>Align Colon Near Value</code> on and adjust <code>Colon Gap (px)</code> to vertically align separating colons in a straight line.</li>
+                    </ul>
+
+                    <h3>Database Integrity Safeguards</h3>
+                    <ul>
+                        <li>Configure duplicate prevention rules from the <strong>Duplicate Check Settings</strong> card.</li>
+                        <li>Choose to block student record submissions if a duplicate Phone Number or duplicate Name + Class combination already exists in the school database.</li>
+                    </ul>
+                </article>
+
                 <article id="troubleshooting" class="card">
-                    <h2>10. Troubleshooting</h2>
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Issue</th>
-                                <th>Likely Cause</th>
-                                <th>Fix</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td>Labels not changing with text case</td>
-                                <td>Old generated file still being viewed</td>
-                                <td>Save settings and regenerate preview/card output.</td>
-                            </tr>
-                            <tr>
-                                <td>Urdu/Arabic alignment broken</td>
-                                <td>Wrong direction or unsupported font</td>
-                                <td>Set RTL and choose Unicode Arabic/Urdu font in template settings.</td>
-                            </tr>
-                            <tr>
-                                <td>Manual button not opening</td>
-                                <td>Bad route mapping</td>
-                                <td>Open <code>/static/user_guide.html</code> directly.</td>
-                            </tr>
-                            <tr>
-                                <td>Bulk generation errors</td>
-                                <td>Column mismatch or missing required fields</td>
-                                <td>Validate columns and try a small batch first.</td>
-                            </tr>
-                        </tbody>
-                    </table>
+                    <h2>11. Troubleshooting</h2>
+                    <div class="table-wrapper">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Issue</th>
+                                    <th>Likely Cause</th>
+                                    <th>Fix</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Labels not changing with text case</td>
+                                    <td>Old generated file still being viewed</td>
+                                    <td>Save settings and regenerate preview/card output.</td>
+                                </tr>
+                                <tr>
+                                    <td>Urdu/Arabic alignment broken</td>
+                                    <td>Wrong direction or unsupported font</td>
+                                    <td>Set RTL and choose Unicode Arabic/Urdu font in template settings.</td>
+                                </tr>
+                                <tr>
+                                    <td>Preview card not scrolling / sticky sidebar broken</td>
+                                    <td>Overflow restrictions in parent element</td>
+                                    <td>Ensure template-settings wrapper has <code>overflow: visible !important;</code> set.</td>
+                                </tr>
+                                <tr>
+                                    <td>Student blocked from editing records</td>
+                                    <td>Deadline date has passed</td>
+                                    <td>Check submission deadline field in admin settings; extend or clear it if needed.</td>
+                                </tr>
+                                <tr>
+                                    <td>Bulk generation errors</td>
+                                    <td>Column mismatch or missing required fields</td>
+                                    <td>Validate columns and try a small test batch of 2-5 rows first.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
                 </article>
             </section>
         </div>

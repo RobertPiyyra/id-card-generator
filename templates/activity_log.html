@@ -27,14 +27,14 @@
         </div>
         
         <div>
-            <form action="{{ url_for('reset_activity_log') }}" method="POST" class="d-inline" onsubmit="return confirm('WARNING: Are you sure you want to clear the ENTIRE activity log? This cannot be undone.');">
+            <form action="{{ url_for('dashboard.reset_activity_log') }}" method="POST" class="d-inline" onsubmit="return confirm('WARNING: Are you sure you want to clear the ENTIRE activity log? This cannot be undone.');">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                 <button type="submit" class="btn btn-danger me-2">
                     <i class="fas fa-trash-alt"></i> Clear Log
                 </button>
             </form>
 
-            <a href="{{ url_for('admin') }}" class="btn btn-secondary">
+            <a href="{{ url_for('dashboard.admin') }}" class="btn btn-secondary">
                 <i class="fas fa-arrow-left"></i> Back to Admin Panel
             </a>
         </div>
@@ -94,7 +94,7 @@
             <nav aria-label="Page navigation">
                 <ul class="pagination justify-content-center mb-0">
                     <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
-                        <a class="page-link" href="{{ url_for('view_activity_log', page=pagination.prev_num) }}">Previous</a>
+                        <a class="page-link" href="{{ url_for('dashboard.view_activity_log', page=pagination.prev_num) }}">Previous</a>
                     </li>
                     
                     <li class="page-item disabled">
@@ -104,7 +104,7 @@
                     </li>
 
                     <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
-                        <a class="page-link" href="{{ url_for('view_activity_log', page=pagination.next_num) }}">Next</a>
+                        <a class="page-link" href="{{ url_for('dashboard.view_activity_log', page=pagination.next_num) }}">Next</a>
                     </li>
                 </ul>
             </nav>

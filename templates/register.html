@@ -545,7 +545,7 @@
             </div>
         {% endif %}
 
-        <form method="POST" action="{{ url_for('register') }}" id="registrationForm">
+        <form method="POST" action="{{ url_for('auth.register') }}" id="registrationForm">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
             <div class="form-group">
                 <label for="name"><i class="fas fa-user"></i> Full Name</label>
@@ -595,13 +595,13 @@
 
         <div class="login-link">
             <p>Already have an account?</p>
-            <a href="{{ url_for('student_login') }}" class="login-btn">
+            <a href="{{ url_for('auth.student_login') }}" class="login-btn">
                 <i class="fas fa-sign-in-alt"></i> Login to Your Account
             </a>
         </div>
 
         <div class="back-link">
-            <a href="{{ url_for('landing') }}">
+            <a href="{{ url_for('dashboard.landing') }}">
                 <i class="fas fa-arrow-left"></i> Back to Homepage
             </a>
         </div>

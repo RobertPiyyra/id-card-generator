@@ -924,7 +924,7 @@
 
     <!-- Main Navigation -->
     <nav class="main-nav">
-        <a href="{{ url_for('landing') }}" class="nav-brand">
+        <a href="{{ url_for('dashboard.landing') }}" class="nav-brand">
             <i class="fas fa-arrow-left"></i>
             <span>Back to Home</span>
         </a>
@@ -944,7 +944,7 @@
                 <span>Dark Mode</span>
             </button>
             
-            <a href="{{ url_for('logout') }}" class="nav-btn btn-secondary">
+            <a href="{{ url_for('auth.logout') }}" class="nav-btn btn-secondary">
                 <i class="fas fa-sign-out-alt"></i>
                 <span>Logout</span>
             </a>
@@ -1137,8 +1137,13 @@
                         <i class="fas fa-calendar-alt"></i>
                         <span data-i18n="dob">Date of Birth:</span>
                     </label>
-                    <input type="date" id="dob" name="dob" class="form-control"
-                           value="{{ form_data.get('dob', '') if form_data else '' }}" required>
+                    <input type="text" id="dob" name="dob" class="form-control"
+                           value="{{ form_data.get('dob', '') if form_data else '' }}"
+                           placeholder="DD-MM-YYYY"
+                           inputmode="numeric"
+                           autocomplete="bday"
+                           maxlength="10"
+                           required>
                 </div>
                 
                 <div class="form-group">
@@ -1186,7 +1191,7 @@
                         <input type="file" id="photo" name="photo" class="form-control"
                                accept="image/*" required>
                         <div class="file-info" id="fileInfo">
-                            <span data-i18n="supported_formats">Supported formats: JPG, PNG, JPEG. Max size: 2MB</span>
+                            <span data-i18n="supported_formats">Supported formats: JPG, PNG, JPEG. Max size: 5MB</span>
                         </div>
                     </div>
                     
@@ -1200,6 +1205,10 @@
                             <button type="button" class="nav-btn btn-primary" id="startCameraBtn">
                                 <i class="fas fa-play"></i>
                                 <span data-i18n="start_camera">Start Camera</span>
+                            </button>
+                            <button type="button" class="nav-btn btn-outline" id="switchCameraBtn">
+                                <i class="fas fa-sync-alt"></i>
+                                <span data-i18n="switch_camera">Switch Camera</span>
                             </button>
                             <button type="button" class="nav-btn btn-secondary" id="captureBtn" disabled>
                                 <i class="fas fa-camera"></i>
@@ -1280,6 +1289,7 @@
             currentUploadOption: 'file',
             cameraStream: null,
             isCameraActive: false,
+            cameraFacingMode: 'environment',
             isDarkMode: localStorage.getItem('darkMode') === 'true',
             formMode: '{{ "fetch" if show_fetch else "create" }}'
         };
@@ -1318,6 +1328,7 @@
             cameraCanvas: document.getElementById('cameraCanvas'),
             cameraPreview: document.getElementById('cameraPreview'),
             startCameraBtn: document.getElementById('startCameraBtn'),
+            switchCameraBtn: document.getElementById('switchCameraBtn'),
             captureBtn: document.getElementById('captureBtn'),
             stopCameraBtn: document.getElementById('stopCameraBtn'),
             
@@ -1358,8 +1369,9 @@
                     upload_photo: "Upload Photo:",
                     file_upload: "File Upload",
                     take_photo: "Take Photo",
-                    supported_formats: "Supported formats: JPG, PNG, JPEG. Max size: 2MB",
+                    supported_formats: "Supported formats: JPG, PNG, JPEG. Max size: 5MB",
                     start_camera: "Start Camera",
+                    switch_camera: "Switch Camera",
                     capture_photo: "Capture Photo",
                     stop_camera: "Stop Camera",
                     generate_id: "Generate ID Card",
@@ -1391,8 +1403,9 @@
                     upload_photo: "फोटो अपलोड करें:",
                     file_upload: "फ़ाइल अपलोड",
                     take_photo: "फोटो लें",
-                    supported_formats: "समर्थित फ़ॉर्मेट: JPG, PNG, JPEG. अधिकतम आकार: 2MB",
+                    supported_formats: "समर्थित फ़ॉर्मेट: JPG, PNG, JPEG. अधिकतम आकार: 5MB",
                     start_camera: "कैमरा शुरू करें",
+                    switch_camera: "कैमरा बदलें",
                     capture_photo: "फोटो कैप्चर करें",
                     stop_camera: "कैमरा बंद करें",
                     generate_id: "आईडी कार्ड बनाएं",
@@ -1424,8 +1437,9 @@
                     upload_photo: "تحميل الصورة:",
                     file_upload: "رفع ملف",
                     take_photo: "التقاط صورة",
-                    supported_formats: "الصيغ المدعومة: JPG, PNG, JPEG. الحد الأقصى: 2MB",
+                    supported_formats: "الصيغ المدعومة: JPG, PNG, JPEG. الحد الأقصى: 5MB",
                     start_camera: "تشغيل الكاميرا",
+                    switch_camera: "تبديل الكاميرا",
                     capture_photo: "التقاط الصورة",
                     stop_camera: "إيقاف الكاميرا",
                     generate_id: "إنشاء بطاقة",
@@ -1457,8 +1471,9 @@
                     upload_photo: "تصویر اپلوڈ کریں:",
                     file_upload: "فائل اپلوڈ",
                     take_photo: "تصویر لیں",
-                    supported_formats: "فارمیٹس: JPG, PNG, JPEG۔ زیادہ سے زیادہ: 2MB",
+                    supported_formats: "فارمیٹس: JPG, PNG, JPEG۔ زیادہ سے زیادہ: 5MB",
                     start_camera: "کیمرہ شروع کریں",
+                    switch_camera: "کیمرہ بدلیں",
                     capture_photo: "تصویر لیں",
                     stop_camera: "کیمرہ بند کریں",
                     generate_id: "آئی ڈی کارڈ بنائیں",
@@ -1569,14 +1584,15 @@
             },
 
             validateFile(file) {
-                const maxSize = 2 * 1024 * 1024; // 2MB
+                const maxSize = 5 * 1024 * 1024; // 5MB
                 const validTypes = ['image/jpeg', 'image/jpg', 'image/png'];
                 
                 if (!file) return false;
                 
                 if (file.size > maxSize) {
-                    elements.fileInfo.textContent = 'File size must be less than 2MB';
+                    elements.fileInfo.textContent = 'File size must be less than 5MB';
                     elements.fileInfo.classList.add('error');
+                    Utils.showNotification('Warning: Selected photo file size exceeds 5MB. Upload may fail or be slow.', 'error');
                     return false;
                 }
                 
@@ -1618,22 +1634,114 @@
 
             formatDate(date) {
                 return new Date(date).toISOString().split('T')[0];
+            },
+
+            formatDobTyping(value) {
+                const digits = String(value || '').replace(/\D/g, '').slice(0, 8);
+                if (digits.length <= 2) return digits;
+                if (digits.length <= 4) return `${digits.slice(0, 2)}-${digits.slice(2)}`;
+                return `${digits.slice(0, 2)}-${digits.slice(2, 4)}-${digits.slice(4)}`;
+            },
+
+            normalizeDateInput(value) {
+                const raw = String(value || '').trim();
+                if (!raw) return '';
+
+                let year;
+                let month;
+                let day;
+
+                let match = raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+                if (match) {
+                    year = Number(match[1]);
+                    month = Number(match[2]);
+                    day = Number(match[3]);
+                } else {
+                    match = raw.match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{4})$/);
+                    if (!match) return null;
+                    day = Number(match[1]);
+                    month = Number(match[2]);
+                    year = Number(match[3]);
+                }
+
+                const parsed = new Date(year, month - 1, day);
+                if (
+                    parsed.getFullYear() !== year ||
+                    parsed.getMonth() !== month - 1 ||
+                    parsed.getDate() !== day
+                ) {
+                    return null;
+                }
+
+                return [
+                    String(day).padStart(2, '0'),
+                    String(month).padStart(2, '0'),
+                    String(year).padStart(4, '0')
+                ].join('-');
+            },
+
+            dobToDate(value) {
+                const normalized = this.normalizeDateInput(value);
+                if (!normalized) return null;
+                const [day, month, year] = normalized.split('-').map(Number);
+                return new Date(year, month - 1, day);
+            },
+
+            isFutureDate(value) {
+                const dobDate = this.dobToDate(value);
+                if (!dobDate) return true;
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                dobDate.setHours(0, 0, 0, 0);
+                return dobDate > today;
             }
         };
 
         // ===== Camera Functions =====
         const CameraManager = {
-            async start() {
+            getConstraints(facingMode, exact = true) {
+                return {
+                    video: {
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 },
+                        facingMode: exact ? { exact: facingMode } : { ideal: facingMode }
+                    }
+                };
+            },
+
+            async start(facingMode = AppState.cameraFacingMode) {
                 try {
-                    const constraints = {
-                        video: {
-                            width: { ideal: 1280 },
-                            height: { ideal: 720 },
-                            facingMode: 'user'
-                        }
-                    };
+                    if (elements.cameraStream) {
+                        this.stop({ clearPhoto: false });
+                    }
+
+                    AppState.cameraFacingMode = facingMode === 'user' ? 'user' : 'environment';
                     
-                    elements.cameraStream = await navigator.mediaDevices.getUserMedia(constraints);
+                    try {
+                        elements.cameraStream = await navigator.mediaDevices.getUserMedia(
+                            this.getConstraints(AppState.cameraFacingMode, true)
+                        );
+                    } catch (exactCameraError) {
+                        console.warn('Requested camera exact mode failed, trying fallback:', exactCameraError);
+                        try {
+                            elements.cameraStream = await navigator.mediaDevices.getUserMedia(
+                                this.getConstraints(AppState.cameraFacingMode, false)
+                            );
+                        } catch (idealCameraError) {
+                            console.warn('Requested camera ideal mode failed, trying any camera:', idealCameraError);
+                            elements.cameraStream = await navigator.mediaDevices.getUserMedia({
+                                video: {
+                                    width: { ideal: 1280 },
+                                    height: { ideal: 720 }
+                                }
+                            });
+                        }
+                    }
+
+                    elements.photoDataInput.value = '';
+                    elements.cameraCanvas.style.display = 'none';
+                    elements.cameraCanvas.classList.add('hidden');
+                    elements.cameraVideo.style.display = 'block';
                     elements.cameraVideo.srcObject = elements.cameraStream;
                     elements.captureBtn.disabled = false;
                     elements.cameraPreview.classList.add('active');
@@ -1644,6 +1752,11 @@
                     console.error('Camera error:', err);
                     Utils.showNotification(`Camera error: ${err.message}`, 'error');
                 }
+            },
+
+            switchCamera() {
+                AppState.cameraFacingMode = AppState.cameraFacingMode === 'environment' ? 'user' : 'environment';
+                this.start(AppState.cameraFacingMode);
             },
 
             capture() {
@@ -1658,15 +1771,24 @@
                 
                 const photoData = canvas.toDataURL('image/jpeg', 0.8);
                 elements.photoDataInput.value = photoData;
+                elements.photoInput.required = false;
                 
                 video.style.display = 'none';
                 canvas.style.display = 'block';
                 canvas.classList.remove('hidden');
+                elements.captureBtn.disabled = true;
+
+                if (elements.cameraStream) {
+                    elements.cameraStream.getTracks().forEach(track => track.stop());
+                    elements.cameraStream = null;
+                }
+                AppState.isCameraActive = false;
                 
                 Utils.showNotification('Photo captured successfully!', 'success');
             },
 
-            stop() {
+            stop(options = {}) {
+                const clearPhoto = options.clearPhoto !== false;
                 if (elements.cameraStream) {
                     elements.cameraStream.getTracks().forEach(track => track.stop());
                     elements.cameraStream = null;
@@ -1677,7 +1799,9 @@
                 elements.cameraCanvas.style.display = 'none';
                 elements.cameraCanvas.classList.add('hidden');
                 elements.captureBtn.disabled = true;
-                elements.photoDataInput.value = '';
+                if (clearPhoto) {
+                    elements.photoDataInput.value = '';
+                }
                 elements.cameraPreview.classList.remove('active');
                 AppState.isCameraActive = false;
             }
@@ -1702,7 +1826,7 @@
                 const isEditMode = elements.studentId.value !== '';
                 elements.submitBtnText.textContent = isEditMode ? I18n.t('update_id') : I18n.t('generate_id');
                 elements.formTitle.textContent = isEditMode ? I18n.t('edit_id') : I18n.t('create_new');
-                elements.photoInput.required = !isEditMode;
+                elements.photoInput.required = !isEditMode && AppState.currentUploadOption === 'file';
             },
 
             handleClassChange() {
@@ -1912,17 +2036,26 @@
                         
                         if (selectedOption !== 'camera') {
                             CameraManager.stop();
+                        } else {
+                            elements.photoInput.required = false;
+                            elements.photoInput.value = '';
+                            elements.fileInfo.textContent = I18n.t('supported_formats');
+                            elements.fileInfo.classList.remove('error');
                         }
+                        FormManager.updateFormState();
                     });
                 });
                 
                 // File validation
                 elements.photoInput.addEventListener('change', (e) => {
+                    elements.photoDataInput.value = '';
                     Utils.validateFile(e.target.files[0]);
+                    FormManager.updateFormState();
                 });
                 
                 // Camera controls
                 elements.startCameraBtn.addEventListener('click', () => CameraManager.start());
+                elements.switchCameraBtn.addEventListener('click', () => CameraManager.switchCamera());
                 elements.captureBtn.addEventListener('click', () => CameraManager.capture());
                 elements.stopCameraBtn.addEventListener('click', () => CameraManager.stop());
                 
@@ -1930,8 +2063,19 @@
                 elements.fetchForm.addEventListener('submit', this.handleFetchSubmit);
                 elements.idCardForm.addEventListener('submit', this.handleIdCardSubmit);
                 
-                // Set max date for DOB
-                elements.dobInput.max = Utils.formatDate(new Date());
+                const initialDob = Utils.normalizeDateInput(elements.dobInput.value);
+                if (initialDob) {
+                    elements.dobInput.value = initialDob;
+                }
+                elements.dobInput.addEventListener('input', () => {
+                    elements.dobInput.value = Utils.formatDobTyping(elements.dobInput.value);
+                });
+                elements.dobInput.addEventListener('blur', () => {
+                    const normalized = Utils.normalizeDateInput(elements.dobInput.value);
+                    if (normalized) {
+                        elements.dobInput.value = normalized;
+                    }
+                });
                 
                 // Initialize form state
                 FormManager.handleClassChange();
@@ -1970,6 +2114,15 @@
             },
 
             async handleIdCardSubmit(e) {
+                const normalizedDob = Utils.normalizeDateInput(elements.dobInput.value);
+                if (!normalizedDob || Utils.isFutureDate(normalizedDob)) {
+                    e.preventDefault();
+                    Utils.showNotification('Please enter DOB as DD-MM-YYYY', 'error');
+                    elements.dobInput.focus();
+                    return;
+                }
+                elements.dobInput.value = normalizedDob;
+
                 if (AppState.currentUploadOption === 'camera' && !elements.photoDataInput.value) {
                     e.preventDefault();
                     Utils.showNotification('Please capture a photo first', 'error');

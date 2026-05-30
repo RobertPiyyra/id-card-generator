@@ -1409,7 +1409,7 @@
                         <a class="nav-link" href="#features">Features</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('documentation') }}">Documentation</a>
+                        <a class="nav-link" href="{{ url_for('dashboard.documentation') }}">Documentation</a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" href="#team">Our Team</a>
@@ -1422,10 +1422,10 @@
                             <i class="fas fa-user"></i> Account
                         </a>
                         <ul class="dropdown-menu dropdown-menu-end">
-                            <li><a class="dropdown-item" href="{{ url_for('student_login') }}"><i class="fas fa-sign-in-alt"></i> Login</a></li>
-                            <li><a class="dropdown-item" href="{{ url_for('school_admin_login') }}"><i class="fas fa-school"></i> School Admin Login</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('auth.student_login') }}"><i class="fas fa-sign-in-alt"></i> Login</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('auth.school_admin_login') }}"><i class="fas fa-school"></i> School Admin Login</a></li>
                             <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item" href="{{ url_for('register') }}"><i class="fas fa-user-plus"></i> Register</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('auth.register') }}"><i class="fas fa-user-plus"></i> Register</a></li>
                         </ul>
                     </li>
                 </ul>
@@ -1440,10 +1440,10 @@
                     <h1 class="hero-title">Professional ID Card Solutions</h1>
                     <p class="hero-subtitle">Create stunning, professional ID cards with our advanced generator. Perfect for schools, colleges, and organizations. Customizable designs, secure data management, and easy printing.</p>
                     <div class="d-flex flex-wrap gap-3">
-                        <a href="{{ url_for('student_login') }}" class="btn btn-custom float-element">
+                        <a href="{{ url_for('auth.student_login') }}" class="btn btn-custom float-element">
                             <i class="fas fa-rocket"></i> Get Started Free
                         </a>
-                        <a href="{{ url_for('documentation') }}" class="btn btn-custom btn-accent float-element-2">
+                        <a href="{{ url_for('dashboard.documentation') }}" class="btn btn-custom btn-accent float-element-2">
                             <i class="fas fa-play-circle"></i> Watch Demo
                         </a>
                     </div>

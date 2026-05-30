@@ -181,6 +181,15 @@
             background: linear-gradient(135deg, #10b981, #059669);
         }
 
+        .manual-button {
+            right: 144px;
+            background: #6b7280;
+        }
+
+        .manual-button:hover {
+            background: #4b5563;
+        }
+
         .theme-toggle:hover, .home-button:hover {
             background: var(--primary-dark);
             transform: translateY(-2px) rotate(15deg);
@@ -848,6 +857,7 @@
             display: flex;
             align-items: center;
             gap: 10px;
+            flex-wrap: wrap;
         }
 
         .color-input-group input[type="color"] {
@@ -886,6 +896,7 @@
             #searchInput { max-width: 100%; }
             .theme-toggle, .home-button { top: 10px; right: 10px; width: 40px; height: 40px; }
             .home-button { right: 60px; }
+            .manual-button { right: 110px; }
             .container { padding: 10px; }
             body { padding: 15px; }
             h1 { font-size: 2rem; }
@@ -959,6 +970,9 @@
             }
             .home-button {
                 right: 55px;
+            }
+            .manual-button {
+                right: 100px;
             }
         }
 
@@ -1074,6 +1088,238 @@
         .form-group:nth-child(5) { animation-delay: 0.5s; }
         .form-group:nth-child(6) { animation-delay: 0.6s; }
         .form-group:nth-child(7) { animation-delay: 0.7s; }
+
+        /* Sortable table headers */
+        .sortable-header {
+            cursor: pointer;
+            position: relative;
+            user-select: none;
+            transition: background-color 0.2s ease;
+        }
+        .sortable-header:hover {
+            background-color: var(--section-hover) !important;
+        }
+        .sort-indicator {
+            margin-left: 6px;
+            font-size: 0.85em;
+            display: inline-block;
+        }
+        
+        /* 3D Flipping Card Previewer */
+        .preview-card-container {
+            perspective: 1200px;
+            width: 380px;
+            height: 245px;
+            margin: 20px auto;
+            transition: width 0.3s ease, height 0.3s ease;
+            max-width: calc(100vw - 72px);
+        }
+        .preview-card-inner {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+            transform-style: preserve-3d;
+            cursor: pointer;
+        }
+        .preview-card-inner.flipped {
+            transform: rotateY(180deg);
+        }
+        .preview-card-front, .preview-card-back {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            backface-visibility: hidden;
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow);
+            border: 3px solid var(--primary-color);
+            background: var(--section-bg);
+            overflow: hidden;
+        }
+        .preview-card-back {
+            transform: rotateY(180deg);
+        }
+        .preview-card-front img, .preview-card-back img {
+            width: 100%;
+            height: 100%;
+            max-width: 100% !important;
+            max-height: 100% !important;
+            object-fit: fill;
+            display: block;
+        }
+        .preview-card-actions {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 12px;
+            margin-top: 15px;
+            flex-wrap: wrap;
+        }
+
+        .preview-shell {
+            overflow: visible;
+        }
+
+        .preview-heading {
+            justify-content: space-between;
+            flex-wrap: wrap;
+        }
+
+        .preview-heading::after {
+            content: "Live card renderer";
+            font-size: 0.78rem;
+            font-weight: 700;
+            color: var(--primary-color);
+            background: rgba(0, 82, 204, 0.08);
+            border: 1px solid rgba(0, 82, 204, 0.15);
+            border-radius: 999px;
+            padding: 6px 10px;
+        }
+
+        .preview-selector-row {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(220px, 1fr));
+            gap: 16px;
+            align-items: end;
+        }
+
+        .preview-selector-row .form-group {
+            min-width: 0;
+        }
+
+        .preview-stage {
+            text-align: center;
+            margin: 22px 0;
+            padding: clamp(16px, 3vw, 28px);
+            border: 1px solid rgba(0, 82, 204, 0.14);
+            border-radius: var(--border-radius);
+            background:
+                linear-gradient(180deg, rgba(255,255,255,0.72), rgba(255,255,255,0.42)),
+                radial-gradient(circle at top left, rgba(0,82,204,0.10), transparent 36%),
+                var(--section-hover);
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.65);
+        }
+
+        body.dark .preview-stage {
+            background:
+                linear-gradient(180deg, rgba(30,41,59,0.9), rgba(18,24,38,0.72)),
+                radial-gradient(circle at top left, rgba(74,144,226,0.16), transparent 38%),
+                var(--section-hover);
+            border-color: rgba(148, 163, 184, 0.16);
+        }
+
+        .preview-action-row {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(220px, 1fr));
+            gap: 16px;
+        }
+
+        .preview-action-row .btn,
+        .preview-corel-btn {
+            width: 100%;
+            justify-content: center;
+            min-height: 46px;
+        }
+
+        .preview-corel-btn {
+            background: linear-gradient(135deg, #455a64, #263238);
+            color: white;
+            border: none;
+            padding: 10px;
+            border-radius: var(--border-radius);
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+        }
+
+        .quick-preview-card {
+            border: 1px solid rgba(0, 82, 204, 0.12);
+        }
+
+        .preview-sample-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .preview-sample-buttons .btn {
+            justify-content: center;
+            white-space: normal;
+        }
+
+        #previewError {
+            display: none;
+            color: var(--error-text);
+            background: var(--error-bg);
+            padding: 18px;
+            border-radius: var(--border-radius);
+            margin: 20px auto 0;
+            max-width: 520px;
+        }
+
+        @media (max-width: 768px) {
+            .preview-selector-row,
+            .preview-action-row {
+                grid-template-columns: 1fr;
+                gap: 10px;
+            }
+
+            .preview-stage {
+                margin: 16px -4px;
+                padding: 14px;
+            }
+
+            .preview-card-container {
+                max-width: calc(100vw - 56px);
+                margin: 12px auto;
+            }
+
+            .preview-card-actions {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .preview-card-actions .btn,
+            .preview-card-actions span {
+                width: 100%;
+                justify-content: center;
+                text-align: center;
+            }
+
+            .preview-sample-buttons {
+                flex-direction: column;
+            }
+
+            .preview-sample-buttons .btn {
+                width: 100%;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .preview-heading {
+                gap: 8px;
+            }
+
+            .preview-heading::after {
+                width: 100%;
+                text-align: center;
+            }
+
+            .preview-stage {
+                padding: 12px;
+                border-radius: var(--border-radius-sm);
+            }
+
+            .preview-card-container {
+                max-width: calc(100vw - 44px);
+            }
+
+            #flipHint {
+                display: none !important;
+            }
+        }
     </style>
 </head>
 <body>
@@ -1083,7 +1329,7 @@
     
     <a href="/index" class="home-button" title="Back to Home"><i class="fas fa-home"></i></a>
     <button class="theme-toggle" onclick="toggleTheme()"><i class="fas fa-moon"></i></button>
-    <a href="/static/user_guide.html" class="home-button" style="right: 140px; background: #6b7280;" title="User Manual" target="_blank">
+    <a href="{{ url_for('dashboard.user_guide') }}" class="home-button manual-button" title="User Manual" target="_blank">
       <i class="fas fa-book"></i>
     </a>
 
@@ -1145,858 +1391,9 @@
 
         <div id="settings-tab" class="tab-content active">
             <div class="grid-container">
-                <div class="section">
-                    <h3><i class="fas fa-file-upload"></i> Upload ID Card Template</h3>
-                    <form action="{{ url_for('upload_template') }}" method="post" enctype="multipart/form-data" id="templateForm" class="enhanced-form">
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                        <div class="form-group">
-                            <label><i class="fas fa-school"></i> School Name</label>
-                            <input type="text" name="school_name" required pattern="[A-Za-z0-9\s]{2,50}" title="School name must be 2-50 characters">
-                        </div>
-                        <div class="form-group">
-                            <label><i class="fas fa-clone"></i> Card Side Mode</label>
-                            <select name="template_mode" id="templateMode" onchange="toggleTemplateModeFields()" required>
-                                <option value="single" selected>Single Side</option>
-                                <option value="double">Double Side</option>
-                            </select>
-                            <div class="template-mode-note">
-                                Choose this explicitly. The app should not guess one-side or two-side from the file.
-                            </div>
-                        </div>
-                        <div class="form-group">
-                            <div class="side-upload-box">
-                                <label><i class="fas fa-file-image"></i> Front Template File (PDF, JPG, PNG)</label>
-                                <input type="file" name="front_template" id="frontTemplateFile" accept=".pdf,.jpg,.jpeg,.png" required>
-                            </div>
-                        </div>
-                        <div class="form-group" id="backTemplateGroup" style="display:none;">
-                            <div class="side-upload-box">
-                                <label><i class="fas fa-copy"></i> Back Template File (PDF, JPG, PNG)</label>
-                                <input type="file" name="back_template" id="backTemplateFile" accept=".pdf,.jpg,.jpeg,.png">
-                                <div class="template-mode-note">
-                                    Required only for double-sided templates.
-                                </div>
-                            </div>
-                        </div>
-                        <div class="settings-section">
-                            <h4><i class="fas fa-language"></i> Language & Text Settings</h4>
-                            <div class="form-row">
-                                <div class="form-group">
-                                    <label><i class="fas fa-globe"></i> Front Language Script</label>
-                                    <select name="language" id="settingsLanguage" onchange="updateAdminPreview()">
-                                        <option value="english">English (Default)</option>
-                                        <option value="urdu">Urdu (اردو)</option>
-                                        <option value="hindi">Hindi (हिंदी)</option>
-                                        <option value="arabic">Arabic (العربية)</option>
-                                    </select>
-                                </div>
-                                <div class="form-group">
-                                    <label><i class="fas fa-align-right"></i> Front Text Direction</label>
-                                    <select name="text_direction" id="settingsDirection" onchange="updateAdminPreview()">
-                                        <option value="ltr">Left to Right (LTR)</option>
-                                        <option value="rtl">Right to Left (RTL)</option>
-                                    </select>
-                                    <small style="color:#666">Set to RTL for Urdu/Arabic</small>
-                                </div>
-                            </div>
-                            <div class="form-row" id="backLanguageSettings" style="display:none;">
-                                <div class="form-group">
-                                    <label><i class="fas fa-copy"></i> Back Language Script</label>
-                                    <select name="back_language" id="settingsBackLanguage" onchange="updateAdminPreview()" disabled>
-                                        <option value="english" selected>English</option>
-                                        <option value="urdu">Urdu (اردو)</option>
-                                        <option value="hindi">Hindi (हिंदी)</option>
-                                        <option value="arabic">Arabic (العربية)</option>
-                                    </select>
-                                </div>
-                                <div class="form-group">
-                                    <label><i class="fas fa-align-right"></i> Back Text Direction</label>
-                                    <select name="back_text_direction" id="settingsBackDirection" onchange="updateAdminPreview()" disabled>
-                                        <option value="ltr" selected>Left to Right (LTR)</option>
-                                        <option value="rtl">Right to Left (RTL)</option>
-                                    </select>
-                                    <small style="color:#666">Set to RTL for Urdu/Arabic</small>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="form-group">
-                            <label><i class="fas fa-arrows-alt"></i> Card Orientation</label>
-                            <select name="card_orientation" required>
-                                <option value="landscape" selected>Landscape (86mm x 56mm)</option>
-                                <option value="portrait">Portrait (56mm x 86mm)</option>
-                            </select>
-                        </div>
-                        <button type="submit" class="btn btn-upload"><i class="fas fa-upload"></i> Upload Template</button>
-                    </form>
-                    <div class="card" style="margin-top: 20px;">
-                        <div class="card-header">
-                            <span class="card-title">Available Templates</span>
-                        </div>
-                        {% if templates %}
-                            <ul class="template-list">
-                                {% for template in templates %}
-                                    <li class="template-list-item">
-                                        <div class="template-meta">
-                                            <div class="template-name">
-                                                <i class="fas fa-file" style="color: var(--primary-color);"></i>
-                                                <span>{{ template.school_name }}</span>
-                                                <span style="font-size:0.9em; color:var(--primary-dark);">
-                                                    [{{ template.card_orientation|capitalize if template.card_orientation else 'Landscape' }}]
-                                                </span>
-                                                <span style="font-size:0.9em; color:var(--accent-color);">
-                                                    [{{ 'Double Side' if template.is_double_sided else 'Single Side' }}]
-                                                </span>
-                                            </div>
-                                            <div class="template-source" title="{{ template.source_path }}">
-                                                Front: {{ template.source_name }}
-                                                {% if template.is_double_sided and template.back_source_name %}
-                                                <br>Back: {{ template.back_source_name }}
-                                                {% endif %}
-                                            </div>
-                                        </div>
-                                        <div class="action-buttons template-actions">
-                                            <a href="{{ url_for('editor.template_editor', template_id=template.id, side='front') }}" class="btn btn-warning btn-sm">
-                                                <i class="fas fa-magic"></i> Front Editor
-                                            </a>
-                                            {% if template.is_double_sided %}
-                                            <a href="{{ url_for('editor.template_editor', template_id=template.id, side='back') }}" class="btn btn-warning btn-sm">
-                                                <i class="fas fa-copy"></i> Back Editor
-                                            </a>
-                                            {% endif %}
-                                            <form action="{{ url_for('remove_template', template_id=template.id) }}" method="post" style="display: inline;">
-                                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                                                <button type="submit" class="btn btn-delete btn-sm" onclick="return confirm('Are you sure you want to delete this template? This action cannot be undone.');"><i class="fas fa-trash"></i> Delete</button>
-                                            </form>
-                                        </div>
-                                    </li>
-                                {% endfor %}
-                            </ul>
-                        {% else %}
-                            <p>No templates uploaded yet.</p>
-                        {% endif %}
-                    </div>
+                {% include 'admin/_template_upload.html' %}
 
-                    <div class="card shadow mb-4">
-                      <div class="card-header py-3">
-                          <h3 class="m-0 font-weight-bold text-primary">Bulk Generate Cards</h3>
-                      </div>
-                      <div class="card-body">
-                          <form id="bulkForm" onsubmit="startBulkGeneration(event)">
-                              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                              <div class="mb-3">
-                                  <label class="form-label">Select Template</label>
-                                  <select name="template_id" class="form-control" required>
-                                      <option value="">-- Select Template --</option>
-                                      {% for t in templates %}
-                                      <option value="{{ t.id }}">{{ t.school_name }}</option>
-                                      {% endfor %}
-                                  </select>
-                              </div>
-                  
-                              <div class="mb-3">
-                                  <label class="form-label">Upload Student Data (.xlsx or .csv)</label>
-                                  <input type="file" name="excel_file" class="form-control" accept=".csv, .xlsx" required>
-                              </div>
-                  
-                              <div class="mb-3">
-                                  <label class="form-label">Upload Photos (Optional)</label>
-                                  <input type="file" name="bulk_photos" class="form-control" multiple accept="image/*">
-                              </div>
-                  
-                              <div id="bulkProgressContainer" style="display:none; margin-top: 15px;">
-                                  <div style="height: 25px; background: #e9ecef; border-radius: 5px; overflow: hidden;">
-                                      <div id="bulkProgressBar" style="width: 0%; height: 100%; background: #4caf50; transition: width 0.5s;"></div>
-                                  </div>
-                                  <p id="bulkStatusText" style="text-align: center; margin-top: 5px; color: #666;">Initializing...</p>
-                                  <div id="bulkErrorDetails" style="display:none; margin-top:10px; padding:12px; border-radius:8px; background:#fff3cd; color:#7a4b00; white-space:pre-line; font-size:0.92rem;"></div>
-                              </div>
-                  
-                              <button type="submit" class="btn btn-success w-100" id="bulkSubmitBtn">
-                                  <i class="fas fa-cogs"></i> Start Bulk Generation
-                              </button>
-                          </form>
-                      </div>
-                  </div>
-
-                    <div class="section">
-                        <h3><i class="fas fa-exclamation-triangle"></i> Duplicate Check Settings</h3>
-                        <form action="{{ url_for('update_duplicate_settings') }}" method="post" class="enhanced-form">
-                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                            <div class="checkbox-container">
-                                <input type="checkbox" id="check_phone" name="check_phone" class="checkbox" {{ 'checked' if duplicate_settings.check_phone else '' }}>
-                                <label for="check_phone">Check for duplicate phone numbers</label>
-                            </div>
-                            <div class="checkbox-container">
-                                <input type="checkbox" id="check_name_class" name="check_name_class" class="checkbox" {{ 'checked' if duplicate_settings.check_name_class else '' }}>
-                                <label for="check_name_class">Check for duplicate name and class combinations</label>
-                            </div>
-                            <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Save Settings</button>
-                        </form>
-                    </div>
-                </div>
-
-                <div class="section">
-                    <h3><i class="fas fa-text-height"></i> Template-Specific Settings</h3>
-                    <div class="template-selector">
-                        <label><i class="fas fa-clipboard-list"></i> Select Template to Configure</label>
-                        <select id="templateSelector" onchange="loadTemplateSettings()">
-                            <option value="">Select a template...</option>
-                            {% for template in templates %}
-                                <option value="{{ template.id }}" 
-                                        data-font-settings="{{ template.font_settings|tojson|forceescape }}" 
-                                        data-photo-settings="{{ template.photo_settings|tojson|forceescape }}"
-                                        data-qr-settings="{{ template.qr_settings|tojson|forceescape }}"
-                                        data-back-font-settings="{{ template.back_font_settings|tojson|forceescape }}"
-                                        data-back-photo-settings="{{ template.back_photo_settings|tojson|forceescape }}"
-                                        data-back-qr-settings="{{ template.back_qr_settings|tojson|forceescape }}"
-                                        data-card-orientation="{{ template.card_orientation|default('landscape') }}"
-                                        data-deadline="{{ template.deadline or '' }}"
-                                        data-language="{{ template.language|default('english') }}"
-                                        data-direction="{{ template.text_direction|default('ltr') }}"
-                                        data-back-language="{{ template.back_language|default(template.language|default('english')) }}"
-                                        data-back-direction="{{ template.back_text_direction|default(template.text_direction|default('ltr')) }}"
-                                        data-is-double-sided="{{ 'true' if template.is_double_sided else 'false' }}"
-                                        data-source-name="{{ template.source_name }}"
-                                        data-back-source-name="{{ template.back_source_name }}"
-                                        
-                                        data-card-width="{{ template.card_width|default(1015) }}"
-                                        data-card-height="{{ template.card_height|default(661) }}"
-                                        data-sheet-width="{{ template.sheet_width|default(2480) }}"
-                                        data-sheet-height="{{ template.sheet_height|default(3508) }}"
-                                        data-grid-rows="{{ template.grid_rows|default(5) }}"
-                                        data-grid-cols="{{ template.grid_cols|default(2) }}"
-                                >
-                                    {{ template.school_name }}
-                                </option>
-                            {% endfor %}
-                        </select>
-                        <label><i class="fas fa-arrows-alt"></i> Card Orientation</label>
-                        <select id="cardOrientation" name="card_orientation">
-                            <option value="landscape">Landscape (86mm x 56mm)</option>
-                            <option value="portrait">Portrait (56mm x 86mm)</option>
-                        </select>
-
-                        <label><i class="fas fa-globe"></i> Language Script</label>
-                        <select id="templateLanguage" onchange="updateAdminPreview()">
-                            <option value="english">English (Default)</option>
-                            <option value="urdu">Urdu (اردو)</option>
-                            <option value="hindi">Hindi (हिंदी)</option>
-                            <option value="arabic">Arabic (العربية)</option>
-                        </select>
-
-                        <label><i class="fas fa-align-right"></i> Text Direction</label>
-                        <select id="templateDirection" onchange="updateAdminPreview()">
-                            <option value="ltr">Left to Right (LTR)</option>
-                            <option value="rtl">Right to Left (RTL)</option>
-                        </select>
-                        <small style="color:#666">Set to RTL for Urdu/Arabic</small>
-                        <div id="templateSideWrap" style="margin-top:10px; display:none;">
-                            <label><i class="fas fa-clone"></i> Preview / Edit Side</label>
-                            <select id="templateSide" onchange="loadTemplateSettings()">
-                                <option value="front">Front</option>
-                                <option value="back">Back</option>
-                            </select>
-                            <small style="color:#666">Switch between front and back template settings.</small>
-                        </div>
-                    </div>
-
-                    <div style="text-align:center; margin:20px 0;">
-                        <div id="adminPreviewSideLabel" style="font-weight:700; color:var(--primary-color); margin-bottom:10px;">Front Preview</div>
-                        <div id="adminPreviewSourceLabel" style="font-size:0.85rem; color:#5b6472; margin-bottom:10px;"></div>
-                        <img id="adminPreviewImage" src="{{ url_for('static', filename='photo_placeholder.png') }}" alt="Template Preview" style="max-width:320px; border:3px solid var(--primary-color); border-radius:var(--border-radius); box-shadow:var(--shadow);">
-                        <div id="adminPreviewLoading" style="display:none;"><span class="loading"></span> Generating preview...</div>
-                    </div>
-
-                    <form id="templateSettingsForm" class="enhanced-form">
-                        <input type="hidden" name="csrf_token" id="templateSettingsCsrf" value="{{ csrf_token() }}"/>
-                        <input type="hidden" name="template_id" id="templateId" value="">
-
-                        <div class="settings-section">
-                            <h4><i class="fas fa-ruler-combined"></i> Dimensions & Paper Size</h4>
-                            
-                            <div class="form-row">
-                                <div class="form-group">
-                                    <label><i class="fas fa-id-card"></i> Card Width (px)</label>
-                                    <input type="number" name="card_width" id="cardWidth" value="1015">
-                                    <small style="color:#666">Standard ID: 1015px (Landscape) or 661px (Portrait)</small>
-                                </div>
-                                <div class="form-group">
-                                    <label><i class="fas fa-arrows-alt-v"></i> Card Height (px)</label>
-                                    <input type="number" name="card_height" id="cardHeight" value="661">
-                                </div>
-                            </div>
-
-                            <div class="form-row">
-                                <div class="form-group">
-                                    <label><i class="fas fa-scroll"></i> Sheet Width (px)</label>
-                                    <input type="number" name="sheet_width" id="sheetWidth" value="2480">
-                                    <small style="color:#666">A4: 2480px, A3: 3508px (@300 DPI)</small>
-                                </div>
-                                <div class="form-group">
-                                    <label><i class="fas fa-scroll"></i> Sheet Height (px)</label>
-                                    <input type="number" name="sheet_height" id="sheetHeight" value="3508">
-                                </div>
-                            </div>
-
-                            <div class="form-row">
-                                <div class="form-group">
-                                    <label><i class="fas fa-columns"></i> Columns</label>
-                                    <input type="number" name="grid_cols" id="gridCols" value="2" min="1" max="10">
-                                </div>
-                                <div class="form-group">
-                                    <label><i class="fas fa-list"></i> Rows</label>
-                                    <input type="number" name="grid_rows" id="gridRows" value="5" min="1" max="20">
-                                </div>
-                            </div>
-                            <div class="form-text mt-2 text-primary" id="totalCardsCalc">
-                                Total cards per sheet: <b>10</b>
-                            </div>
-                        </div>
-                        
-                        <div class="settings-section">
-                            <h4><i class="fas fa-font"></i> Font Settings</h4>
-                            <div class="form-row">
-                                <div class="form-group">
-                                    <label><i class="fas fa-bold"></i> Bold Font</label>
-                                    <select name="font_bold" id="fontBold">
-                                        {% if available_fonts %}
-                                            {% for font in available_fonts %}
-                                                <option value="{{ font }}">{{ font }}</option>
-                                            {% endfor %}
-                                        {% else %}
-                                            <option value="" disabled>No fonts available</option>
-                                        {% endif %}
-                                    </select>
-                                </div>
-                                <div class="form-group">
-                                    <label><i class="fas fa-font"></i> Regular Font</label>
-                                    <select name="font_regular" id="fontRegular">
-                                        {% if available_fonts %}
-                                            {% for font in available_fonts %}
-                                                <option value="{{ font }}">{{ font }}</option>
-                                            {% endfor %}
-                                        {% else %}
-                                            <option value="" disabled>No fonts available</option>
-                                        {% endif %}
-                                    </select>
-                                </div>
-                            </div>
-
-                            <div class="mb-3">
-                                <label class="form-label fw-bold">Submission Deadline</label>
-                                <div class="input-group">
-                                    <span class="input-group-text"><i class="fas fa-calendar-times"></i></span>
-                                    <input type="datetime-local" class="form-control" name="deadline" id="deadline">
-                                </div>
-                                <div class="form-text text-danger">Students cannot generate or edit cards after this date. Leave empty for no deadline.</div>
-                           </div>
-                            
-
-                            <div class="form-row">
-                                <div class="form-group">
-                                    <label><i class="fas fa-palette"></i> Label Font Color</label>
-                                    <div class="color-input-group">
-                                        <input type="color" name="label_font_color" id="labelFontColor" class="color-picker" value="#000000">
-                                        <span class="color-value" id="labelFontColorValue">#000000</span>
-                                    </div>
-                                </div>
-                                <div class="form-group">
-                                    <label><i class="fas fa-palette"></i> Value Font Color</label>
-                                    <div class="color-input-group">
-                                        <input type="color" name="value_font_color" id="valueFontColor" class="color-picker" value="#000000">
-                                        <span class="color-value" id="valueFontColorValue">#000000</span>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="form-row">
-                                <div class="form-group">
-                                    <label><i class="fas fa-palette"></i> Colon Color</label>
-                                    <div class="color-input-group">
-                                        <input type="color" name="colon_font_color" id="colonFontColor" class="color-picker" value="#000000">
-                                        <span class="color-value" id="colonFontColorValue">#000000</span>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div class="form-row">
-                                <div class="form-group">
-                                    <label><i class="fas fa-text-height"></i> Label Font Size</label>
-                                    <input type="number" name="label_font_size" id="labelFontSize" min="8" max="100">
-                                </div>
-                                <div class="form-group">
-                                    <label><i class="fas fa-text-height"></i> Value Font Size</label>
-                                    <input type="number" name="value_font_size" id="valueFontSize" min="8" max="100">
-                                </div>
-                            </div>
-
-                            <div class="form-group">
-                                <label><i class="fas fa-text-height"></i> Text Case Transformation</label>
-                                <select name="text_case" id="textCase">
-                                    <option value="normal">Normal (As Entered)</option>
-                                    <option value="uppercase">UPPERCASE</option>
-                                    <option value="lowercase">lowercase</option>
-                                    <option value="capitalize">Capitalize First Letters</option>
-                                </select>
-                                <small style="color: #666; font-size: 0.8rem;">
-                                    <i class="fas fa-info-circle"></i> This will transform all text fields on the ID card
-                                </small>
-                            </div>
-
-                            <div class="form-group">
-                                <div class="checkbox-container">
-                                    <input type="checkbox" id="showLabelColon" name="show_label_colon" class="checkbox" checked>
-                                    <label for="showLabelColon">
-                                        <i class="fas fa-ellipsis-h"></i> Show Colon After Label
-                                    </label>
-                                </div>
-                                <small style="color: #666; font-size: 0.8rem;">
-                                    <i class="fas fa-info-circle"></i> If off, labels show without ":" (for example NAME instead of NAME:)
-                                </small>
-                            </div>
-
-                            <div class="form-row">
-                                <div class="form-group">
-                                    <div class="checkbox-container">
-                                        <input type="checkbox" id="alignLabelColon" name="align_label_colon" class="checkbox" checked>
-                                        <label for="alignLabelColon">
-                                            <i class="fas fa-grip-lines-vertical"></i> Align Colon Near Value
-                                        </label>
-                                    </div>
-                                </div>
-                                <div class="form-group">
-                                    <label><i class="fas fa-arrows-alt-h"></i> Colon Gap (px)</label>
-                                    <input type="number" name="label_colon_gap" id="labelColonGap" min="0" max="80" value="8">
-                                </div>
-                            </div>
-                        </div>
-z
-                        <div class="settings-section">
-                            <h4><i class="fas fa-arrows-alt"></i> Text Position Settings</h4>
-                            <div class="form-row">
-                                <div class="form-group">
-                                    <label><i class="fas fa-arrows-alt-h"></i> Label X Position</label>
-                                    <input type="number" name="label_x" id="labelX" min="0" max="1000">
-                                </div>
-                                <div class="form-group">
-                                    <label><i class="fas fa-arrows-alt-h"></i> Value X Position</label>
-                                    <input type="number" name="value_x" id="valueX" min="0" max="1000">
-                                </div>
-                            </div>
-
-                            <div class="form-row">
-                                <div class="form-group">
-                                    <label><i class="fas fa-arrows-alt-v"></i> Start Y Position</label>
-                                    <input type="number" name="start_y" id="startY" min="0" max="1000">
-                                </div>
-                                <div class="form-group">
-                                    <label><i class="fas fa-arrows-alt-v"></i> Line Height</label>
-                                    <input type="number" name="line_height" id="lineHeight" min="0" max="100">
-                                </div>
-                            </div>
-
-                            <div class="form-group">
-                                <label><i class="fas fa-align-left"></i> Address Lines</label>
-                                <div class="checkbox-group">
-                                    <label class="checkbox-label">
-                                        <input type="radio" name="address_max_lines" id="addressLines1" value="1">
-                                        <span>1 Line</span>
-                                    </label>
-                                    <label class="checkbox-label">
-                                        <input type="radio" name="address_max_lines" id="addressLines2" value="2" checked>
-                                        <span>2 Lines</span>
-                                    </label>
-                                    <label class="checkbox-label">
-                                        <input type="radio" name="address_max_lines" id="addressLines3" value="3">
-                                        <span>3 Lines</span>
-                                    </label>
-                                </div>
-                                <small style="color: #666; font-size: 0.8rem;">
-                                    <i class="fas fa-info-circle"></i> Address can wrap to the selected number of lines. Other fields still shrink only when needed.
-                                </small>
-                            </div>
-                        </div>
-
-                        <div class="settings-section">
-                            <h4><i class="fas fa-image"></i> Photo Position & Size</h4>
-                            <div class="form-row">
-                                <div class="form-group">
-                                    <label><i class="fas fa-arrows-alt-h"></i> Photo X Position</label>
-                                    <input type="number" name="photo_x" id="photoX" min="0" max="1000">
-                                </div>
-                                <div class="form-group">
-                                    <label><i class="fas fa-arrows-alt-v"></i> Photo Y Position</label>
-                                    <input type="number" name="photo_y" id="photoY" min="0" max="1000">
-                                </div>
-                            </div>
-
-                            <div class="form-row">
-                                <div class="form-group">
-                                    <label><i class="fas fa-arrows-alt-h"></i> Photo Width</label>
-                                    <input type="number" name="photo_width" id="photoWidth" min="50" max="500">
-                                </div>
-                                <div class="form-group">
-                                    <label><i class="fas fa-arrows-alt-v"></i> Photo Height</label>
-                                    <input type="number" name="photo_height" id="photoHeight" min="50" max="500">
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="settings-section">
-                            <h4><i class="fas fa-crop-alt"></i> Photo Border Radius Settings</h4>
-                            <div class="form-group">
-                                <label><i class="fas fa-border-all"></i> All Corners (pixels)</label>
-                                <input type="number" id="photoBorderAll" min="0" max="100" value="0" oninput="setAllBorders(this.value)">
-                                <small style="color: #666; font-size: 0.8rem;">
-                                    <i class="fas fa-info-circle"></i> Set all corners to the same value
-                                </small>
-                            </div>
-                            <div class="form-row">
-                                <div class="form-group">
-                                    <label><i class="fas fa-arrow-up-left"></i> Top Left (pixels)</label>
-                                    <input type="number" name="photo_border_top_left" id="photoBorderTL" min="0" max="100" value="0" oninput="updateBorderPreview()">
-                                </div>
-                                <div class="form-group">
-                                    <label><i class="fas fa-arrow-up-right"></i> Top Right (pixels)</label>
-                                    <input type="number" name="photo_border_top_right" id="photoBorderTR" min="0" max="100" value="0" oninput="updateBorderPreview()">
-                                </div>
-                            </div>
-                            <div class="form-row">
-                                <div class="form-group">
-                                    <label><i class="fas fa-arrow-down-right"></i> Bottom Right (pixels)</label>
-                                    <input type="number" name="photo_border_bottom_right" id="photoBorderBR" min="0" max="100" value="0" oninput="updateBorderPreview()">
-                                </div>
-                                <div class="form-group">
-                                    <label><i class="fas fa-arrow-down-left"></i> Bottom Left (pixels)</label>
-                                    <input type="number" name="photo_border_bottom_left" id="photoBorderBL" min="0" max="100" value="0" oninput="updateBorderPreview()">
-                                </div>
-                            </div>
-                            
-                            <div class="form-group">
-                                <label><i class="fas fa-eye"></i> Border Preview</label>
-                                <div id="borderPreview" style="width: 100px; height: 100px; background: var(--primary-color); margin: 10px auto; border-radius: 0px; transition: var(--transition);"></div>
-                                <small style="color: #666; font-size: 0.8rem; text-align: center; display: block;">
-                                    Preview of border radius settings
-                                </small>
-                            </div>
-                        </div>
-
-                        <div class="settings-section">
-                            <h4><i class="fas fa-qrcode"></i> QR Code Settings</h4>
-                            
-                            <div class="form-group">
-                                <div class="checkbox-container">
-                                    <input type="checkbox" id="enable_qr" name="enable_qr" class="checkbox" 
-                                           {% if templates and templates[0].qr_settings and templates[0].qr_settings.enable_qr %}checked{% endif %}
-                                           onchange="toggleQRSettings()">
-                                    <label for="enable_qr">
-                                        <i class="fas fa-toggle-on"></i> Enable QR Code on ID Cards
-                                    </label>
-                                </div>
-                                <small style="color: #666; font-size: 0.8rem;">
-                                    <i class="fas fa-info-circle"></i> Enable QR code generation for student verification
-                                </small>
-                            </div>
-
-                            <div id="qrSettingsContainer" style="display: {% if templates and templates[0].qr_settings and templates[0].qr_settings.enable_qr %}block{% else %}none{% endif %};">
-                                <div class="form-row">
-                                    <div class="form-group">
-                                        <label><i class="fas fa-arrows-alt-h"></i> X Position</label>
-                                        <input type="number" name="qr_x" id="qrX" 
-                                               value="{{ templates[0].qr_settings.qr_x if templates and templates[0].qr_settings else 50 }}" 
-                                               min="0" max="1000" step="1">
-                                        <small style="color: #666; font-size: 0.8rem;">Horizontal position in pixels</small>
-                                    </div>
-                                    <div class="form-group">
-                                        <label><i class="fas fa-arrows-alt-v"></i> Y Position</label>
-                                        <input type="number" name="qr_y" id="qrY" 
-                                               value="{{ templates[0].qr_settings.qr_y if templates and templates[0].qr_settings else 50 }}" 
-                                               min="0" max="1000" step="1">
-                                        <small style="color: #666; font-size: 0.8rem;">Vertical position in pixels</small>
-                                    </div>
-                                    <div class="form-group">
-                                        <label><i class="fas fa-expand-alt"></i> QR Size</label>
-                                        <input type="number" name="qr_size" id="qrSize" 
-                                               value="{{ templates[0].qr_settings.qr_size if templates and templates[0].qr_settings else 120 }}" 
-                                               min="50" max="300" step="5">
-                                        <small style="color: #666; font-size: 0.8rem;">QR size in pixels (50-300)</small>
-                                    </div>
-                                </div>
-
-                                <div class="form-row">
-                                    <div class="form-group">
-                                        <label><i class="fas fa-brush"></i> QR Style</label>
-                                        <select name="qr_style" id="qrStyle" class="form-control">
-                                            <option value="square" {% if templates and templates[0].qr_settings and templates[0].qr_settings.qr_style == 'square' %}selected{% endif %}>Square Dots</option>
-                                            <option value="rounded" {% if templates and templates[0].qr_settings and templates[0].qr_settings.qr_style == 'rounded' %}selected{% endif %}>Rounded Dots</option>
-                                            <option value="circle" {% if templates and templates[0].qr_settings and templates[0].qr_settings.qr_style == 'circle' %}selected{% endif %}>Circular Dots</option>
-                                            <option value="gapped" {% if templates and templates[0].qr_settings and templates[0].qr_settings.qr_style == 'gapped' %}selected{% endif %}>Gapped Square</option>
-                                        </select>
-                                    </div>
-                                    <div class="form-group">
-                                        <label><i class="fas fa-border-style"></i> Border Size</label>
-                                        <input type="range" name="qr_border" id="qrBorder" class="range-slider" 
-                                               value="{{ templates[0].qr_settings.qr_border if templates and templates[0].qr_settings else 2 }}" 
-                                               min="0" max="10" step="1">
-                                        <div style="display: flex; justify-content: space-between; font-size: 0.8rem; color: #666;">
-                                            <span>0</span>
-                                            <span id="qrBorderValue">{{ templates[0].qr_settings.qr_border if templates and templates[0].qr_settings else 2 }}</span>
-                                            <span>10</span>
-                                        </div>
-                                    </div>
-                                </div>
-                                
-                                <div class="form-group">
-                                    <label><i class="fas fa-fill-drip"></i> QR Color</label>
-                                    <div class="color-input-group">
-                                        <input type="color" name="qr_fill_color" id="qrFillColor" class="color-picker"
-                                               value="{{ templates[0].qr_settings.qr_fill_color | rgb_to_hex if templates and templates[0].qr_settings and templates[0].qr_settings.qr_fill_color else '#000000' }}">
-                                        <span class="color-value" id="qrFillColorValue">{{ templates[0].qr_settings.qr_fill_color | rgb_to_hex if templates and templates[0].qr_settings and templates[0].qr_settings.qr_fill_color else '#000000' }}</span>
-                                    </div>
-                                    <small style="color: #666; font-size: 0.8rem;">Main QR code color</small>
-                                </div>
-                                
-                                <div class="form-group">
-                                    <label><i class="fas fa-fill"></i> Background Color</label>
-                                    <div class="color-input-group">
-                                        <input type="color" name="qr_back_color" id="qrBackColor" class="color-picker"
-                                               value="{{ templates[0].qr_settings.qr_back_color | rgb_to_hex if templates and templates[0].qr_settings and templates[0].qr_settings.qr_back_color else '#ffffff' }}">
-                                        <span class="color-value" id="qrBackColorValue">{{ templates[0].qr_settings.qr_back_color | rgb_to_hex if templates and templates[0].qr_settings and templates[0].qr_settings.qr_back_color else '#ffffff' }}</span>
-                                    </div>
-                                    <small style="color: #666; font-size: 0.8rem;">QR code background</small>
-                                </div>
-                                
-                                <div class="form-row">
-                                    <div class="form-group">
-                                        <label><i class="fas fa-link"></i> QR Content Type</label>
-                                        <select name="qr_data_type" id="qrDataType" class="form-control" onchange="toggleQRContentFields()">
-                                            <option value="student_id" {% if templates and templates[0].qr_settings and templates[0].qr_settings.qr_data_type == 'student_id' %}selected{% endif %}>Student ID</option>
-                                            <option value="url" {% if templates and templates[0].qr_settings and templates[0].qr_settings.qr_data_type == 'url' %}selected{% endif %}>Verification URL</option>
-                                            <option value="text" {% if templates and templates[0].qr_settings and templates[0].qr_settings.qr_data_type == 'text' %}selected{% endif %}>Custom Text</option>
-                                            <option value="json" {% if templates and templates[0].qr_settings and templates[0].qr_settings.qr_data_type == 'json' %}selected{% endif %}>Student Data (JSON)</option>
-                                        </select>
-                                    </div>
-                                </div>
-                                
-                                <div class="form-group" id="customTextContainer" style="display: {% if templates and templates[0].qr_settings and templates[0].qr_settings.qr_data_type == 'text' %}block{% else %}none{% endif %};">
-                                    <label><i class="fas fa-font"></i> Custom Text</label>
-                                    <input type="text" name="qr_custom_text" id="qrCustomText" 
-                                           value="{{ templates[0].qr_settings.qr_custom_text if templates and templates[0].qr_settings else '' }}"
-                                           placeholder="Enter custom text for QR code">
-                                    <small style="color: #666; font-size: 0.8rem;">
-                                        <i class="fas fa-info-circle"></i> This text will be encoded in the QR code
-                                    </small>
-                                </div>
-                                
-                                <div class="form-group" id="urlContainer" style="display: {% if templates and templates[0].qr_settings and templates[0].qr_settings.qr_data_type == 'url' %}block{% else %}none{% endif %};">
-                                    <label><i class="fas fa-globe"></i> Base URL</label>
-                                    <input type="url" name="qr_base_url" id="qrBaseUrl" 
-                                           value="{{ templates[0].qr_settings.qr_base_url if templates and templates[0].qr_settings else 'https://example.com/verify/' }}"
-                                           placeholder="https://example.com/verify/">
-                                    <small style="color: #666; font-size: 0.8rem;">
-                                        <i class="fas fa-info-circle"></i> URL will be appended with student ID (e.g., https://example.com/verify/12345)
-                                    </small>
-                                </div>
-                                
-                                <div class="form-group">
-                                    <div class="checkbox-container">
-                                        <input type="checkbox" id="qr_include_logo" name="qr_include_logo" class="checkbox" 
-                                               {% if templates and templates[0].qr_settings and templates[0].qr_settings.qr_include_logo %}checked{% endif %}
-                                               onchange="toggleQRLogoField()">
-                                        <label for="qr_include_logo">
-                                            <i class="fas fa-image"></i> Include Logo in QR Center
-                                        </label>
-                                    </div>
-                                </div>
-                                
-                                <div class="form-group" id="logoPathContainer" style="display: {% if templates and templates[0].qr_settings and templates[0].qr_settings.qr_include_logo %}block{% else %}none{% endif %};">
-                                    <label><i class="fas fa-folder"></i> Logo Path</label>
-                                    <input type="text" name="qr_logo_path" id="qrLogoPath" 
-                                           value="{{ templates[0].qr_settings.qr_logo_path if templates and templates[0].qr_settings else '' }}"
-                                           placeholder="logos/school_logo.png">
-                                    <small style="color: #666; font-size: 0.8rem;">
-                                        <i class="fas fa-info-circle"></i> Path to logo file in static folder (PNG with transparency recommended)
-                                    </small>
-                                </div>
-                                
-                                <div class="qr-preview-container">
-                                    <div class="qr-preview" id="qrPreview">
-                                        <img src="{{ url_for('static', filename='logos/qr_placeholder.png' if templates and templates[0].qr_settings and templates[0].qr_settings.qr_logo_path else 'logos/qr_placeholder.png') }}" 
-                                             alt="QR Preview" id="qrPreviewImage">
-                                    </div>
-                                    <div class="qr-preview-info">
-                                        <p><i class="fas fa-info-circle"></i> Preview of QR code with current settings</p>
-                                        <button type="button" class="btn btn-sm" onclick="updateQRPreview()" style="margin-top: 10px;">
-                                            <i class="fas fa-sync-alt"></i> Update Preview
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="settings-section">
-                            <h4><i class="fas fa-barcode"></i> Barcode Settings</h4>
-                            <div class="form-group">
-                                <div class="checkbox-container">
-                                    <input type="checkbox" id="enable_barcode" name="enable_barcode" class="checkbox"
-                                           {% if templates and templates[0].qr_settings and templates[0].qr_settings.enable_barcode %}checked{% endif %}
-                                           onchange="toggleBarcodeSettings()">
-                                    <label for="enable_barcode">
-                                        <i class="fas fa-toggle-on"></i> Enable Barcode on ID Cards
-                                    </label>
-                                </div>
-                            </div>
-                            <div id="barcodeSettingsContainer" style="display: {% if templates and templates[0].qr_settings and templates[0].qr_settings.enable_barcode %}block{% else %}none{% endif %};">
-                                <div class="form-row">
-                                    <div class="form-group">
-                                        <label><i class="fas fa-arrows-alt-h"></i> X Position</label>
-                                        <input type="number" name="barcode_x" id="barcodeX"
-                                               value="{{ templates[0].qr_settings.barcode_x if templates and templates[0].qr_settings and templates[0].qr_settings.barcode_x is not none else 50 }}"
-                                               min="0" max="1000" step="1">
-                                    </div>
-                                    <div class="form-group">
-                                        <label><i class="fas fa-arrows-alt-v"></i> Y Position</label>
-                                        <input type="number" name="barcode_y" id="barcodeY"
-                                               value="{{ templates[0].qr_settings.barcode_y if templates and templates[0].qr_settings and templates[0].qr_settings.barcode_y is not none else 200 }}"
-                                               min="0" max="1000" step="1">
-                                    </div>
-                                </div>
-
-                                <div class="form-row">
-                                    <div class="form-group">
-                                        <label><i class="fas fa-ruler-horizontal"></i> Barcode Width</label>
-                                        <input type="number" name="barcode_width" id="barcodeWidth"
-                                               value="{{ templates[0].qr_settings.barcode_width if templates and templates[0].qr_settings and templates[0].qr_settings.barcode_width else 220 }}"
-                                               min="40" max="600" step="5">
-                                    </div>
-                                    <div class="form-group">
-                                        <label><i class="fas fa-ruler-vertical"></i> Barcode Height</label>
-                                        <input type="number" name="barcode_height" id="barcodeHeight"
-                                               value="{{ templates[0].qr_settings.barcode_height if templates and templates[0].qr_settings and templates[0].qr_settings.barcode_height else 70 }}"
-                                               min="30" max="300" step="2">
-                                    </div>
-                                </div>
-
-                                <div class="form-row">
-                                    <div class="form-group">
-                                        <label><i class="fas fa-palette"></i> Barcode Color</label>
-                                        <div class="color-input-group">
-                                            <input type="color" name="barcode_fill_color" id="barcodeFillColor" class="color-picker"
-                                                   value="{{ templates[0].qr_settings.barcode_fill_color | rgb_to_hex if templates and templates[0].qr_settings and templates[0].qr_settings.barcode_fill_color else '#000000' }}">
-                                            <span class="color-value" id="barcodeFillColorValue">{{ templates[0].qr_settings.barcode_fill_color | rgb_to_hex if templates and templates[0].qr_settings and templates[0].qr_settings.barcode_fill_color else '#000000' }}</span>
-                                        </div>
-                                    </div>
-                                    <div class="form-group">
-                                        <label><i class="fas fa-fill"></i> Background Color</label>
-                                        <div class="color-input-group">
-                                            <input type="color" name="barcode_back_color" id="barcodeBackColor" class="color-picker"
-                                                   value="{{ templates[0].qr_settings.barcode_back_color | rgb_to_hex if templates and templates[0].qr_settings and templates[0].qr_settings.barcode_back_color else '#ffffff' }}">
-                                            <span class="color-value" id="barcodeBackColorValue">{{ templates[0].qr_settings.barcode_back_color | rgb_to_hex if templates and templates[0].qr_settings and templates[0].qr_settings.barcode_back_color else '#ffffff' }}</span>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div class="form-row">
-                                    <div class="form-group">
-                                        <label><i class="fas fa-link"></i> Barcode Content Type</label>
-                                        <select name="barcode_data_type" id="barcodeDataType" class="form-control" onchange="toggleBarcodeContentFields()">
-                                            <option value="student_id" {% if templates and templates[0].qr_settings and templates[0].qr_settings.barcode_data_type == 'student_id' %}selected{% endif %}>Student ID</option>
-                                            <option value="url" {% if templates and templates[0].qr_settings and templates[0].qr_settings.barcode_data_type == 'url' %}selected{% endif %}>Verification URL</option>
-                                            <option value="text" {% if templates and templates[0].qr_settings and templates[0].qr_settings.barcode_data_type == 'text' %}selected{% endif %}>Custom Text</option>
-                                            <option value="json" {% if templates and templates[0].qr_settings and templates[0].qr_settings.barcode_data_type == 'json' %}selected{% endif %}>Student Data (JSON)</option>
-                                        </select>
-                                    </div>
-                                </div>
-
-                                <div class="form-group" id="barcodeCustomTextContainer" style="display: {% if templates and templates[0].qr_settings and templates[0].qr_settings.barcode_data_type == 'text' %}block{% else %}none{% endif %};">
-                                    <label><i class="fas fa-font"></i> Custom Text</label>
-                                    <input type="text" name="barcode_custom_text" id="barcodeCustomText"
-                                           value="{{ templates[0].qr_settings.barcode_custom_text if templates and templates[0].qr_settings else '' }}"
-                                           placeholder="Enter custom text for barcode">
-                                </div>
-
-                                <div class="form-group" id="barcodeUrlContainer" style="display: {% if templates and templates[0].qr_settings and templates[0].qr_settings.barcode_data_type == 'url' %}block{% else %}none{% endif %};">
-                                    <label><i class="fas fa-globe"></i> Base URL</label>
-                                    <input type="url" name="barcode_base_url" id="barcodeBaseUrl"
-                                           value="{{ templates[0].qr_settings.barcode_base_url if templates and templates[0].qr_settings else 'https://example.com/verify/' }}"
-                                           placeholder="https://example.com/verify/">
-                                </div>
-                            </div>
-                        </div>
-
-                        <button type="button" class="btn btn-upload" id="saveSettingsBtn" onclick="saveTemplateSettings()" disabled>
-                            <i class="fas fa-save"></i> Save Template Settings
-                        </button>
-                        {% if is_admin %}
-                        <button type="button" class="btn btn-download" id="validateTemplatesBtn" onclick="validateTemplates()">
-                            <i class="fas fa-stethoscope"></i> Validate Templates
-                        </button>
-                        {% endif %}
-                    </form>
-                </div>
-
-                <!-- School Admin Management Section -->
-                {% if is_admin and session.get('admin_role') != 'school_admin' %}
-                <div class="section full-width">
-                    <h3><i class="fas fa-school"></i> School Admin Management</h3>
-                    <div class="card">
-                        <div class="card-body">
-                            <p class="text-muted">Register new school admins who can login and generate unlimited cards for their school.</p>
-                            
-                            <form id="registerSchoolAdminForm" class="enhanced-form">
-                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                                <div class="form-row">
-                                    <div class="form-group">
-                                        <label><i class="fas fa-user"></i> Username</label>
-                                        <input type="text" name="username" id="schoolAdminUsername" placeholder="Enter username" required>
-                                    </div>
-                                    <div class="form-group">
-                                        <label><i class="fas fa-lock"></i> Password</label>
-                                        <input type="password" name="password" id="schoolAdminPassword" placeholder="Enter password" required>
-                                    </div>
-                                </div>
-                                <div class="form-group">
-                                    <label><i class="fas fa-school"></i> School Name</label>
-                                    <input type="text" name="school_name" id="schoolAdminSchoolName" placeholder="Enter school name" required>
-                                </div>
-                                <button type="submit" class="btn btn-upload">
-                                    <i class="fas fa-user-plus"></i> Register School Admin
-                                </button>
-                                <a href="{{ url_for('list_school_admins') }}" class="btn btn-download">
-                                    <i class="fas fa-users"></i> View All School Admins
-                                </a>
-                            </form>
-                            
-                            <div id="schoolAdminMessage" class="mt-3" style="display: none;"></div>
-                        </div>
-                    </div>
-                </div>
-                {% endif %}
-
-                <div class="section full-width">
-                    <h3><i class="fas fa-font"></i> Upload Font</h3>
-                    <form action="{{ url_for('upload_font') }}" method="post" enctype="multipart/form-data" id="fontForm" class="enhanced-form">
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                        <div class="form-group">
-                            <label><i class="fas fa-file-upload"></i> Select Font File (TTF, OTF)</label>
-                            <input type="file" name="font" accept=".ttf,.otf" required>
-                        </div>
-                        <button type="submit" class="btn btn-upload"><i class="fas fa-upload"></i> Upload Font</button>
-                    </form>
-                    <div class="card" style="margin-top: 20px;">
-                        <div class="card-header">
-                            <span class="card-title">Available Fonts</span>
-                        </div>
-                        <ul>
-                            {% if available_fonts %}
-                                {% for font in available_fonts %}
-                                    <li>{{ font }}</li>
-                                {% endfor %}
-                            {% else %}
-                                <li>No fonts uploaded yet</li>
-                            {% endif %}
-                        </ul>
-                    </div>
-                </div>
+                {% include 'admin/_template_settings.html' %}
             </div>
         </div>
 
@@ -2011,7 +1408,7 @@ z
                         </div>
                         <p>Manage student login credentials for the portal. View usernames and reset passwords as needed.</p>
                         <div class="action-buttons">
-                         <a href="{{ url_for('admin_student_credentials') }}" class="btn btn-credentials">
+                         <a href="{{ url_for('auth.admin_student_credentials') }}" class="btn btn-credentials">
                             <i class="fas fa-list"></i> View All Credentials
                          </a>
                         </div>
@@ -2029,16 +1426,16 @@ z
                                     <i class="fas fa-file-pdf" style="color: var(--accent-color);"></i>
                                 </div>
                                     <div class="action-buttons" style="margin: 15px 0; padding: 10px; background: #f8f9fa; border-radius: 8px;">
-                                        <a href="{{ url_for('download_compiled_school_pdf', template_id=template.id, mode='editable') }}" class="btn btn-primary btn-sm">
+                                        <a href="{{ url_for('dashboard.download_compiled_school_pdf', template_id=template.id, mode='editable') }}" class="btn btn-primary btn-sm">
                                             <i class="fas fa-file-pdf"></i> Download Editable PDF
                                         </a>
-                                        <a href="{{ url_for('download_compiled_school_pdf', template_id=template.id, mode='print') }}" class="btn btn-secondary btn-sm">
+                                        <a href="{{ url_for('dashboard.download_compiled_school_pdf', template_id=template.id, mode='print') }}" class="btn btn-secondary btn-sm">
                                             <i class="fas fa-print"></i> Download Print PDF
                                         </a>
-                                        <a href="{{ url_for('download_school_excel', template_id=template.id) }}" class="btn btn-excel btn-sm">
+                                        <a href="{{ url_for('dashboard.download_school_excel', template_id=template.id) }}" class="btn btn-excel btn-sm">
                                             <i class="fas fa-file-excel"></i> Download Excel Data
                                         </a>
-                                        <form action="{{ url_for('delete_school_sheets', template_id=template.id) }}" method="POST" style="display:inline;" onsubmit="return confirm('WARNING: This will delete ALL generated A4 sheets for {{ template.school_name }}. \n\nOnly do this AFTER you have downloaded and printed the merged PDF.\n\nAre you sure?');">
+                                        <form action="{{ url_for('dashboard.delete_school_sheets', template_id=template.id) }}" method="POST" style="display:inline;" onsubmit="return confirm('WARNING: This will delete ALL generated A4 sheets for {{ template.school_name }}. \n\nOnly do this AFTER you have downloaded and printed the merged PDF.\n\nAre you sure?');">
                                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                                             <button type="submit" class="btn btn-delete btn-sm">
                                               <i class="fas fa-trash-alt"></i> Clear All Sheets
@@ -2142,7 +1539,7 @@ z
                       </div>
                       <div class="card-body">
                           <p class="text-muted small">Delete temporary files (photos and generated PDFs) older than 30 days to free up space.</p>
-                          <form action="{{ url_for('run_cleanup') }}" method="POST" onsubmit="return confirm('Are you sure? This will permanently delete old files.');">
+                          <form action="{{ url_for('dashboard.run_cleanup') }}" method="POST" onsubmit="return confirm('Are you sure? This will permanently delete old files.');">
                               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                             <button type="submit" class="btn btn-warning btn-sm">
                                   <i class="fas fa-trash-alt"></i> Clean Old Files
@@ -2158,7 +1555,7 @@ z
                         </div>
                         <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
                             <span><i class="fas fa-history me-1"></i> Recent Activity</span>
-                            <a href="{{ url_for('view_activity_log') }}" class="btn btn-sm btn-light text-primary" style="font-size: 0.7rem; font-weight: bold;">
+                            <a href="{{ url_for('dashboard.view_activity_log') }}" class="btn btn-sm btn-light text-primary" style="font-size: 0.7rem; font-weight: bold;">
                                 View Full History
                             </a>
                         </div>
@@ -2179,7 +1576,7 @@ z
                                         <span class="card-title">{{ template.school_name }}</span>
                                     </div>
                                     
-                                    <form action="{{ url_for('delete_all_students_by_template', template_id=template.id) }}" method="POST" 
+                                    <form action="{{ url_for('dashboard.delete_all_students_by_template', template_id=template.id) }}" method="POST" 
                                           onsubmit="return confirm('⚠️ DANGER: Are you sure you want to delete ALL students and files for {{ template.school_name }}? This action cannot be undone.');" 
                                           style="margin: 0;">
                                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
@@ -2229,7 +1626,7 @@ z
                                                         <td>{{ row.phone }}</td>
                                                         <td>
                                                             {% if row.generated_filename %}
-                                                                <a href="{{ url_for('download_student_pdf', student_id=row.id) }}" class="btn btn-download btn-sm">
+                                                                <a href="{{ url_for('dashboard.download_student_pdf', student_id=row.id) }}" class="btn btn-download btn-sm">
                                                                     {{ row.generated_filename[:-4] + '.pdf' if row.generated_filename.lower().endswith(('.jpg', '.jpeg', '.png', '.webp')) else row.generated_filename }}
                                                                 </a>
                                                             {% else %}
@@ -2272,1927 +1669,11 @@ z
             </div>
         </div>
 
-        <div id="preview-tab" class="tab-content">
-            <div class="section">
-                <h3><i class="fas fa-eye"></i> ID Card Preview</h3>
-                
-                <div class="form-row">
-                    <div class="form-group">
-                        <label><i class="fas fa-clipboard-list"></i> Select Template</label>
-                        <select id="previewTemplate" onchange="updateStudentDropdown()">
-                            <option value="">Select a template...</option>
-                            {% for template in templates %}
-                                <option value="{{ template.id }}">{{ template.school_name }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label><i class="fas fa-user-graduate"></i> Select Student</label>
-                        <select id="previewStudent" onchange="enablePreviewButtons()">
-                            <option value="">Select a student...</option>
-                            {% for template in templates %}
-                                <optgroup label="{{ template.school_name }}" data-template="{{ template.id }}" style="display: none;">
-                                    {% if template_rows[template.id] %}
-                                        {% for row in template_rows[template.id] %}
-                                            <option value="{{ row.id }}" data-template="{{ template.id }}">
-                                                {{ row.name }} - {{ row.father_name }}
-                                            </option>
-                                        {% endfor %}
-                                    {% endif %}
-                                </optgroup>
-                            {% endfor %}
-                        </select>
-                    </div>
-                </div>
-
-                <div style="text-align: center; margin: 20px 0;">
-                    <div id="previewLoading" style="display: none;">
-                        <div class="loading" style="margin: 20px auto;"></div>
-                        <p>Generating preview...</p>
-                    </div>
-                    <div id="previewImageGrid" style="display:none; gap:20px; justify-content:center; flex-wrap:wrap;">
-                        <div style="display:flex; flex-direction:column; align-items:center; gap:8px;">
-                            <div style="font-weight:700;">Front Side</div>
-                            <img id="previewImage" src="{{ url_for('static', filename='photo_placeholder.png') }}" 
-                                 alt="ID Card Preview Front" 
-                                 style="align-items: center; max-width: 300px; height: auto; border: 3px solid var(--primary-color); 
-                                        border-radius: var(--border-radius); box-shadow: var(--shadow); 
-                                        display: none;">
-                        </div>
-                        <div id="previewBackWrap" style="display:none; flex-direction:column; align-items:center; gap:8px;">
-                            <div style="font-weight:700;">Back Side</div>
-                            <img id="previewBackImage" src="{{ url_for('static', filename='photo_placeholder.png') }}"
-                                 alt="ID Card Preview Back"
-                                 style="align-items: center; max-width: 300px; height: auto; border: 3px solid var(--primary-color);
-                                        border-radius: var(--border-radius); box-shadow: var(--shadow);
-                                        display: none;">
-                        </div>
-                    </div>
-                    <div id="previewError" style="display: none; color: var(--error-text); 
-                             background: var(--error-bg); padding: 20px; border-radius: var(--border-radius); 
-                             margin: 20px 0;">
-                        <i class="fas fa-exclamation-triangle"></i>
-                        <span>No preview available for selected student</span>
-                    </div>
-                </div>
-
-                <div class="form-row">
-                    <div class="form-group">
-                        <label><i class="fas fa-sync"></i> Refresh Preview</label>
-                        <button class="btn btn-primary" style="width: 100%;" onclick="generatePreview()" id="generatePreviewBtn" disabled>
-                            <i class="fas fa-sync"></i> Generate Preview
-                        </button>
-                    </div>
-                    <div class="form-group">
-                        <label><i class="fas fa-download"></i> Actions</label>
-                        <button class="btn btn-download" style="width: 100%;" onclick="downloadPreview()" id="downloadPreviewBtn" disabled>
-                            <i class="fas fa-download"></i> Download Preview
-                        </button>
-                    </div>
-                </div>
-
-                <div class="card" style="margin-top: 20px;">
-                    <div class="card-header">
-                        <span class="card-title">Quick Preview Samples</span>
-                        <i class="fas fa-rocket" style="color: var(--accent-color);"></i>
-                    </div>
-                    <div class="action-buttons">
-                        {% for template in templates %}
-                            <button class="btn btn-sm" onclick="loadSamplePreview({{ template.id }})">
-                                <i class="fas fa-image"></i> {{ template.school_name }} Sample
-                            </button>
-                        {% endfor %}
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        
-        <div id="formFields-tab" class="tab-content">
-            <div class="section">
-                <h3><i class="fas fa-list-alt"></i> Dynamic Form Fields Management</h3>
-                
-                <div class="dynamic-fields-section">
-                    <div class="template-selector">
-                        <label><i class="fas fa-clipboard-list"></i> Select Template to Manage Form Fields</label>
-                        <select id="formFieldsTemplateSelector" onchange="loadTemplateFormFields()">
-                            <option value="">Select a template...</option>
-                            {% for template in templates %}
-                                <option value="{{ template.id }}">{{ template.school_name }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                </div>
-
-                <div class="card" style="margin-top: 20px;">
-                    <div class="card-header">
-                        <span class="card-title">Add New Form Field</span>
-                        <i class="fas fa-plus-circle" style="color: var(--primary-color);"></i>
-                    </div>
-                    
-                    <form id="addFieldForm" class="enhanced-form">
-                        <input type="hidden" id="fieldTemplateId" name="template_id">
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                        
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label><i class="fas fa-tag"></i> Field Name (Internal)</label>
-                                <input type="text" id="fieldName" name="field_name" required 
-                                       pattern="[a-zA-Z0-9_]+" title="Only letters, numbers, and underscores allowed">
-                                <small style="color: #666; font-size: 0.8rem;">
-                                    Internal identifier (no spaces, e.g., "blood_group", "emergency_contact")
-                                </small>
-                            </div>
-                            
-                            <div class="form-group">
-                                <label><i class="fas fa-heading"></i> Field Label (Display)</label>
-                                <input type="text" id="fieldLabel" name="field_label" required>
-                                <small style="color: #666; font-size: 0.8rem;">
-                                    What users will see (e.g., "Blood Group", "Emergency Contact")
-                                </small>
-                            </div>
-                        </div>
-
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label><i class="fas fa-list"></i> Field Type</label>
-                                <select id="fieldType" name="field_type" required onchange="toggleFieldOptions()">
-                                    <option value="text">Text Input</option>
-                                    <option value="number">Number</option>
-                                    <option value="date">Date</option>
-                                    <option value="textarea">Text Area</option>
-                                    <option value="select">Dropdown Select</option>
-                                    <option value="email">Email</option>
-                                    <option value="tel">Phone</option>
-                                </select>
-                            </div>
-                            
-                            <div class="form-group">
-                                <label><i class="fas fa-sort-numeric-up"></i> Display Order</label>
-                                <input type="number" id="displayOrder" name="display_order" value="0" min="0">
-                            </div>
-                        </div>
-
-                        <div class="form-group" id="fieldOptionsGroup" style="display: none;">
-                            <label><i class="fas fa-cog"></i> Dropdown Options</label>
-                            <textarea id="fieldOptions" name="field_options" 
-                                      placeholder="Enter each option on a new line&#10;Example:&#10;A+&#10;A-&#10;B+&#10;B-&#10;O+&#10;O-"></textarea>
-                            <small style="color: #666; font-size: 0.8rem;">
-                                Enter each option on a separate line
-                            </small>
-                        </div>
-
-                        <div class="checkbox-container">
-                            <input type="checkbox" id="isRequired" name="is_required" class="checkbox">
-                            <label for="isRequired">This field is required</label>
-                        </div>
-
-                        <div class="card" style="margin-top: 16px; padding: 16px; border: 1px solid #e6edf5; background: #fafcff;">
-                            <div style="font-weight: 700; margin-bottom: 12px; color: var(--primary-color);">
-                                <i class="fas fa-columns"></i> Field Visibility By Card Side
-                            </div>
-                            <div class="form-row">
-                                <div class="form-group">
-                                    <label style="font-weight:700;">Front Side</label>
-                                    <div class="checkbox-container">
-                                        <input type="checkbox" id="showLabelFront" name="show_label_front" class="checkbox" checked>
-                                        <label for="showLabelFront">Show label on front</label>
-                                    </div>
-                                    <div class="checkbox-container">
-                                        <input type="checkbox" id="showValueFront" name="show_value_front" class="checkbox" checked>
-                                        <label for="showValueFront">Show value on front</label>
-                                    </div>
-                                </div>
-                                <div class="form-group">
-                                    <label style="font-weight:700;">Back Side</label>
-                                    <div class="checkbox-container">
-                                        <input type="checkbox" id="showLabelBack" name="show_label_back" class="checkbox">
-                                        <label for="showLabelBack">Show label on back</label>
-                                    </div>
-                                    <div class="checkbox-container">
-                                        <input type="checkbox" id="showValueBack" name="show_value_back" class="checkbox">
-                                        <label for="showValueBack">Show value on back</label>
-                                    </div>
-                                </div>
-                            </div>
-                            <small style="color: #666; font-size: 0.82rem;">
-                                These checkboxes define the default side visibility for dynamic field labels and values. Layout settings in the visual editor can still fine-tune the exact placement.
-                            </small>
-                        </div>
-
-                        <button type="submit" class="btn btn-primary" id="addFieldBtn" disabled>
-                            <i class="fas fa-plus"></i> Add Field
-                        </button>
-                    </form>
-                </div>
-
-                <div class="card" style="margin-top: 20px;">
-                    <div class="card-header">
-                        <span class="card-title">Current Form Fields</span>
-                        <i class="fas fa-list" style="color: var(--primary-color);"></i>
-                    </div>
-                    
-                    <div id="formFieldsList">
-                        <p style="text-align: center; padding: 20px; color: #666;">
-                            Select a template to view and manage its form fields
-                        </p>
-                    </div>
-                </div>
-            </div>
-        </div>
+        {% include 'admin/_preview_tab.html' %}
+        {% include 'admin/_dynamic_fields.html' %}
     </div>
 
-    <script>
-        let currentTemplateSettings = null;
-        let isPasswordVisible = false;
-        let currentFormFields = [];
-        let editingFieldId = null;
-
-        // Get CSRF token from meta tag
-        function getCsrfToken() {
-            return document.querySelector('meta[name="csrf-token"]').getAttribute('content');
-        }
-
-        // Convert RGB Array [255, 0, 0] -> Hex String "#ff0000"
-        function rgbToHex(rgb) {
-            if (!rgb) return '#000000';
-            if (typeof rgb === 'string') {
-                if (rgb.startsWith('#')) return rgb;
-                if (rgb.includes(',')) rgb = rgb.split(',').map(Number);
-            }
-            
-            if (Array.isArray(rgb) && rgb.length >= 3) {
-                return "#" + ((1 << 24) + (rgb[0] << 16) + (rgb[1] << 8) + rgb[2]).toString(16).slice(1);
-            }
-            return '#000000';
-        }
-        
-        // Convert Hex String "#ff0000" -> RGB Array [255, 0, 0]
-        function hexToRgbArray(hex) {
-            if (!hex) return [0, 0, 0];
-            
-            // Remove the # if present
-            hex = hex.replace('#', '');
-            
-            // Handle short hex notation (#fff)
-            if (hex.length === 3) {
-                hex = hex.split('').map(char => char + char).join('');
-            }
-            
-            // Convert to RGB
-            const bigint = parseInt(hex, 16);
-            if (isNaN(bigint)) return [0, 0, 0];
-            
-            const r = (bigint >> 16) & 255;
-            const g = (bigint >> 8) & 255;
-            const b = bigint & 255;
-            
-            return [r, g, b];
-        }
-        // ---------------------------------------------------------
-        // 1. SMART DEFAULTS LOGIC
-        // ---------------------------------------------------------
-        document.getElementById('cardOrientation').addEventListener('change', function() {
-            const orientation = this.value;
-            applySmartDefaults(orientation);
-        });
-
-        function applySmartDefaults(orientation) {
-            const A4_SHORT = 2480;
-            const A4_LONG = 3508;
-
-            if (orientation === 'landscape') {
-                document.getElementById('cardWidth').value = 1015;
-                document.getElementById('cardHeight').value = 661;
-                document.getElementById('sheetWidth').value = A4_SHORT; 
-                document.getElementById('sheetHeight').value = A4_LONG;
-                document.getElementById('gridCols').value = 2; 
-                document.getElementById('gridRows').value = 5; 
-            } else {
-                document.getElementById('cardWidth').value = 661;
-                document.getElementById('cardHeight').value = 1015;
-                document.getElementById('sheetWidth').value = A4_LONG; 
-                document.getElementById('sheetHeight').value = A4_SHORT;
-                document.getElementById('gridCols').value = 5; 
-                document.getElementById('gridRows').value = 2; 
-            }
-            updateTotal(); 
-        }
-
-        // ---------------------------------------------------------
-        // 2. LOAD SAVED SETTINGS
-        // ---------------------------------------------------------
-        function loadTemplateSettings() {
-           const selector = document.getElementById('templateSelector');
-           const selectedOption = selector.options[selector.selectedIndex];
-           const saveBtn = document.getElementById('saveSettingsBtn');
-           const sideSelect = document.getElementById('templateSide');
-           const sideWrap = document.getElementById('templateSideWrap');
-            
-            if (selectedOption && selectedOption.value) {
-                const templateId = selectedOption.value;
-                document.getElementById('templateId').value = templateId;
-                const isDoubleSided = (selectedOption.getAttribute('data-is-double-sided') || 'false') === 'true';
-                if (sideWrap) sideWrap.style.display = isDoubleSided ? 'block' : 'none';
-                const activeSide = (isDoubleSided && sideSelect && sideSelect.value === 'back') ? 'back' : 'front';
-                if (sideSelect) {
-                    sideSelect.value = activeSide;
-                }
-                const sideLabel = document.getElementById('adminPreviewSideLabel');
-                const sourceLabel = document.getElementById('adminPreviewSourceLabel');
-                if (sideLabel) {
-                    sideLabel.textContent = activeSide === 'back' ? 'Back Preview' : 'Front Preview';
-                }
-                if (sourceLabel) {
-                    const sourceName = selectedOption.getAttribute(activeSide === 'back' ? 'data-back-source-name' : 'data-source-name') || '';
-                    sourceLabel.textContent = sourceName ? `Source: ${sourceName}` : '';
-                }
-
-                // Load JSON settings
-                const fontSettings = JSON.parse(selectedOption.getAttribute(activeSide === 'back' ? 'data-back-font-settings' : 'data-font-settings') || '{}');
-                const photoSettings = JSON.parse(selectedOption.getAttribute(activeSide === 'back' ? 'data-back-photo-settings' : 'data-photo-settings') || '{}');
-                
-                const qrSettings = JSON.parse(selectedOption.getAttribute(activeSide === 'back' ? 'data-back-qr-settings' : 'data-qr-settings') || '{}'); 
-
-                // Load dimensions & grid
-                const savedOrientation = selectedOption.getAttribute('data-card-orientation') || 'landscape';
-                document.getElementById('cardOrientation').value = savedOrientation;
-
-                // Deadline
-                const deadline = selectedOption.getAttribute('data-deadline');
-                document.getElementById('deadline').value = deadline || '';
-
-                // Read saved integers
-                const savedW = parseInt(selectedOption.getAttribute('data-card-width'));
-                const savedH = parseInt(selectedOption.getAttribute('data-card-height'));
-                const savedRows = parseInt(selectedOption.getAttribute('data-grid-rows'));
-                const savedCols = parseInt(selectedOption.getAttribute('data-grid-cols'));
-                const savedSheetW = parseInt(selectedOption.getAttribute('data-sheet-width'));
-                const savedSheetH = parseInt(selectedOption.getAttribute('data-sheet-height'));
-                const savedLang = selectedOption.getAttribute(activeSide === 'back' ? 'data-back-language' : 'data-language') || 'english';
-                const savedDir = selectedOption.getAttribute(activeSide === 'back' ? 'data-back-direction' : 'data-direction') || 'ltr';
-
-                // Keep language + direction bound to the selected template (not the upload form dropdowns).
-                const templateLanguage = document.getElementById('templateLanguage');
-                if (templateLanguage) templateLanguage.value = savedLang;
-                const templateDirection = document.getElementById('templateDirection');
-                if (templateDirection) templateDirection.value = savedDir;
-
-                if (savedW && savedH) {
-                    document.getElementById('cardWidth').value = savedW;
-                    document.getElementById('cardHeight').value = savedH;
-                    document.getElementById('gridRows').value = savedRows || 5;
-                    document.getElementById('gridCols').value = savedCols || 2;
-                    document.getElementById('sheetWidth').value = savedSheetW || 2480;
-                    document.getElementById('sheetHeight').value = savedSheetH || 3508;
-                } else {
-                    applySmartDefaults(savedOrientation);
-                }
-
-                // Load other inputs
-                document.getElementById('fontBold').value = fontSettings.font_bold || 'arialbd.ttf';
-                document.getElementById('fontRegular').value = fontSettings.font_regular || 'arial.ttf';
-                document.getElementById('labelFontColor').value = rgbToHex(fontSettings.label_font_color);
-                document.getElementById('valueFontColor').value = rgbToHex(fontSettings.value_font_color);
-                document.getElementById('colonFontColor').value = rgbToHex(fontSettings.colon_font_color || fontSettings.label_font_color);
-                document.getElementById('labelFontColorValue').textContent = document.getElementById('labelFontColor').value;
-                document.getElementById('valueFontColorValue').textContent = document.getElementById('valueFontColor').value;
-                document.getElementById('colonFontColorValue').textContent = document.getElementById('colonFontColor').value;
-                document.getElementById('labelFontSize').value = fontSettings.label_font_size || 40;
-                document.getElementById('valueFontSize').value = fontSettings.value_font_size || 36;
-                document.getElementById('labelX').value = fontSettings.label_x || 50;
-                document.getElementById('valueX').value = fontSettings.value_x || 280;
-                document.getElementById('startY').value = fontSettings.start_y || 275;
-                document.getElementById('lineHeight').value = fontSettings.line_height || 50;
-                const addressLineCount = String(fontSettings.address_max_lines || 2);
-                const addressLineRadio = document.querySelector(`input[name="address_max_lines"][value="${addressLineCount}"]`);
-                if (addressLineRadio) addressLineRadio.checked = true;
-                document.getElementById('textCase').value = fontSettings.text_case || 'normal';
-                document.getElementById('showLabelColon').checked = (fontSettings.show_label_colon !== false);
-                document.getElementById('alignLabelColon').checked = (fontSettings.align_label_colon !== false);
-                document.getElementById('labelColonGap').value = fontSettings.label_colon_gap ?? 8;
-
-                document.getElementById('photoX').value = photoSettings.photo_x || 725;
-                document.getElementById('photoY').value = photoSettings.photo_y || 200;
-                document.getElementById('photoWidth').value = photoSettings.photo_width || 260;
-                document.getElementById('photoHeight').value = photoSettings.photo_height || 313;
-                
-                document.getElementById('photoBorderTL').value = photoSettings.photo_border_top_left || 0;
-                document.getElementById('photoBorderTR').value = photoSettings.photo_border_top_right || 0;
-                document.getElementById('photoBorderBR').value = photoSettings.photo_border_bottom_right || 0;
-                document.getElementById('photoBorderBL').value = photoSettings.photo_border_bottom_left || 0;
-
-
-                // QR + Barcode settings (independent)
-                document.getElementById('enable_qr').checked = qrSettings.enable_qr || false;
-                document.getElementById('enable_barcode').checked = qrSettings.enable_barcode || false;
-                toggleQRSettings();
-                toggleBarcodeSettings();
-
-                document.getElementById('qrDataType').value = qrSettings.qr_data_type || 'student_id';
-                document.getElementById('qrX').value = qrSettings.qr_x || 50;
-                document.getElementById('qrY').value = qrSettings.qr_y || 50;
-                document.getElementById('qrSize').value = qrSettings.qr_size || 120;
-                document.getElementById('qrFillColor').value = rgbToHex(qrSettings.qr_fill_color);
-                document.getElementById('qrBackColor').value = rgbToHex(qrSettings.qr_back_color);
-                document.getElementById('qrStyle').value = qrSettings.qr_style || 'square';
-                document.getElementById('qrBorder').value = qrSettings.qr_border || 2;
-                document.getElementById('qrCustomText').value = qrSettings.qr_custom_text || '';
-                document.getElementById('qrBaseUrl').value = qrSettings.qr_base_url || 'https://example.com/verify/';
-                document.getElementById('qr_include_logo').checked = qrSettings.qr_include_logo || false;
-                document.getElementById('qrLogoPath').value = qrSettings.qr_logo_path || '';
-                toggleQRContentFields();
-                toggleQRLogoField();
-
-                document.getElementById('barcodeX').value = qrSettings.barcode_x || 50;
-                document.getElementById('barcodeY').value = qrSettings.barcode_y || 200;
-                document.getElementById('barcodeWidth').value = qrSettings.barcode_width || 220;
-                document.getElementById('barcodeHeight').value = qrSettings.barcode_height || 70;
-                document.getElementById('barcodeFillColor').value = rgbToHex(qrSettings.barcode_fill_color || [0, 0, 0]);
-                document.getElementById('barcodeBackColor').value = rgbToHex(qrSettings.barcode_back_color || [255, 255, 255]);
-                document.getElementById('barcodeDataType').value = qrSettings.barcode_data_type || 'student_id';
-                document.getElementById('barcodeCustomText').value = qrSettings.barcode_custom_text || '';
-                document.getElementById('barcodeBaseUrl').value = qrSettings.barcode_base_url || 'https://example.com/verify/';
-                toggleBarcodeContentFields();
-
-                updateTotal();
-                saveBtn.disabled = false;
-                saveBtn.innerHTML = '<i class="fas fa-save"></i> Save ' + (activeSide === 'back' ? 'Back' : 'Front') + ' Settings for ' + selectedOption.text;
-                updateAdminPreview(); 
-            } else {
-                document.getElementById('templateId').value = '';
-                saveBtn.disabled = true;
-                if (sideWrap) sideWrap.style.display = 'none';
-            }
-        }
-        
-
-        // ---------------------------------------------------------
-        // 3. SAVE TEMPLATE SETTINGS FUNCTION
-        // ---------------------------------------------------------
-        function saveTemplateSettings() {
-            const saveBtn = document.getElementById('saveSettingsBtn');
-            const originalText = saveBtn.innerHTML;
-            
-            if (saveBtn.disabled) {
-                showNotification('Please select a template first.', 'error');
-                return;
-            }
-            
-            // Show loading state
-            saveBtn.innerHTML = '<span class="loading"></span> Saving...';
-            saveBtn.disabled = true;
-            
-            const templateId = document.getElementById('templateId').value;
-            if (!templateId) {
-                showNotification('No template selected', 'error');
-                saveBtn.innerHTML = originalText;
-                saveBtn.disabled = false;
-                return;
-            }
-            
-            // Helper function to safely get integer values
-            function getIntValue(id, defaultValue) {
-                const element = document.getElementById(id);
-                if (!element || element.value === '' || element.value === null) {
-                    return defaultValue;
-                }
-                const value = parseInt(element.value);
-                return isNaN(value) ? defaultValue : value;
-            }
-            
-            // Helper function to safely get string values
-            function getStringValue(id, defaultValue = '') {
-                const element = document.getElementById(id);
-                return element ? (element.value || defaultValue) : defaultValue;
-            }
-            
-            // Helper function to safely get boolean values
-            function getBoolValue(id) {
-                const element = document.getElementById(id);
-                return element ? element.checked : false;
-            }
-            
-            // Prepare data with safe defaults
-            const data = {
-                template_id: templateId,
-                settings_side: (document.getElementById('templateSide') && document.getElementById('templateSideWrap').style.display !== 'none')
-                    ? document.getElementById('templateSide').value
-                    : 'front',
-                language: document.getElementById('templateLanguage') ? document.getElementById('templateLanguage').value : 'english',
-                text_direction: document.getElementById('templateDirection') ? document.getElementById('templateDirection').value : 'ltr',
-                // Prevent server-side accidental resets to defaults when older/stale UI sends english/ltr.
-                language_direction_explicit: true,
-                card_orientation: getStringValue('cardOrientation', 'landscape'),
-                deadline: getStringValue('deadline', ''),
-                
-                // Dimensions & Grid with safe parsing
-                card_width: getIntValue('cardWidth', 1015),
-                card_height: getIntValue('cardHeight', 661),
-                sheet_width: getIntValue('sheetWidth', 2480),
-                sheet_height: getIntValue('sheetHeight', 3508),
-                grid_rows: getIntValue('gridRows', 5),
-                grid_cols: getIntValue('gridCols', 2),
-                
-                // Font Settings
-                font_settings: {
-                    font_bold: getStringValue('fontBold', 'arialbd.ttf'),
-                    font_regular: getStringValue('fontRegular', 'arial.ttf'),
-                    label_font_color: hexToRgbArray(getStringValue('labelFontColor', '#000000')),
-                    value_font_color: hexToRgbArray(getStringValue('valueFontColor', '#000000')),
-                    colon_font_color: hexToRgbArray(getStringValue('colonFontColor', '#000000')),
-                    label_font_size: getIntValue('labelFontSize', 40),
-                    value_font_size: getIntValue('valueFontSize', 36),
-                    label_x: getIntValue('labelX', 50),
-                    value_x: getIntValue('valueX', 280),
-                    start_y: getIntValue('startY', 275),
-                    line_height: getIntValue('lineHeight', 50),
-                    address_max_lines: parseInt((document.querySelector('input[name="address_max_lines"]:checked') || {}).value || '2', 10),
-                    text_case: getStringValue('textCase', 'normal'),
-                    show_label_colon: getBoolValue('showLabelColon'),
-                    align_label_colon: getBoolValue('alignLabelColon'),
-                    label_colon_gap: getIntValue('labelColonGap', 8)
-                },
-                
-                // Photo Settings
-                photo_settings: {
-                    photo_x: getIntValue('photoX', 725),
-                    photo_y: getIntValue('photoY', 200),
-                    photo_width: getIntValue('photoWidth', 260),
-                    photo_height: getIntValue('photoHeight', 313),
-                    photo_border_top_left: getIntValue('photoBorderTL', 0),
-                    photo_border_top_right: getIntValue('photoBorderTR', 0),
-                    photo_border_bottom_right: getIntValue('photoBorderBR', 0),
-                    photo_border_bottom_left: getIntValue('photoBorderBL', 0),
-                },
-
-                // QR Settings
-                qr_settings: {}
-            };
-            
-            const enableQR = getBoolValue('enable_qr');
-            const enableBarcode = getBoolValue('enable_barcode');
-            data.qr_settings = {
-                enable_qr: enableQR,
-                enable_barcode: enableBarcode
-            };
-
-            if (enableQR) {
-                data.qr_settings.qr_x = getIntValue('qrX', 50);
-                data.qr_settings.qr_y = getIntValue('qrY', 50);
-                data.qr_settings.qr_size = getIntValue('qrSize', 120);
-                data.qr_settings.qr_style = getStringValue('qrStyle', 'square');
-                data.qr_settings.qr_border = getIntValue('qrBorder', 2);
-                data.qr_settings.qr_fill_color = hexToRgbArray(getStringValue('qrFillColor', '#000000'));
-                data.qr_settings.qr_back_color = hexToRgbArray(getStringValue('qrBackColor', '#ffffff'));
-                data.qr_settings.qr_data_type = getStringValue('qrDataType', 'student_id');
-                data.qr_settings.qr_custom_text = getStringValue('qrCustomText', '');
-                data.qr_settings.qr_base_url = getStringValue('qrBaseUrl', 'https://example.com/verify/');
-                data.qr_settings.qr_include_logo = getBoolValue('qr_include_logo');
-                data.qr_settings.qr_logo_path = getStringValue('qrLogoPath', '');
-            }
-
-            if (enableBarcode) {
-                data.qr_settings.barcode_x = getIntValue('barcodeX', 50);
-                data.qr_settings.barcode_y = getIntValue('barcodeY', 200);
-                data.qr_settings.barcode_width = getIntValue('barcodeWidth', 220);
-                data.qr_settings.barcode_height = getIntValue('barcodeHeight', 70);
-                data.qr_settings.barcode_fill_color = hexToRgbArray(getStringValue('barcodeFillColor', '#000000'));
-                data.qr_settings.barcode_back_color = hexToRgbArray(getStringValue('barcodeBackColor', '#ffffff'));
-                data.qr_settings.barcode_data_type = getStringValue('barcodeDataType', 'student_id');
-                data.qr_settings.barcode_custom_text = getStringValue('barcodeCustomText', '');
-                data.qr_settings.barcode_base_url = getStringValue('barcodeBaseUrl', 'https://example.com/verify/');
-            }
-            
-            console.log('Saving template settings:', data);
-            
-            // Send the data to server
-            fetch("{{ url_for('update_template_settings_route') }}", {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': getCsrfToken()
-                },
-                body: JSON.stringify(data)
-            })
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error(`HTTP error! Status: ${response.status}`);
-                }
-                return response.json();
-            })
-            .then(result => {
-                if (result.success) {
-                    showNotification('Template settings saved successfully!', 'success');
-                    
-                    // Update the select option with new settings
-                    const selector = document.getElementById('templateSelector');
-                    const selectedOption = selector.options[selector.selectedIndex];
-                    const targetPrefix = data.settings_side === 'back' ? 'data-back-' : 'data-';
-                    
-                    if (selectedOption) {
-                        selectedOption.setAttribute(`${targetPrefix}font-settings`, JSON.stringify(data.font_settings));
-                        selectedOption.setAttribute(`${targetPrefix}photo-settings`, JSON.stringify(data.photo_settings));
-                        selectedOption.setAttribute(`${targetPrefix}qr-settings`, JSON.stringify(data.qr_settings));
-                        selectedOption.setAttribute('data-card-orientation', data.card_orientation);
-                        selectedOption.setAttribute('data-deadline', data.deadline || '');
-                        selectedOption.setAttribute(`${targetPrefix}language`, data.language || 'english');
-                        selectedOption.setAttribute(`${targetPrefix}direction`, data.text_direction || 'ltr');
-                        selectedOption.setAttribute('data-card-width', data.card_width);
-                        selectedOption.setAttribute('data-card-height', data.card_height);
-                        selectedOption.setAttribute('data-sheet-width', data.sheet_width);
-                        selectedOption.setAttribute('data-sheet-height', data.sheet_height);
-                        selectedOption.setAttribute('data-grid-rows', data.grid_rows);
-                        selectedOption.setAttribute('data-grid-cols', data.grid_cols);
-                    }
-                    
-                } else {
-                    showNotification('Error saving settings: ' + (result.error || 'Unknown error'), 'error');
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                showNotification('Failed to save settings. Please try again.', 'error');
-            })
-            .finally(() => {
-                // Restore button state
-                saveBtn.innerHTML = originalText;
-                saveBtn.disabled = false;
-            });
-        }
-
-        async function validateTemplates() {
-            const btn = document.getElementById('validateTemplatesBtn');
-            if (!btn) return;
-            const original = btn.innerHTML;
-            btn.disabled = true;
-            btn.innerHTML = '<span class="loading"></span> Validating...';
-
-            try {
-                const response = await fetch("/admin/validate_templates");
-                const data = await response.json();
-                if (!response.ok || !data.success) {
-                    throw new Error(data.error || `HTTP ${response.status}`);
-                }
-
-                const broken = Array.isArray(data.results) ? data.results.filter(r => r.status === 'broken') : [];
-                if (broken.length === 0) {
-                    showNotification(`All templates are valid (${data.ok}/${data.total}).`, 'success');
-                } else {
-                    showNotification(`Found ${broken.length} broken template(s). Check browser console for details.`, 'warning');
-                    console.table(broken.map(r => ({
-                        template_id: r.template_id,
-                        school_name: r.school_name,
-                        source: r.source,
-                        error: r.error
-                    })));
-                }
-            } catch (err) {
-                console.error('Template validation error:', err);
-                showNotification(`Template validation failed: ${err.message}`, 'error');
-            } finally {
-                btn.disabled = false;
-                btn.innerHTML = original;
-            }
-        }
-
-        // ---------------------------------------------------------
-        // 4. UTILITIES
-        // ---------------------------------------------------------
-        document.getElementById('gridCols').addEventListener('input', updateTotal);
-        document.getElementById('gridRows').addEventListener('input', updateTotal);
-        
-        function updateTotal() {
-            const c = parseInt(document.getElementById('gridCols').value) || 0;
-            const r = parseInt(document.getElementById('gridRows').value) || 0;
-            const total = c * r;
-            const cardW = parseInt(document.getElementById('cardWidth').value) || 0;
-            const cardH = parseInt(document.getElementById('cardHeight').value) || 0;
-            const sheetW = parseInt(document.getElementById('sheetWidth').value) || 0;
-            const sheetH = parseInt(document.getElementById('sheetHeight').value) || 0;
-
-            const requiredW = (c * cardW);
-            const requiredH = (r * cardH);
-            
-            let msg = `Cards per sheet: <b>${total}</b>`;
-            
-            if (requiredW > sheetW || requiredH > sheetH) {
-                msg += ` <span style="color:red; margin-left:10px;"><i class="fas fa-exclamation-triangle"></i> Grid too big for sheet!</span>`;
-            }
-            
-            document.getElementById('totalCardsCalc').innerHTML = msg;
-        }
-
-        function setAllBorders(value) {
-            if (value || value === 0) {
-                document.getElementById('photoBorderTL').value = value;
-                document.getElementById('photoBorderTR').value = value;
-                document.getElementById('photoBorderBR').value = value;
-                document.getElementById('photoBorderBL').value = value;
-                updateBorderPreview();
-            }
-        }
-
-        function updateBorderPreview() {
-            const tl = document.getElementById('photoBorderTL').value || 0;
-            const tr = document.getElementById('photoBorderTR').value || 0;
-            const br = document.getElementById('photoBorderBR').value || 0;
-            const bl = document.getElementById('photoBorderBL').value || 0;
-            
-            const preview = document.getElementById('borderPreview');
-            preview.style.borderRadius = `${tl}px ${tr}px ${br}px ${bl}px`;
-        }
-
-        // QR / Barcode toggle (mutually exclusive)
-        function toggleQRSettings() {
-            const qrCheckbox = document.getElementById('enable_qr');
-            const barcodeCheckbox = document.getElementById('enable_barcode');
-            const qrContainer = document.getElementById('qrSettingsContainer');
-            const barcodeContainer = document.getElementById('barcodeSettingsContainer');
-            if (!qrCheckbox || !qrContainer) return;
-
-            if (qrCheckbox.checked && barcodeCheckbox && barcodeCheckbox.checked) {
-                barcodeCheckbox.checked = false;
-            }
-
-            qrContainer.style.display = qrCheckbox.checked ? 'block' : 'none';
-            if (barcodeContainer && barcodeCheckbox) {
-                barcodeContainer.style.display = barcodeCheckbox.checked ? 'block' : 'none';
-            }
-
-            if (qrCheckbox.checked) {
-                updateQRPreview();
-            }
-        }
-
-        function toggleBarcodeSettings() {
-            const qrCheckbox = document.getElementById('enable_qr');
-            const barcodeCheckbox = document.getElementById('enable_barcode');
-            const qrContainer = document.getElementById('qrSettingsContainer');
-            const barcodeContainer = document.getElementById('barcodeSettingsContainer');
-            if (!barcodeCheckbox || !barcodeContainer) return;
-
-            if (barcodeCheckbox.checked && qrCheckbox && qrCheckbox.checked) {
-                qrCheckbox.checked = false;
-            }
-
-            barcodeContainer.style.display = barcodeCheckbox.checked ? 'block' : 'none';
-            if (qrContainer && qrCheckbox) {
-                qrContainer.style.display = qrCheckbox.checked ? 'block' : 'none';
-            }
-
-            if (barcodeCheckbox.checked) {
-                toggleBarcodeContentFields();
-            }
-        }
-
-        function toggleQRContentFields() {
-            const dataType = document.getElementById('qrDataType').value;
-            const customTextContainer = document.getElementById('customTextContainer');
-            const urlContainer = document.getElementById('urlContainer');
-            
-            customTextContainer.style.display = dataType === 'text' ? 'block' : 'none';
-            urlContainer.style.display = dataType === 'url' ? 'block' : 'none';
-        }
-
-        function toggleQRLogoField() {
-            const includeLogo = document.getElementById('qr_include_logo').checked;
-            const logoPathContainer = document.getElementById('logoPathContainer');
-            
-            logoPathContainer.style.display = includeLogo ? 'block' : 'none';
-        }
-
-        function toggleBarcodeContentFields() {
-            const dataType = document.getElementById('barcodeDataType').value;
-            const customTextContainer = document.getElementById('barcodeCustomTextContainer');
-            const urlContainer = document.getElementById('barcodeUrlContainer');
-            customTextContainer.style.display = dataType === 'text' ? 'block' : 'none';
-            urlContainer.style.display = dataType === 'url' ? 'block' : 'none';
-        }
-
-        function updateQRPreview() {
-            const qrPreview = document.getElementById('qrPreviewImage');
-            const fillColor = document.getElementById('qrFillColor').value;
-            const backColor = document.getElementById('qrBackColor').value;
-            const qrSize = document.getElementById('qrSize').value || 120;
-            const qrStyle = document.getElementById('qrStyle').value;
-            const qrBorder = document.getElementById('qrBorder').value || 2;
-            
-            document.getElementById('qrFillColorValue').textContent = fillColor;
-            document.getElementById('qrBackColorValue').textContent = backColor;
-            document.getElementById('qrBorderValue').textContent = qrBorder;
-            
-            const qrContainer = document.getElementById('qrPreview');
-            qrContainer.style.border = `${qrBorder}px solid ${fillColor}`;
-            qrContainer.style.backgroundColor = backColor;
-            
-            switch(qrStyle) {
-                case 'square':
-                    qrPreview.style.borderRadius = '0';
-                    break;
-                case 'rounded':
-                    qrPreview.style.borderRadius = '10px';
-                    break;
-                case 'circle':
-                    qrPreview.style.borderRadius = '50%';
-                    break;
-                case 'gapped':
-                    qrPreview.style.borderRadius = '0';
-                    qrPreview.style.padding = '5px';
-                    break;
-            }
-            
-            qrPreview.style.width = `${qrSize}px`;
-            qrPreview.style.height = `${qrSize}px`;
-            
-            showNotification('QR preview updated', 'success');
-        }
-
-        document.getElementById('qrFillColor').addEventListener('input', function() {
-            document.getElementById('qrFillColorValue').textContent = this.value;
-            updateQRPreview();
-        });
-
-        document.getElementById('qrBackColor').addEventListener('input', function() {
-            document.getElementById('qrBackColorValue').textContent = this.value;
-            updateQRPreview();
-        });
-
-        document.getElementById('qrBorder').addEventListener('input', function() {
-            document.getElementById('qrBorderValue').textContent = this.value;
-            updateQRPreview();
-        });
-
-        const barcodeFillColorEl = document.getElementById('barcodeFillColor');
-        if (barcodeFillColorEl) {
-            barcodeFillColorEl.addEventListener('input', function() {
-                const out = document.getElementById('barcodeFillColorValue');
-                if (out) out.textContent = this.value;
-            });
-        }
-        const barcodeBackColorEl = document.getElementById('barcodeBackColor');
-        if (barcodeBackColorEl) {
-            barcodeBackColorEl.addEventListener('input', function() {
-                const out = document.getElementById('barcodeBackColorValue');
-                if (out) out.textContent = this.value;
-            });
-        }
-        const bindColorValue = (inputId, outputId) => {
-            const input = document.getElementById(inputId);
-            const out = document.getElementById(outputId);
-            if (!input || !out) return;
-            out.textContent = input.value;
-            input.addEventListener('input', function() {
-                out.textContent = this.value;
-                updateAdminPreview();
-            });
-        };
-        bindColorValue('labelFontColor', 'labelFontColorValue');
-        bindColorValue('valueFontColor', 'valueFontColorValue');
-        bindColorValue('colonFontColor', 'colonFontColorValue');
-
-        const templateDirectionSelect = document.getElementById('templateDirection');
-        if (templateDirectionSelect) {
-            templateDirectionSelect.addEventListener('change', function() {
-                updateAdminPreview();
-                showNotification(this.value === 'rtl' ? 'RTL layout activated (positions will mirror)' : 'LTR layout activated', 'info');
-            });
-        }
-
-        function updateAdminPreview() {
-            const selector = document.getElementById('templateSelector');
-            const selectedOption = selector.options[selector.selectedIndex];
-            const previewImg = document.getElementById('adminPreviewImage');
-            const loadingDiv = document.getElementById('adminPreviewLoading');
-            
-            if (!selectedOption || !selectedOption.value) {
-                previewImg.src = "{{ url_for('static', filename='photo_placeholder.png') }}";
-                return;
-            }
-            
-            loadingDiv.style.display = "block";
-            previewImg.style.opacity = "0.5";
-            
-        
-            const rawLabelColor = document.getElementById('labelFontColor').value;
-            const rawValueColor = document.getElementById('valueFontColor').value;
-            const rawColonColor = document.getElementById('colonFontColor').value;
-
-            let labelColorArr = [0, 0, 0];
-            let valueColorArr = [0, 0, 0];
-            let colonColorArr = [0, 0, 0];
-
-            if (rawLabelColor.startsWith('#')) {
-                labelColorArr = hexToRgbArray(rawLabelColor);
-            } else if (rawLabelColor.includes(',')) {
-                labelColorArr = rawLabelColor.split(',').map(Number);
-            }
-
-            if (rawValueColor.startsWith('#')) {
-                valueColorArr = hexToRgbArray(rawValueColor);
-            } else if (rawValueColor.includes(',')) {
-                valueColorArr = rawValueColor.split(',').map(Number);
-            }
-            if (rawColonColor.startsWith('#')) {
-                colonColorArr = hexToRgbArray(rawColonColor);
-            } else if (rawColonColor.includes(',')) {
-                colonColorArr = rawColonColor.split(',').map(Number);
-            }
-
-            const font_settings = {
-                font_bold: document.getElementById('fontBold').value || 'arialbd.ttf',
-                font_regular: document.getElementById('fontRegular').value || 'arial.ttf',
-                label_font_color: labelColorArr,
-                value_font_color: valueColorArr,
-                colon_font_color: colonColorArr,
-                label_font_size: parseInt(document.getElementById('labelFontSize').value) || 40,
-                value_font_size: parseInt(document.getElementById('valueFontSize').value) || 36,
-                label_x: parseInt(document.getElementById('labelX').value) || 50,
-                value_x: parseInt(document.getElementById('valueX').value) || 280,
-                start_y: parseInt(document.getElementById('startY').value) || 275,
-                line_height: parseInt(document.getElementById('lineHeight').value) || 50,
-                text_case: document.getElementById('textCase').value || 'normal',
-                show_label_colon: document.getElementById('showLabelColon').checked,
-                align_label_colon: document.getElementById('alignLabelColon').checked,
-                label_colon_gap: parseInt(document.getElementById('labelColonGap').value) || 8
-            };
-        
-            const photo_settings = {
-                photo_x: parseInt(document.getElementById('photoX').value) || 725,
-                photo_y: parseInt(document.getElementById('photoY').value) || 200,
-                photo_width: parseInt(document.getElementById('photoWidth').value) || 260,
-                photo_height: parseInt(document.getElementById('photoHeight').value) || 313,
-                photo_border_top_left: parseInt(document.getElementById('photoBorderTL').value) || 0,
-                photo_border_top_right: parseInt(document.getElementById('photoBorderTR').value) || 0,
-                photo_border_bottom_right: parseInt(document.getElementById('photoBorderBR').value) || 0,
-                photo_border_bottom_left: parseInt(document.getElementById('photoBorderBL').value) || 0
-            };
-        
-            const qr_settings = {
-                enable_qr: document.getElementById('enable_qr').checked,
-                enable_barcode: document.getElementById('enable_barcode').checked
-            };
-
-            const safeInt = (id, defaultValue) => {
-                const el = document.getElementById(id);
-                if (!el) return defaultValue;
-                const val = parseInt(el.value);
-                return isNaN(val) ? defaultValue : val;
-            };
-
-            if (qr_settings.enable_qr) {
-                qr_settings.qr_x = safeInt('qrX', 50);
-                qr_settings.qr_y = safeInt('qrY', 50);
-                qr_settings.qr_size = safeInt('qrSize', 120);
-                qr_settings.qr_style = document.getElementById('qrStyle').value;
-                qr_settings.qr_border = safeInt('qrBorder', 2);
-                qr_settings.qr_fill_color = hexToRgbArray(document.getElementById('qrFillColor').value);
-                qr_settings.qr_back_color = hexToRgbArray(document.getElementById('qrBackColor').value);
-                qr_settings.qr_data_type = document.getElementById('qrDataType').value;
-
-                if (qr_settings.qr_data_type === 'text') {
-                    qr_settings.qr_custom_text = document.getElementById('qrCustomText').value;
-                } else if (qr_settings.qr_data_type === 'url') {
-                    qr_settings.qr_base_url = document.getElementById('qrBaseUrl').value;
-                }
-
-                qr_settings.qr_include_logo = document.getElementById('qr_include_logo').checked;
-                if (qr_settings.qr_include_logo) {
-                    qr_settings.qr_logo_path = document.getElementById('qrLogoPath').value;
-                }
-            }
-
-            if (qr_settings.enable_barcode) {
-                qr_settings.barcode_x = safeInt('barcodeX', 50);
-                qr_settings.barcode_y = safeInt('barcodeY', 200);
-                qr_settings.barcode_width = safeInt('barcodeWidth', 220);
-                qr_settings.barcode_height = safeInt('barcodeHeight', 70);
-                qr_settings.barcode_fill_color = hexToRgbArray(document.getElementById('barcodeFillColor').value);
-                qr_settings.barcode_back_color = hexToRgbArray(document.getElementById('barcodeBackColor').value);
-                qr_settings.barcode_data_type = document.getElementById('barcodeDataType').value;
-
-                if (qr_settings.barcode_data_type === 'text') {
-                    qr_settings.barcode_custom_text = document.getElementById('barcodeCustomText').value;
-                } else if (qr_settings.barcode_data_type === 'url') {
-                    qr_settings.barcode_base_url = document.getElementById('barcodeBaseUrl').value;
-                }
-            }
-        
-            const card_orientation = document.getElementById('cardOrientation').value || 'landscape';
-            const liveLang = document.getElementById('templateLanguage') ? document.getElementById('templateLanguage').value : 'english';
-            const liveDir = document.getElementById('templateDirection') ? document.getElementById('templateDirection').value : 'ltr';
-            const activeSide = (document.getElementById('templateSide') && document.getElementById('templateSideWrap').style.display !== 'none')
-                ? document.getElementById('templateSide').value
-                : 'front';
-            const sideLabel = document.getElementById('adminPreviewSideLabel');
-            const sourceLabel = document.getElementById('adminPreviewSourceLabel');
-            if (sideLabel) {
-                sideLabel.textContent = activeSide === 'back' ? 'Back Preview' : 'Front Preview';
-            }
-            if (sourceLabel) {
-                const sourceName = selectedOption.getAttribute(activeSide === 'back' ? 'data-back-source-name' : 'data-source-name') || '';
-                sourceLabel.textContent = sourceName ? `Source: ${sourceName}` : '';
-            }
-        
-            fetch("{{ url_for('admin_preview_card') }}", {
-                method: "POST",
-                headers: { 
-                    "Content-Type": "application/json",
-                    "Accept": "application/json",
-                    "X-CSRFToken": getCsrfToken()
-                },
-                body: JSON.stringify({
-                    template_id: parseInt(selectedOption.value),
-                    side: activeSide,
-                    font_settings: font_settings,
-                    photo_settings: photo_settings,
-                    qr_settings: qr_settings,
-                    card_orientation: card_orientation,
-                    language: liveLang,
-                    text_direction: liveDir,
-                    ignore_layout_fields: true
-                })
-            })
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error("Network response was not ok " + response.statusText);
-                }
-                return response.json();
-            })
-            .then(data => {
-                if (data.success) {
-                    previewImg.src = data.image_data; 
-                } else {
-                    console.error("Preview Error:", data.error);
-                }
-            })
-            .catch(error => {
-                console.error('Preview error:', error);
-                previewImg.src = "{{ url_for('static', filename='photo_placeholder.png') }}";
-                showNotification("Preview error: " + error.message, "error");
-            })
-            .finally(() => {
-                loadingDiv.style.display = "none";
-                previewImg.style.opacity = "1";
-            });
-        }
-
-        function initializePreviewListeners() {
-            const inputs = document.querySelectorAll('#templateSettingsForm input, #templateSettingsForm select, #templateSettingsForm textarea');
-            inputs.forEach(input => {
-                input.addEventListener('change', function() {
-                    console.log('Setting changed:', this.name, this.value);
-                    updateAdminPreview();
-                });
-                
-                if (input.type === 'number' || input.type === 'range') {
-                    input.addEventListener('input', debounce(function() {
-                        console.log('Real-time update:', this.name, this.value);
-                        updateAdminPreview();
-                    }, 500));
-                }
-            });
-
-            // Inside initializePreviewListeners()
-            const bindListener = (id, event, func) => {
-                const el = document.getElementById(id);
-                if(el) el.addEventListener(event, func);
-            };
-            
-            const qrCheckbox = document.getElementById('enable_qr');
-            if (qrCheckbox) {
-                qrCheckbox.addEventListener('change', function() {
-                    console.log('QR enabled changed:', this.checked);
-                    updateAdminPreview();
-                });
-            }
-
-            const barcodeCheckbox = document.getElementById('enable_barcode');
-            if (barcodeCheckbox) {
-                barcodeCheckbox.addEventListener('change', function() {
-                    console.log('Barcode enabled changed:', this.checked);
-                    updateAdminPreview();
-                });
-            }
-        }
-
-        function debounce(func, wait) {
-            let timeout;
-            return function executedFunction(...args) {
-                const later = () => {
-                    clearTimeout(timeout);
-                    func(...args);
-                };
-                clearTimeout(timeout);
-                timeout = setTimeout(later, wait);
-            };
-        }
-
-        // Form Fields Management
-        function loadTemplateFormFields() {
-            const templateId = document.getElementById('formFieldsTemplateSelector').value;
-            const addFieldBtn = document.getElementById('addFieldBtn');
-            const fieldTemplateId = document.getElementById('fieldTemplateId');
-            
-            if (templateId) {
-                fieldTemplateId.value = templateId;
-                addFieldBtn.disabled = false;
-                
-                fetch(`/admin/template/${templateId}/form-fields`, {
-                    headers: {
-                        'X-CSRFToken': getCsrfToken()
-                    }
-                })
-                    .then(response => response.json())
-                    .then(fields => {
-                        currentFormFields = fields;
-                        displayFormFields(fields);
-                    })
-                    .catch(error => {
-                        console.error('Error loading form fields:', error);
-                        showNotification('Error loading form fields', 'error');
-                    });
-            } else {
-                addFieldBtn.disabled = true;
-                document.getElementById('formFieldsList').innerHTML = 
-                    '<p style="text-align: center; padding: 20px; color: #666;">Select a template to view and manage its form fields</p>';
-            }
-        }
-
-        function displayFormFields(fields) {
-            const container = document.getElementById('formFieldsList');
-            
-            if (fields.length === 0) {
-                container.innerHTML = '<p style="text-align: center; padding: 20px; color: #666;">No custom fields defined for this template</p>';
-                return;
-            }
-            
-            let html = '<div class="table-wrapper"><table><thead><tr>' +
-                        '<th>Field Label</th><th>Type</th><th>Required</th><th>Front</th><th>Back</th><th>Order</th><th>Actions</th></tr></thead><tbody>';
-            
-            fields.forEach(field => {
-                html += `
-                    <tr data-field-id="${field.id}">
-                        <td>${field.field_label}</td>
-                        <td><span class="field-type-badge">${field.field_type}</span></td>
-                        <td>${field.is_required ? '<span class="status-badge status-active">Yes</span>' : '<span class="status-badge status-pending">No</span>'}</td>
-                        <td>
-                            <div style="font-size:0.85rem;">
-                                <div>L: ${field.show_label_front ? 'Yes' : 'No'}</div>
-                                <div>V: ${field.show_value_front ? 'Yes' : 'No'}</div>
-                            </div>
-                        </td>
-                        <td>
-                            <div style="font-size:0.85rem;">
-                                <div>L: ${field.show_label_back ? 'Yes' : 'No'}</div>
-                                <div>V: ${field.show_value_back ? 'Yes' : 'No'}</div>
-                            </div>
-                        </td>
-                        <td>${field.display_order}</td>
-                        <td>
-                            <div class="action-buttons" style="justify-content: center;">
-                                <button class="btn btn-primary btn-sm" onclick="editField(${field.id})" title="Edit Field">
-                                    <i class="fas fa-edit"></i>
-                                </button>
-                                <button class="btn btn-delete btn-sm" onclick="deleteField(${field.id})" title="Delete Field">
-                                    <i class="fas fa-trash"></i>
-                                </button>
-                            </div>
-                        </td>
-                    </tr>
-                `;
-            });
-            
-            html += '</tbody></table></div>';
-            container.innerHTML = html;
-        }
-
-        function toggleFieldOptions() {
-            const fieldType = document.getElementById('fieldType').value;
-            const optionsGroup = document.getElementById('fieldOptionsGroup');
-            
-            if (fieldType === 'select') {
-                optionsGroup.style.display = 'block';
-            } else {
-                optionsGroup.style.display = 'none';
-            }
-        }
-
-        function resetFieldFormToDefaults() {
-            document.getElementById('addFieldForm').reset();
-            document.getElementById('showLabelFront').checked = true;
-            document.getElementById('showValueFront').checked = true;
-            document.getElementById('showLabelBack').checked = false;
-            document.getElementById('showValueBack').checked = false;
-            editingFieldId = null;
-            const addBtn = document.getElementById('addFieldBtn');
-            addBtn.innerHTML = '<i class="fas fa-plus"></i> Add Field';
-            toggleFieldOptions();
-        }
-
-        async function submitFieldForm(data, templateId) {
-            const isEditing = editingFieldId !== null;
-            const url = isEditing
-                ? `/admin/template/form-fields/${editingFieldId}`
-                : `/admin/template/${templateId}/form-fields`;
-            const method = isEditing ? 'PUT' : 'POST';
-            const response = await fetch(url, {
-                method,
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': getCsrfToken()
-                },
-                body: JSON.stringify(data)
-            });
-            return response.json();
-        }
-
-        document.getElementById('addFieldForm').addEventListener('submit', async function(e) {
-            e.preventDefault();
-            
-            const templateId = document.getElementById('formFieldsTemplateSelector').value;
-            const formData = new FormData(this);
-            const data = {
-                field_name: formData.get('field_name'),
-                field_label: formData.get('field_label'),
-                field_type: formData.get('field_type'),
-                is_required: document.getElementById('isRequired').checked ? 1 : 0,
-                show_label_front: document.getElementById('showLabelFront').checked ? 1 : 0,
-                show_value_front: document.getElementById('showValueFront').checked ? 1 : 0,
-                show_label_back: document.getElementById('showLabelBack').checked ? 1 : 0,
-                show_value_back: document.getElementById('showValueBack').checked ? 1 : 0,
-                display_order: parseInt(formData.get('display_order')) || 0
-            };
-            
-            if (formData.get('field_type') === 'select' && formData.get('field_options')) {
-                const options = formData.get('field_options').split('\n')
-                    .filter(opt => opt.trim() !== '')
-                    .map(opt => opt.trim());
-                data.field_options = options;
-            }
-
-            try {
-                const result = await submitFieldForm(data, templateId);
-                if (result.success) {
-                    showNotification(editingFieldId !== null ? 'Field updated successfully' : 'Field added successfully', 'success');
-                    resetFieldFormToDefaults();
-                    loadTemplateFormFields();
-                    updateAdminPreview();
-                } else {
-                    showNotification('Error saving field: ' + result.message, 'error');
-                }
-            } catch (error) {
-                console.error('Error adding field:', error);
-                showNotification('Error saving field', 'error');
-            }
-        });
-
-        function deleteField(fieldId) {
-            if (!confirm('Are you sure you want to delete this field? This will remove it from all forms using this template.')) {
-                return;
-            }
-            
-            fetch(`/admin/template/form-fields/${fieldId}`, {
-                method: 'DELETE',
-                headers: {
-                    'X-CSRFToken': getCsrfToken()
-                }
-            })
-            .then(response => response.json())
-            .then(result => {
-                if (result.success) {
-                    showNotification('Field deleted successfully', 'success');
-                    loadTemplateFormFields();
-                } else {
-                    showNotification('Error deleting field: ' + result.message, 'error');
-                }
-            })
-            .catch(error => {
-                console.error('Error deleting field:', error);
-                showNotification('Error deleting field', 'error');
-            });
-        }
-
-        function editField(fieldId) {
-            const field = currentFormFields.find(f => f.id === fieldId);
-            if (!field) return;
-            
-            document.getElementById('fieldName').value = field.field_name;
-            document.getElementById('fieldLabel').value = field.field_label;
-            document.getElementById('fieldType').value = field.field_type;
-            document.getElementById('displayOrder').value = field.display_order;
-            document.getElementById('isRequired').checked = field.is_required;
-            document.getElementById('showLabelFront').checked = !!field.show_label_front;
-            document.getElementById('showValueFront').checked = !!field.show_value_front;
-            document.getElementById('showLabelBack').checked = !!field.show_label_back;
-            document.getElementById('showValueBack').checked = !!field.show_value_back;
-            
-            if (field.field_options && field.field_type === 'select') {
-                document.getElementById('fieldOptions').value = field.field_options.join('\n');
-            }
-            
-            toggleFieldOptions();
-            editingFieldId = fieldId;
-            const addBtn = document.getElementById('addFieldBtn');
-            addBtn.innerHTML = '<i class="fas fa-save"></i> Update Field';
-            
-            showNotification('Editing field: ' + field.field_label, 'info');
-        }
-
-        // Student Credentials Functions
-        function showAllCredentials() {
-            showNotification('Opening credentials management panel...', 'info');
-        }
-
-        function generateBulkCredentials() {
-            showNotification('Generating bulk credentials for all students...', 'info');
-            setTimeout(() => {
-                showNotification('Bulk credentials generated successfully!', 'success');
-            }, 2000);
-        }
-
-        function exportCredentials() {
-            showNotification('Preparing credentials export file...', 'info');
-            setTimeout(() => {
-                showNotification('Credentials exported successfully as CSV', 'success');
-            }, 1500);
-        }
-
-        function togglePasswordVisibility() {
-            const passwordElement = document.getElementById('samplePassword');
-            const iconElement = document.getElementById('passwordToggleIcon');
-            
-            if (isPasswordVisible) {
-                passwordElement.textContent = '••••••••';
-                iconElement.className = 'fas fa-eye';
-                isPasswordVisible = false;
-            } else {
-                passwordElement.textContent = 'TempPass123!';
-                iconElement.className = 'fas fa-eye-slash';
-                isPasswordVisible = true;
-            }
-        }
-
-        function resetSamplePassword() {
-            showNotification('Generating new temporary password...', 'info');
-            setTimeout(() => {
-                showNotification('Password reset successfully! New password: TempPass456!', 'success');
-            }, 1500);
-        }
-
-        function sendCredentials() {
-            showNotification('Sending credentials to student email...', 'info');
-            setTimeout(() => {
-                showNotification('Credentials sent successfully to student email', 'success');
-            }, 2000);
-        }
-
-        function manageCredentials(studentId, studentName) {
-            showNotification(`Managing credentials for ${studentName} (ID: ${studentId})`, 'info');
-            setTimeout(() => {
-                showNotification(`Credentials management interface for ${studentName}`, 'success');
-            }, 1000);
-        }
-
-        // Preview Tab Functions
-        function updateStudentDropdown() {
-            const templateSelect = document.getElementById('previewTemplate');
-            const studentSelect = document.getElementById('previewStudent');
-            const selectedTemplate = templateSelect.value;
-            
-            studentSelect.value = '';
-            enablePreviewButtons();
-            
-            document.querySelectorAll('#previewStudent optgroup').forEach(optgroup => {
-                optgroup.style.display = 'none';
-            });
-            
-            if (selectedTemplate) {
-                const targetOptgroup = document.querySelector(`#previewStudent optgroup[data-template="${selectedTemplate}"]`);
-                if (targetOptgroup) {
-                    targetOptgroup.style.display = 'block';
-                }
-            }
-        }
-
-        function enablePreviewButtons() {
-            const templateId = document.getElementById('previewTemplate').value;
-            const studentId = document.getElementById('previewStudent').value;
-            const generateBtn = document.getElementById('generatePreviewBtn');
-            const downloadBtn = document.getElementById('downloadPreviewBtn');
-            
-            if (templateId && studentId) {
-                generateBtn.disabled = false;
-            } else {
-                generateBtn.disabled = true;
-                downloadBtn.disabled = true;
-            }
-        }
-
-        function generatePreview() {
-            const templateId = document.getElementById('previewTemplate').value;
-            const studentId = document.getElementById('previewStudent').value;
-            const previewImage = document.getElementById('previewImage');
-            const previewBackImage = document.getElementById('previewBackImage');
-            const previewImageGrid = document.getElementById('previewImageGrid');
-            const previewBackWrap = document.getElementById('previewBackWrap');
-            const previewLoading = document.getElementById('previewLoading');
-            const previewError = document.getElementById('previewError');
-            const downloadBtn = document.getElementById('downloadPreviewBtn');
-            
-            if (!templateId || !studentId) {
-                showNotification('Please select both a template and a student', 'error');
-                return;
-            }
-            
-            previewLoading.style.display = 'block';
-            previewImage.style.display = 'none';
-            previewBackImage.style.display = 'none';
-            previewBackWrap.style.display = 'none';
-            previewImageGrid.style.display = 'none';
-            previewError.style.display = 'none';
-            downloadBtn.disabled = true;
-            
-            // Fetch preview from API (which returns Cloudinary URLs if available)
-            fetch(`/admin/student_preview/${studentId}`)
-                .then(response => response.json())
-                .then(data => {
-                    previewLoading.style.display = 'none';
-                    if (data.success && data.preview_url) {
-                        previewImage.src = data.preview_url;
-                        previewImage.style.display = 'block';
-                        previewImageGrid.style.display = 'flex';
-                        if (data.back_preview_url) {
-                            previewBackImage.src = data.back_preview_url;
-                            previewBackImage.style.display = 'block';
-                            previewBackWrap.style.display = 'flex';
-                        }
-                        downloadBtn.disabled = false;
-                        showNotification('Preview loaded successfully!', 'success');
-                    } else {
-                        previewError.style.display = 'block';
-                        showNotification('No preview available. Generate ID card first.', 'warning');
-                    }
-                })
-                .catch(error => {
-                    previewLoading.style.display = 'none';
-                    previewError.style.display = 'block';
-                    logger.error('Error loading preview:', error);
-                    showNotification('Error loading preview', 'error');
-                });
-        }
-
-        function downloadPreview() {
-            const previewImage = document.getElementById('previewImage');
-            const studentSelect = document.getElementById('previewStudent');
-            const selectedStudentId = studentSelect.value;
-            const selectedOption = studentSelect.options[studentSelect.selectedIndex];
-            
-            if (!selectedStudentId) {
-                showNotification('Please select a student first', 'error');
-                return;
-            }
-            
-            // Fetch the PDF URL from the API
-            fetch(`/admin/student_preview/${selectedStudentId}`)
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success && data.pdf_url) {
-                        // Download PDF (works with Cloudinary URLs)
-                        const link = document.createElement('a');
-                        link.href = data.pdf_url;
-                        link.download = `id_card_${selectedOption.text.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
-                        document.body.appendChild(link);
-                        link.click();
-                        document.body.removeChild(link);
-                        showNotification('PDF downloaded successfully!', 'success');
-                    } else {
-                        showNotification('No PDF available to download. Generate ID card first.', 'warning');
-                    }
-                })
-                .catch(error => {
-                    console.error('Error downloading preview:', error);
-                    showNotification('Error downloading PDF', 'error');
-                });
-        }
-
-        function loadSamplePreview(templateId) {
-            document.getElementById('previewTemplate').value = templateId;
-            updateStudentDropdown();
-            
-            const studentSelect = document.getElementById('previewStudent');
-            const availableStudents = studentSelect.querySelectorAll(`option[data-template="${templateId}"]`);
-            
-            if (availableStudents.length > 0) {
-                studentSelect.value = availableStudents[0].value;
-                generatePreview();
-            } else {
-                showNotification('No students available for this template', 'warning');
-            }
-        }
-
-        function switchTab(tabName) {
-            console.log('Switching to tab:', tabName);
-            const tabContent = document.getElementById(tabName + '-tab');
-            if (!tabContent) {
-                console.error('Tab content not found for:', tabName);
-                showNotification('Tab not found: ' + tabName, 'error');
-                return;
-            }
-
-            document.querySelectorAll('.tab-content').forEach(tab => {
-                tab.classList.remove('active');
-            });
-            document.querySelectorAll('.tab').forEach(tab => {
-                tab.classList.remove('active');
-            });
-
-            tabContent.classList.add('active');
-            const tabElement = document.querySelector(`.tab[onclick="switchTab('${tabName}')"]`);
-            if (tabElement) {
-                tabElement.classList.add('active');
-            } else {
-                console.error('Tab element not found for:', tabName);
-            }
-        }
-
-        function searchTable() {
-            let input = document.getElementById("searchInput").value.toLowerCase();
-            let tables = document.querySelectorAll(".school-table");
-            let totalCount = 0;
-
-            tables.forEach(table => {
-                let rows = table.querySelectorAll("tbody tr");
-                let tableCount = 0;
-
-                rows.forEach(row => {
-                    let text = row.innerText.toLowerCase();
-                    if (text.includes(input)) {
-                        row.style.display = "";
-                        tableCount++;
-                    } else {
-                        row.style.display = "none";
-                    }
-                });
-
-                if (tableCount > 0) {
-                    table.closest('.card').style.display = 'block';
-                } else {
-                    table.closest('.card').style.display = 'none';
-                }
-
-                totalCount += tableCount;
-            });
-
-            document.getElementById("resultCount").innerText = totalCount + " results found";
-        }
-
-        function toggleTheme() {
-            document.body.classList.toggle("dark");
-            const themeToggle = document.querySelector('.theme-toggle');
-            if (document.body.classList.contains('dark')) {
-                themeToggle.innerHTML = '<i class="fas fa-sun"></i>';
-            } else {
-                themeToggle.innerHTML = '<i class="fas fa-moon"></i>';
-            }
-        }
-
-        function confirmDelete() {
-            return confirm('Are you absolutely sure you want to delete ALL data and files? This action cannot be undone.');
-        }
-
-        function clearSearch() {
-            document.getElementById("searchInput").value = "";
-            searchTable();
-            document.querySelectorAll('.school-table').forEach(table => {
-                table.closest('.card').style.display = 'block';
-                table.querySelectorAll("tbody tr").forEach(row => {
-                    row.style.display = "";
-                });
-            });
-            document.getElementById("resultCount").innerText = "{{ rows|length|default(0) }} results";
-        }
-
-        function showNotification(message, type = 'success') {
-            const notification = document.getElementById('notification');
-            const notificationText = document.getElementById('notification-text');
-            const icon = notification.querySelector('i');
-
-            notificationText.textContent = message;
-            notification.className = 'notification ' + type;
-            
-            if (type === 'error') {
-                icon.className = 'fas fa-exclamation-circle';
-            } else if (type === 'warning') {
-                icon.className = 'fas fa-exclamation-triangle';
-            } else if (type === 'info') {
-                icon.className = 'fas fa-info-circle';
-            } else {
-                icon.className = 'fas fa-check-circle';
-            }
-            
-            notification.classList.add('show');
-
-            setTimeout(() => {
-                notification.classList.remove('show');
-            }, 3000);
-        }
-
-        function toggleTemplateModeFields() {
-            const mode = document.getElementById('templateMode');
-            const backGroup = document.getElementById('backTemplateGroup');
-            const backLanguageSettings = document.getElementById('backLanguageSettings');
-            const backInput = document.getElementById('backTemplateFile');
-            const backLanguage = document.getElementById('settingsBackLanguage');
-            const backDirection = document.getElementById('settingsBackDirection');
-            if (!mode || !backGroup || !backInput) return;
-            const isDouble = mode.value === 'double';
-            backGroup.style.display = isDouble ? 'block' : 'none';
-            if (backLanguageSettings) {
-                backLanguageSettings.style.display = isDouble ? 'flex' : 'none';
-            }
-            backInput.required = isDouble;
-            if (backLanguage) {
-                backLanguage.disabled = !isDouble;
-            }
-            if (backDirection) {
-                backDirection.disabled = !isDouble;
-            }
-            if (!isDouble) {
-                backInput.value = '';
-            }
-        }
-
-        function editUser(userId) {
-            console.log('Editing user:', userId);
-            window.location.href = '/edit/' + userId;
-        }
-
-        function startBulkGeneration(event) {
-            event.preventDefault();
-
-            const form = document.getElementById('bulkForm');
-            const formData = new FormData(form);
-            const btn = document.getElementById('bulkSubmitBtn');
-            const container = document.getElementById('bulkProgressContainer');
-            const bar = document.getElementById('bulkProgressBar');
-            const text = document.getElementById('bulkStatusText');
-            const details = document.getElementById('bulkErrorDetails');
-
-            btn.disabled = true;
-            window.onbeforeunload = function() { return "Your cards are being generated. This may take some time. Please do not navigate away."; };
-            container.style.display = 'block';
-            bar.style.width = '0%';
-            bar.style.backgroundColor = '#4caf50';
-            text.innerText = "Uploading files... (Large files may take time)";
-            details.style.display = 'none';
-            details.textContent = '';
-
-            fetch('/bulk_generate', {
-                 method: 'POST',
-                 headers: {
-                     'X-CSRFToken': getCsrfToken()
-                 },
-                 body: formData
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    pollStatus(data.task_id);
-                } else {
-                    text.innerText = "Error: " + (data.error || "Unknown error");
-                    bar.style.backgroundColor = '#dc3545';
-                    if (data.errors && data.errors.length) {
-                        details.style.display = 'block';
-                        details.style.background = '#f8d7da';
-                        details.style.color = '#842029';
-                        details.textContent = data.errors.join('\n');
-                    }
-                    btn.disabled = false;
-                    window.onbeforeunload = null;
-                }
-            })
-            .catch(err => {
-                text.innerText = "Network Error: " + err;
-                btn.disabled = false;
-                window.onbeforeunload = null;
-            });
-        }
-        
-        function pollStatus(taskId) {
-            const bar = document.getElementById('bulkProgressBar');
-            const text = document.getElementById('bulkStatusText');
-            const btn = document.getElementById('bulkSubmitBtn');
-            const details = document.getElementById('bulkErrorDetails');
-
-            function renderBulkDetails(data, isFailure) {
-                const lines = [];
-                if (data.result) lines.push(data.result);
-                if (Array.isArray(data.errors) && data.errors.length) {
-                    lines.push('Details:');
-                    data.errors.slice(0, 5).forEach((msg, idx) => lines.push(`${idx + 1}. ${msg}`));
-                    if (data.error_count && data.error_count > 5) {
-                        lines.push(`...and ${data.error_count - 5} more`);
-                    }
-                } else if (data.first_error) {
-                    lines.push(`First error: ${data.first_error}`);
-                }
-
-                if (!lines.length) {
-                    details.style.display = 'none';
-                    details.textContent = '';
-                    return;
-                }
-
-                details.style.display = 'block';
-                details.style.background = isFailure ? '#f8d7da' : '#fff3cd';
-                details.style.color = isFailure ? '#842029' : '#7a4b00';
-                details.textContent = lines.join('\n');
-            }
-
-            const interval = setInterval(() => {
-                fetch(`/taskstatus/${taskId}`)
-                .then(res => res.json())
-                .then(data => {
-                    if (data.state === 'FAILURE' || !data.state) {
-                        clearInterval(interval);
-                        bar.style.backgroundColor = '#dc3545';
-                        text.innerText = "Failed: " + data.status;
-                        renderBulkDetails(data, true);
-                        btn.disabled = false;
-                        window.onbeforeunload = null;
-                        return;
-                    }
-
-                    let percent = 0;
-                    if (data.total > 0) {
-                        percent = Math.floor((data.current / data.total) * 100);
-                    }
-                    bar.style.width = percent + '%';
-                    text.innerText = `${data.status} (${percent}%)`;
-
-                    if (data.state === 'SUCCESS') {
-                        clearInterval(interval);
-                        bar.style.backgroundColor = '#2196F3';
-                        text.innerText = data.result;
-                        renderBulkDetails(data, false);
-                        btn.disabled = false;
-                        window.onbeforeunload = null;
-                        
-                        setTimeout(() => window.location.reload(), 3000);
-                    }
-                })
-                .catch(err => console.log("Polling error:", err));
-            }, 2000);
-        }
-
-        // Initialize when DOM is loaded
-        document.addEventListener('DOMContentLoaded', function() {
-            console.log('DOM loaded, initializing tabs and event listeners');
-            
-            {% if success %}
-            showNotification('{{ success }}', 'success');
-            {% endif %}
-
-            {% if error %}
-            showNotification('{{ error }}', 'error');
-            {% endif %}
-
-            updateBorderPreview();
-            updateQRPreview();
-            toggleQRSettings();
-            toggleBarcodeSettings();
-            toggleBarcodeContentFields();
-            toggleTemplateModeFields();
-            initializePreviewListeners();
-
-            const templateForm = document.getElementById('templateForm');
-            if (templateForm) {
-                templateForm.addEventListener('submit', function(event) {
-                    const mode = document.getElementById('templateMode');
-                    const frontInput = document.getElementById('frontTemplateFile');
-                    const backInput = document.getElementById('backTemplateFile');
-                    if (!frontInput || !frontInput.files || frontInput.files.length === 0) {
-                        event.preventDefault();
-                        showNotification('Front template file is required.', 'error');
-                        return;
-                    }
-                    if (mode && mode.value === 'double' && (!backInput || !backInput.files || backInput.files.length === 0)) {
-                        event.preventDefault();
-                        showNotification('Back template file is required for double-sided templates.', 'error');
-                    }
-                });
-            }
-
-            {% if templates and templates|length > 0 %}
-            const templateSelector = document.getElementById('templateSelector');
-            if (templateSelector && templateSelector.value === '') {
-                templateSelector.selectedIndex = 1;
-                loadTemplateSettings();
-            }
-            {% endif %}
-
-            const buttons = document.querySelectorAll('button, .btn');
-            buttons.forEach(button => {
-                button.addEventListener('mouseenter', function() {
-                    this.style.transform = 'translateY(-3px)';
-                });
-                button.addEventListener('mouseleave', function() {
-                    this.style.transform = 'translateY(0)';
-                });
-            });
-
-            const inputs = document.querySelectorAll('input, select, textarea');
-            inputs.forEach(input => {
-                input.addEventListener('focus', function() {
-                    this.parentElement.style.transform = 'translateY(-5px)';
-                });
-                input.addEventListener('blur', function() {
-                    this.parentElement.style.transform = 'translateY(0)';
-                });
-            });
-
-            document.querySelectorAll('form').forEach(form => {
-                form.addEventListener('submit', function(e) {
-                    const submitBtn = this.querySelector('button[type="submit"]');
-                    if (submitBtn) {
-                        const originalText = submitBtn.innerHTML;
-                        submitBtn.innerHTML = '<span class="loading"></span> Processing...';
-                        submitBtn.disabled = true;
-
-                        setTimeout(() => {
-                            submitBtn.innerHTML = originalText;
-                            submitBtn.disabled = false;
-                        }, 2000);
-                    }
-                });
-            });
-        });
-
-        // School Admin Registration
-        const schoolAdminForm = document.getElementById('registerSchoolAdminForm');
-        if (schoolAdminForm) {
-            schoolAdminForm.addEventListener('submit', function(e) {
-                e.preventDefault();
-                
-                const username = document.getElementById('schoolAdminUsername').value.trim();
-                const password = document.getElementById('schoolAdminPassword').value;
-                const school_name = document.getElementById('schoolAdminSchoolName').value.trim();
-                const messageDiv = document.getElementById('schoolAdminMessage');
-                
-                if (!username || !password || !school_name) {
-                    messageDiv.innerHTML = '<div class="alert alert-danger">All fields are required</div>';
-                    messageDiv.style.display = 'block';
-                    return;
-                }
-                
-                const formData = new FormData();
-                formData.append('username', username);
-                formData.append('password', password);
-                formData.append('school_name', school_name);
-                
-                messageDiv.innerHTML = '<div class="alert alert-info">Registering...</div>';
-                messageDiv.style.display = 'block';
-                
-                fetch('{{ url_for("register_school_admin") }}', {
-                    method: 'POST',
-                    headers: {
-                        'X-CSRFToken': getCsrfToken()
-                    },
-                    body: formData
-                })
-                .then(response => {
-                    // For debugging: log status and text
-                    console.log('Response status:', response.status);
-                    return response.text().then(text => {
-                        console.log('Response text:', text);
-                        // Try to parse as JSON
-                        try {
-                            return JSON.parse(text);
-                        } catch (e) {
-                            // If not JSON, return object with error
-                            return { success: false, error: 'Non-JSON response: ' + text.substring(0, 200) };
-                        }
-                    });
-                })
-                .then(data => {
-                    if (data.success) {
-                        messageDiv.innerHTML = '<div class="alert alert-success">' + data.message + '</div>';
-                        schoolAdminForm.reset();
-                    } else {
-                        messageDiv.innerHTML = '<div class="alert alert-danger">' + (data.error || 'Unknown error') + '</div>';
-                    }
-                    messageDiv.style.display = 'block';
-                    setTimeout(() => {
-                        messageDiv.style.display = 'none';
-                    }, 5000);
-                })
-                .catch(error => {
-                    messageDiv.innerHTML = '<div class="alert alert-danger">Error: ' + error + '</div>';
-                    messageDiv.style.display = 'block';
-                });
-            });
-        }
-    </script>
+    {% include 'admin/_scripts.html' %}
 </body>
+
 </html>

@@ -1,0 +1,111 @@
+<div id="preview-tab" class="tab-content">
+    <div class="section preview-shell">
+        <h3 class="preview-heading"><span><i class="fas fa-eye"></i> ID Card Preview</span></h3>
+        
+        <div class="preview-selector-row">
+            <div class="form-group">
+                <label><i class="fas fa-clipboard-list"></i> Select Template</label>
+                <select id="previewTemplate" onchange="updateStudentDropdown()">
+                    <option value="">Select a template...</option>
+                    {% for template in templates %}
+                        <option value="{{ template.id }}" data-double-sided="{{ 'true' if template.is_double_sided else 'false' }}">{{ template.school_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label><i class="fas fa-user-graduate"></i> Select Student</label>
+                <select id="previewStudent" onchange="enablePreviewButtons()">
+                    <option value="">Select a student...</option>
+                    {% for template in templates %}
+                        <optgroup label="{{ template.school_name }}" data-template="{{ template.id }}" style="display: none;">
+                            {% if template_rows[template.id] %}
+                                {% for row in template_rows[template.id] %}
+                                    <option value="{{ row.id }}" data-template="{{ template.id }}">
+                                        {{ row.name }} - {{ row.father_name }}
+                                    </option>
+                                {% endfor %}
+                            {% endif %}
+                        </optgroup>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <div class="preview-stage">
+            <div id="previewLoading" style="display: none;">
+                <div class="loading" style="margin: 20px auto;"></div>
+                <p>Generating preview...</p>
+            </div>
+            <div id="previewImageGrid" style="display:none; flex-direction:column; align-items:center; gap:15px; margin: 20px auto;">
+                <!-- 3D Card Container (Premium 2) -->
+                <div class="preview-card-container" id="previewCard3D" style="display: block;">
+                    <div class="preview-card-inner" id="previewCardInner" onclick="toggleCardFlip()">
+                        <div class="preview-card-front">
+                            <img id="previewImage" src="{{ url_for('static', filename='photo_placeholder.png') }}" 
+                                 alt="ID Card Preview Front" 
+                                 style="display: none;"
+                                 onload="adjustCard3DDimensions()">
+                        </div>
+                        <div class="preview-card-back">
+                            <img id="previewBackImage" src="{{ url_for('static', filename='photo_placeholder.png') }}"
+                                 alt="ID Card Preview Back"
+                                 style="display: none;">
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 3D Controls -->
+                <div class="preview-card-actions" id="previewCardActions" style="display: none;">
+                    <button type="button" class="btn btn-sm btn-primary" onclick="toggleCardFlip()" id="flipCardBtn">
+                        <i class="fas fa-redo"></i> Flip Card (Spacebar)
+                    </button>
+                    <span id="flipHint" style="font-size: 0.8rem; opacity: 0.7; align-self: center; display: flex; align-items: center; gap: 4px;">
+                        <i class="fas fa-info-circle"></i> Click card or press Spacebar to flip
+                    </span>
+                </div>
+            </div>
+            <div id="previewError">
+                <i class="fas fa-exclamation-triangle"></i>
+                <span>No preview available for selected student</span>
+            </div>
+        </div>
+
+        <div class="preview-action-row">
+            <div class="form-group">
+                <label><i class="fas fa-sync"></i> Refresh Preview</label>
+                <button class="btn btn-primary" style="width: 100%;" onclick="generatePreview()" id="generatePreviewBtn" disabled>
+                    <i class="fas fa-sync"></i> Generate Preview
+                </button>
+            </div>
+            <div class="form-group">
+                <label><i class="fas fa-download"></i> Actions</label>
+                <button class="btn btn-download" style="width: 100%;" onclick="downloadPreview()" id="downloadPreviewBtn" disabled>
+                    <i class="fas fa-download"></i> Download Preview
+                </button>
+            </div>
+        </div>
+        
+        <div class="form-row" style="margin-top: 10px;">
+            <div class="form-group" style="width: 100%;">
+                <label><i class="fas fa-file-pdf"></i> Vector Layout Preview</label>
+                <button class="btn btn-secondary preview-corel-btn" onclick="showCorelPreview()" id="corelPreviewBtn" disabled>
+                    <i class="fas fa-file-pdf"></i> Corel PDF Preview
+                </button>
+            </div>
+        </div>
+
+        <div class="card quick-preview-card" style="margin-top: 20px;">
+            <div class="card-header">
+                <span class="card-title">Quick Preview Samples</span>
+                <i class="fas fa-rocket" style="color: var(--accent-color);"></i>
+            </div>
+            <div class="action-buttons preview-sample-buttons">
+                {% for template in templates %}
+                    <button class="btn btn-sm" onclick="loadSamplePreview({{ template.id }})">
+                        <i class="fas fa-image"></i> {{ template.school_name }} Sample
+                    </button>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,132 @@
+<div id="formFields-tab" class="tab-content">
+    <div class="section">
+        <h3><i class="fas fa-list-alt"></i> Dynamic Form Fields Management</h3>
+        
+        <div class="dynamic-fields-section">
+            <div class="template-selector">
+                <label><i class="fas fa-clipboard-list"></i> Select Template to Manage Form Fields</label>
+                <select id="formFieldsTemplateSelector" onchange="loadTemplateFormFields()">
+                    <option value="">Select a template...</option>
+                    {% for template in templates %}
+                        <option value="{{ template.id }}">{{ template.school_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <div class="card" style="margin-top: 20px;">
+            <div class="card-header">
+                <span class="card-title">Add New Form Field</span>
+                <i class="fas fa-plus-circle" style="color: var(--primary-color);"></i>
+            </div>
+            
+            <form id="addFieldForm" class="enhanced-form">
+                <input type="hidden" id="fieldTemplateId" name="template_id">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label><i class="fas fa-tag"></i> Field Name (Internal)</label>
+                        <input type="text" id="fieldName" name="field_name" required 
+                               pattern="[a-zA-Z0-9_]+" title="Only letters, numbers, and underscores allowed">
+                        <small style="color: #666; font-size: 0.8rem;">
+                            Internal identifier (no spaces, e.g., "blood_group", "emergency_contact")
+                        </small>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label><i class="fas fa-heading"></i> Field Label (Display)</label>
+                        <input type="text" id="fieldLabel" name="field_label" required>
+                        <small style="color: #666; font-size: 0.8rem;">
+                            What users will see (e.g., "Blood Group", "Emergency Contact")
+                        </small>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label><i class="fas fa-list"></i> Field Type</label>
+                        <select id="fieldType" name="field_type" required onchange="toggleFieldOptions()">
+                            <option value="text">Text Input</option>
+                            <option value="number">Number</option>
+                            <option value="date">Date</option>
+                            <option value="textarea">Text Area</option>
+                            <option value="select">Dropdown Select</option>
+                            <option value="email">Email</option>
+                            <option value="tel">Phone</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label><i class="fas fa-sort-numeric-up"></i> Display Order</label>
+                        <input type="number" id="displayOrder" name="display_order" value="0" min="0">
+                    </div>
+                </div>
+
+                <div class="form-group" id="fieldOptionsGroup" style="display: none;">
+                    <label><i class="fas fa-cog"></i> Dropdown Options</label>
+                    <textarea id="fieldOptions" name="field_options" 
+                              placeholder="Enter each option on a new line&#10;Example:&#10;A+&#10;A-&#10;B+&#10;B-&#10;O+&#10;O-"></textarea>
+                    <small style="color: #666; font-size: 0.8rem;">
+                        Enter each option on a separate line
+                    </small>
+                </div>
+
+                <div class="checkbox-container">
+                    <input type="checkbox" id="isRequired" name="is_required" class="checkbox">
+                    <label for="isRequired">This field is required</label>
+                </div>
+
+                <div class="card" style="margin-top: 16px; padding: 16px; border: 1px solid #e6edf5; background: #fafcff;">
+                    <div style="font-weight: 700; margin-bottom: 12px; color: var(--primary-color);">
+                        <i class="fas fa-columns"></i> Field Visibility By Card Side
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label style="font-weight:700;">Front Side</label>
+                            <div class="checkbox-container">
+                                <input type="checkbox" id="showLabelFront" name="show_label_front" class="checkbox" checked>
+                                <label for="showLabelFront">Show label on front</label>
+                            </div>
+                            <div class="checkbox-container">
+                                <input type="checkbox" id="showValueFront" name="show_value_front" class="checkbox" checked>
+                                <label for="showValueFront">Show value on front</label>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label style="font-weight:700;">Back Side</label>
+                            <div class="checkbox-container">
+                                <input type="checkbox" id="showLabelBack" name="show_label_back" class="checkbox">
+                                <label for="showLabelBack">Show label on back</label>
+                            </div>
+                            <div class="checkbox-container">
+                                <input type="checkbox" id="showValueBack" name="show_value_back" class="checkbox">
+                                <label for="showValueBack">Show value on back</label>
+                            </div>
+                        </div>
+                    </div>
+                    <small style="color: #666; font-size: 0.82rem;">
+                        These checkboxes define the default side visibility for dynamic field labels and values. Layout settings in the visual editor can still fine-tune the exact placement.
+                    </small>
+                </div>
+
+                <button type="submit" class="btn btn-primary" id="addFieldBtn" disabled>
+                    <i class="fas fa-plus"></i> Add Field
+                </button>
+            </form>
+        </div>
+
+        <div class="card" style="margin-top: 20px;">
+            <div class="card-header">
+                <span class="card-title">Current Form Fields</span>
+                <i class="fas fa-list" style="color: var(--primary-color);"></i>
+            </div>
+            
+            <div id="formFieldsList">
+                <p style="text-align: center; padding: 20px; color: #666;">
+                    Select a template to view and manage its form fields
+                </p>
+            </div>
+        </div>
+    </div>
+</div>

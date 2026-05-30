@@ -1,0 +1,184 @@
+<div class="section">
+    <h3><i class="fas fa-file-upload"></i> Upload ID Card Template</h3>
+    <form action="{{ url_for('upload_template') }}" method="post" enctype="multipart/form-data" id="templateForm" class="enhanced-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+        <div class="form-group">
+            <label><i class="fas fa-school"></i> School Name</label>
+            <input type="text" name="school_name" required pattern="[A-Za-z0-9\s]{2,50}" title="School name must be 2-50 characters">
+        </div>
+        <div class="form-group">
+            <label><i class="fas fa-clone"></i> Card Side Mode</label>
+            <select name="template_mode" id="templateMode" onchange="toggleTemplateModeFields()" required>
+                <option value="single" selected>Single Side</option>
+                <option value="double">Double Side</option>
+            </select>
+            <div class="template-mode-note">
+                Choose this explicitly. The app should not guess one-side or two-side from the file.
+            </div>
+        </div>
+        <div class="form-group">
+            <div class="side-upload-box">
+                <label><i class="fas fa-file-image"></i> Front Template File (PDF, JPG, PNG)</label>
+                <input type="file" name="front_template" id="frontTemplateFile" accept=".pdf,.jpg,.jpeg,.png" required>
+            </div>
+        </div>
+        <div class="form-group" id="backTemplateGroup" style="display:none;">
+            <div class="side-upload-box">
+                <label><i class="fas fa-copy"></i> Back Template File (PDF, JPG, PNG)</label>
+                <input type="file" name="back_template" id="backTemplateFile" accept=".pdf,.jpg,.jpeg,.png">
+                <div class="template-mode-note">
+                    Required only for double-sided templates.
+                </div>
+            </div>
+        </div>
+        <div class="settings-section">
+            <h4><i class="fas fa-language"></i> Language & Text Settings</h4>
+            <div class="form-row">
+                <div class="form-group">
+                    <label><i class="fas fa-globe"></i> Front Language Script</label>
+                    <select name="language" id="settingsLanguage" onchange="updateAdminPreview()">
+                        <option value="english">English (Default)</option>
+                        <option value="urdu">Urdu (اردو)</option>
+                        <option value="hindi">Hindi (हिंदी)</option>
+                        <option value="arabic">Arabic (العربية)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label><i class="fas fa-align-right"></i> Front Text Direction</label>
+                    <select name="text_direction" id="settingsDirection" onchange="updateAdminPreview()">
+                        <option value="ltr">Left to Right (LTR)</option>
+                        <option value="rtl">Right to Left (RTL)</option>
+                    </select>
+                    <small style="color:#666">Set to RTL for Urdu/Arabic</small>
+                </div>
+            </div>
+            <div class="form-row" id="backLanguageSettings" style="display:none;">
+                <div class="form-group">
+                    <label><i class="fas fa-copy"></i> Back Language Script</label>
+                    <select name="back_language" id="settingsBackLanguage" onchange="updateAdminPreview()" disabled>
+                        <option value="english" selected>English</option>
+                        <option value="urdu">Urdu (اردو)</option>
+                        <option value="hindi">Hindi (हिंदी)</option>
+                        <option value="arabic">Arabic (العربية)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label><i class="fas fa-align-right"></i> Back Text Direction</label>
+                    <select name="back_text_direction" id="settingsBackDirection" onchange="updateAdminPreview()" disabled>
+                        <option value="ltr" selected>Left to Right (LTR)</option>
+                        <option value="rtl">Right to Left (RTL)</option>
+                    </select>
+                    <small style="color:#666">Set to RTL for Urdu/Arabic</small>
+                </div>
+            </div>
+        </div>
+        <div class="form-group">
+            <label><i class="fas fa-arrows-alt"></i> Card Orientation</label>
+            <select name="card_orientation" required>
+                <option value="landscape" selected>Landscape (86mm x 56mm)</option>
+                <option value="portrait">Portrait (56mm x 86mm)</option>
+            </select>
+        </div>
+        <button type="submit" class="btn btn-upload"><i class="fas fa-upload"></i> Upload Template</button>
+    </form>
+</div>
+
+<div class="section">
+    <h3><i class="fas fa-clipboard-list"></i> Available Templates</h3>
+    {% if templates %}
+        <ul class="template-list">
+            {% for template in templates %}
+                <li class="template-list-item">
+                    <div class="template-meta">
+                        <div class="template-name">
+                            <i class="fas fa-file" style="color: var(--primary-color);"></i>
+                            <span>{{ template.school_name }}</span>
+                            <span style="font-size:0.9em; color:var(--primary-dark);">
+                                [{{ template.card_orientation|capitalize if template.card_orientation else 'Landscape' }}]
+                            </span>
+                            <span style="font-size:0.9em; color:var(--accent-color);">
+                                [{{ 'Double Side' if template.is_double_sided else 'Single Side' }}]
+                            </span>
+                        </div>
+                        <div class="template-source" title="{{ template.source_path }}">
+                            Front: {{ template.source_name }}
+                            {% if template.is_double_sided and template.back_source_name %}
+                            <br>Back: {{ template.back_source_name }}
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="action-buttons template-actions">
+                        <a href="{{ url_for('editor.template_editor', template_id=template.id, side='front') }}" class="btn btn-warning btn-sm">
+                            <i class="fas fa-magic"></i> Front Editor
+                        </a>
+                        {% if template.is_double_sided %}
+                        <a href="{{ url_for('editor.template_editor', template_id=template.id, side='back') }}" class="btn btn-warning btn-sm">
+                            <i class="fas fa-copy"></i> Back Editor
+                        </a>
+                        {% endif %}
+                        <form action="{{ url_for('remove_template', template_id=template.id) }}" method="post" style="display: inline;">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                            <button type="submit" class="btn btn-delete btn-sm" onclick="return confirm('Are you sure you want to delete this template? This action cannot be undone.');"><i class="fas fa-trash"></i> Delete</button>
+                        </form>
+                    </div>
+                </li>
+            {% endfor %}
+        </ul>
+    {% else %}
+        <p>No templates uploaded yet.</p>
+    {% endif %}
+</div>
+
+<div class="section">
+    <h3><i class="fas fa-cogs"></i> Bulk Generate Cards</h3>
+    <form id="bulkForm" onsubmit="startBulkGeneration(event)">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+        <div class="mb-3">
+            <label class="form-label">Select Template</label>
+            <select name="template_id" class="form-control" required>
+                <option value="">-- Select Template --</option>
+                {% for t in templates %}
+                <option value="{{ t.id }}">{{ t.school_name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Upload Student Data (.xlsx or .csv)</label>
+            <input type="file" name="excel_file" class="form-control" accept=".csv, .xlsx" required>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Upload Photos (Optional)</label>
+            <input type="file" name="bulk_photos" class="form-control" multiple accept="image/*">
+        </div>
+
+        <div id="bulkProgressContainer" style="display:none; margin-top: 15px;">
+            <div style="height: 25px; background: #e9ecef; border-radius: 5px; overflow: hidden;">
+                <div id="bulkProgressBar" style="width: 0%; height: 100%; background: #4caf50; transition: width 0.5s;"></div>
+            </div>
+            <p id="bulkStatusText" style="text-align: center; margin-top: 5px; color: #666;">Initializing...</p>
+            <div id="bulkErrorDetails" style="display:none; margin-top:10px; padding:12px; border-radius:8px; background:#fff3cd; color:#7a4b00; white-space:pre-line; font-size:0.92rem;"></div>
+        </div>
+
+        <button type="submit" class="btn btn-success w-100" id="bulkSubmitBtn">
+            <i class="fas fa-cogs"></i> Start Bulk Generation
+        </button>
+    </form>
+</div>
+
+<div class="section">
+    <h3><i class="fas fa-exclamation-triangle"></i> Duplicate Check Settings</h3>
+    <form action="{{ url_for('update_duplicate_settings') }}" method="post" class="enhanced-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+        <div class="checkbox-container">
+            <input type="checkbox" id="check_phone" name="check_phone" class="checkbox" {{ 'checked' if duplicate_settings.check_phone else '' }}>
+            <label for="check_phone">Check for duplicate phone numbers</label>
+        </div>
+        <div class="checkbox-container">
+            <input type="checkbox" id="check_name_class" name="check_name_class" class="checkbox" {{ 'checked' if duplicate_settings.check_name_class else '' }}>
+            <label for="check_name_class">Check for duplicate name and class combinations</label>
+        </div>
+        <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Save Settings</button>
+    </form>
+</div>

@@ -1,0 +1,2254 @@
+    <script>
+        let currentTemplateSettings = null;
+        let isPasswordVisible = false;
+        let currentFormFields = [];
+        let editingFieldId = null;
+
+        // Get CSRF token from meta tag
+        function getCsrfToken() {
+            return document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+        }
+
+        // Convert RGB Array [255, 0, 0] -> Hex String "#ff0000"
+        function rgbToHex(rgb) {
+            if (!rgb) return '#000000';
+            if (typeof rgb === 'string') {
+                if (rgb.startsWith('#')) return rgb;
+                if (rgb.includes(',')) rgb = rgb.split(',').map(Number);
+            }
+            
+            if (Array.isArray(rgb) && rgb.length >= 3) {
+                return "#" + ((1 << 24) + (rgb[0] << 16) + (rgb[1] << 8) + rgb[2]).toString(16).slice(1);
+            }
+            return '#000000';
+        }
+        
+        // Convert Hex String "#ff0000" -> RGB Array [255, 0, 0]
+        function hexToRgbArray(hex) {
+            if (!hex) return [0, 0, 0];
+            
+            // Remove the # if present
+            hex = hex.replace('#', '');
+            
+            // Handle short hex notation (#fff)
+            if (hex.length === 3) {
+                hex = hex.split('').map(char => char + char).join('');
+            }
+            
+            // Convert to RGB
+            const bigint = parseInt(hex, 16);
+            if (isNaN(bigint)) return [0, 0, 0];
+            
+            const r = (bigint >> 16) & 255;
+            const g = (bigint >> 8) & 255;
+            const b = bigint & 255;
+            
+            return [r, g, b];
+        }
+        // ---------------------------------------------------------
+        // 1. SMART DEFAULTS LOGIC
+        // ---------------------------------------------------------
+        document.getElementById('cardOrientation').addEventListener('change', function() {
+            const orientation = this.value;
+            applySmartDefaults(orientation);
+        });
+
+        function applySmartDefaults(orientation) {
+            const A4_SHORT = 2480;
+            const A4_LONG = 3508;
+
+            if (orientation === 'landscape') {
+                document.getElementById('cardWidth').value = 1015;
+                document.getElementById('cardHeight').value = 661;
+                document.getElementById('sheetWidth').value = A4_SHORT; 
+                document.getElementById('sheetHeight').value = A4_LONG;
+                document.getElementById('gridCols').value = 2; 
+                document.getElementById('gridRows').value = 5; 
+            } else {
+                document.getElementById('cardWidth').value = 661;
+                document.getElementById('cardHeight').value = 1015;
+                document.getElementById('sheetWidth').value = A4_LONG; 
+                document.getElementById('sheetHeight').value = A4_SHORT;
+                document.getElementById('gridCols').value = 5; 
+                document.getElementById('gridRows').value = 2; 
+            }
+            updateTotal(); 
+        }
+
+        // ---------------------------------------------------------
+        // 2. LOAD SAVED SETTINGS
+        // ---------------------------------------------------------
+        function loadTemplateSettings() {
+           const selector = document.getElementById('templateSelector');
+           const selectedOption = selector.options[selector.selectedIndex];
+           const saveBtn = document.getElementById('saveSettingsBtn');
+           const sideSelect = document.getElementById('templateSide');
+           const sideWrap = document.getElementById('templateSideWrap');
+            
+            if (selectedOption && selectedOption.value) {
+                const templateId = selectedOption.value;
+                document.getElementById('templateId').value = templateId;
+                const isDoubleSided = (selectedOption.getAttribute('data-is-double-sided') || 'false') === 'true';
+                if (sideWrap) sideWrap.style.display = isDoubleSided ? 'block' : 'none';
+                const activeSide = (isDoubleSided && sideSelect && sideSelect.value === 'back') ? 'back' : 'front';
+                if (sideSelect) {
+                    sideSelect.value = activeSide;
+                }
+                const sideLabel = document.getElementById('adminPreviewSideLabel');
+                const sourceLabel = document.getElementById('adminPreviewSourceLabel');
+                if (sideLabel) {
+                    sideLabel.textContent = activeSide === 'back' ? 'Back Preview' : 'Front Preview';
+                }
+                if (sourceLabel) {
+                    const sourceName = selectedOption.getAttribute(activeSide === 'back' ? 'data-back-source-name' : 'data-source-name') || '';
+                    sourceLabel.textContent = sourceName ? `Source: ${sourceName}` : '';
+                }
+
+                // Load JSON settings Safely
+                const fontSettings = JSON.parse(selectedOption.getAttribute(activeSide === 'back' ? 'data-back-font-settings' : 'data-font-settings') || '{}') || {};
+                const photoSettings = JSON.parse(selectedOption.getAttribute(activeSide === 'back' ? 'data-back-photo-settings' : 'data-photo-settings') || '{}') || {};
+                
+                const qrSettings = JSON.parse(selectedOption.getAttribute(activeSide === 'back' ? 'data-back-qr-settings' : 'data-qr-settings') || '{}') || {}; 
+
+                // Load dimensions & grid
+                const savedOrientation = selectedOption.getAttribute('data-card-orientation') || 'landscape';
+                document.getElementById('cardOrientation').value = savedOrientation;
+
+                // Deadline
+                const deadline = selectedOption.getAttribute('data-deadline');
+                document.getElementById('deadline').value = deadline || '';
+
+                // Read saved integers
+                const savedW = parseInt(selectedOption.getAttribute('data-card-width'));
+                const savedH = parseInt(selectedOption.getAttribute('data-card-height'));
+                const savedRows = parseInt(selectedOption.getAttribute('data-grid-rows'));
+                const savedCols = parseInt(selectedOption.getAttribute('data-grid-cols'));
+                const savedSheetW = parseInt(selectedOption.getAttribute('data-sheet-width'));
+                const savedSheetH = parseInt(selectedOption.getAttribute('data-sheet-height'));
+                const savedLang = selectedOption.getAttribute(activeSide === 'back' ? 'data-back-language' : 'data-language') || 'english';
+                const savedDir = selectedOption.getAttribute(activeSide === 'back' ? 'data-back-direction' : 'data-direction') || 'ltr';
+
+                // Keep language + direction bound to the selected template (not the upload form dropdowns).
+                const templateLanguage = document.getElementById('templateLanguage');
+                if (templateLanguage) templateLanguage.value = savedLang;
+                const templateDirection = document.getElementById('templateDirection');
+                if (templateDirection) templateDirection.value = savedDir;
+
+                if (savedW && savedH) {
+                    document.getElementById('cardWidth').value = savedW;
+                    document.getElementById('cardHeight').value = savedH;
+                    document.getElementById('gridRows').value = savedRows || 5;
+                    document.getElementById('gridCols').value = savedCols || 2;
+                    document.getElementById('sheetWidth').value = savedSheetW || 2480;
+                    document.getElementById('sheetHeight').value = savedSheetH || 3508;
+                } else {
+                    applySmartDefaults(savedOrientation);
+                }
+
+                // Load other inputs
+                document.getElementById('fontBold').value = fontSettings.font_bold || 'arialbd.ttf';
+                document.getElementById('fontRegular').value = fontSettings.font_regular || 'arial.ttf';
+                document.getElementById('labelFontColor').value = rgbToHex(fontSettings.label_font_color);
+                document.getElementById('valueFontColor').value = rgbToHex(fontSettings.value_font_color);
+                document.getElementById('colonFontColor').value = rgbToHex(fontSettings.colon_font_color || fontSettings.label_font_color);
+                document.getElementById('labelFontColorValue').textContent = document.getElementById('labelFontColor').value;
+                document.getElementById('valueFontColorValue').textContent = document.getElementById('valueFontColor').value;
+                document.getElementById('colonFontColorValue').textContent = document.getElementById('colonFontColor').value;
+
+                // Load Text Gradient Settings
+                const enableLabelGrad = !!fontSettings.enable_label_gradient;
+                document.getElementById('enableLabelGradient').checked = enableLabelGrad;
+                const labelGradColor = fontSettings.label_font_color_bottom ? rgbToHex(fontSettings.label_font_color_bottom) : '#333333';
+                document.getElementById('labelFontColorBottom').value = labelGradColor;
+                document.getElementById('labelFontColorBottomValue').textContent = labelGradColor;
+
+                const enableValueGrad = !!fontSettings.enable_value_gradient;
+                document.getElementById('enableValueGradient').checked = enableValueGrad;
+                const valueGradColor = fontSettings.value_font_color_bottom ? rgbToHex(fontSettings.value_font_color_bottom) : '#333333';
+                document.getElementById('valueFontColorBottom').value = valueGradColor;
+                document.getElementById('valueFontColorBottomValue').textContent = valueGradColor;
+
+                const enableColonGrad = !!fontSettings.enable_colon_gradient;
+                document.getElementById('enableColonGradient').checked = enableColonGrad;
+                const colonGradColor = fontSettings.colon_font_color_bottom ? rgbToHex(fontSettings.colon_font_color_bottom) : '#333333';
+                document.getElementById('colonFontColorBottom').value = colonGradColor;
+                document.getElementById('colonFontColorBottomValue').textContent = colonGradColor;
+
+                toggleGradientFields();
+
+                document.getElementById('labelFontSize').value = fontSettings.label_font_size || 40;
+                document.getElementById('valueFontSize').value = fontSettings.value_font_size || 36;
+                document.getElementById('colonFontSize').value = fontSettings.colon_font_size || fontSettings.label_font_size || 40;
+                document.getElementById('labelX').value = fontSettings.label_x || 50;
+                document.getElementById('valueX').value = fontSettings.value_x || 280;
+                document.getElementById('startY').value = fontSettings.start_y || 275;
+                document.getElementById('lineHeight').value = fontSettings.line_height || 50;
+                const addressLineCount = String(fontSettings.address_max_lines || 2);
+                const addressLineRadio = document.querySelector(`input[name="address_max_lines"][value="${addressLineCount}"]`);
+                if (addressLineRadio) addressLineRadio.checked = true;
+                document.getElementById('textCase').value = fontSettings.text_case || 'normal';
+                document.getElementById('showLabelColon').checked = (fontSettings.show_label_colon !== false);
+                document.getElementById('alignLabelColon').checked = (fontSettings.align_label_colon !== false);
+                document.getElementById('labelColonGap').value = fontSettings.label_colon_gap ?? 8;
+
+                document.getElementById('photoX').value = photoSettings.photo_x || 725;
+                document.getElementById('photoY').value = photoSettings.photo_y || 200;
+                document.getElementById('photoWidth').value = photoSettings.photo_width || 260;
+                document.getElementById('photoHeight').value = photoSettings.photo_height || 313;
+                
+                document.getElementById('photoBorderTL').value = photoSettings.photo_border_top_left || 0;
+                document.getElementById('photoBorderTR').value = photoSettings.photo_border_top_right || 0;
+                document.getElementById('photoBorderBR').value = photoSettings.photo_border_bottom_right || 0;
+                document.getElementById('photoBorderBL').value = photoSettings.photo_border_bottom_left || 0;
+
+                const frameColor = photoSettings.photo_frame_color || '#8c2440';
+                document.getElementById('photoFrameColor').value = frameColor;
+                const frameColorValSpan = document.getElementById('photoFrameColorValue');
+                if (frameColorValSpan) frameColorValSpan.textContent = frameColor;
+                
+                const editablePhotoModeEl = document.getElementById('corelEditablePhotoMode');
+                if (editablePhotoModeEl) {
+                    editablePhotoModeEl.value = photoSettings.corel_editable_photo_mode || 'frame_only';
+                }
+
+
+                // QR + Barcode settings (independent)
+                document.getElementById('enable_qr').checked = qrSettings.enable_qr || false;
+                document.getElementById('enable_barcode').checked = qrSettings.enable_barcode || false;
+                toggleQRSettings();
+                toggleBarcodeSettings();
+
+                document.getElementById('qrDataType').value = qrSettings.qr_data_type || 'student_id';
+                document.getElementById('qrX').value = qrSettings.qr_x || 50;
+                document.getElementById('qrY').value = qrSettings.qr_y || 50;
+                document.getElementById('qrSize').value = qrSettings.qr_size || 120;
+                document.getElementById('qrFillColor').value = rgbToHex(qrSettings.qr_fill_color);
+                document.getElementById('qrBackColor').value = rgbToHex(qrSettings.qr_back_color);
+                document.getElementById('qrStyle').value = qrSettings.qr_style || 'square';
+                document.getElementById('qrBorder').value = qrSettings.qr_border || 2;
+                document.getElementById('qrCustomText').value = qrSettings.qr_custom_text || '';
+                document.getElementById('qrBaseUrl').value = qrSettings.qr_base_url || 'https://example.com/verify/';
+                document.getElementById('qr_include_logo').checked = qrSettings.qr_include_logo || false;
+                document.getElementById('qrLogoPath').value = qrSettings.qr_logo_path || '';
+                const currentLogo = qrSettings.qr_logo_path || '';
+                const statusEl = document.getElementById('qrLogoUploadStatus');
+                if (statusEl) {
+                    if (currentLogo) {
+                        const baseName = currentLogo.split('/').pop();
+                        statusEl.innerHTML = `<span style="color: #4b5563;" title="${currentLogo}"><i class="fas fa-file-image"></i> Current: ${baseName}</span>`;
+                    } else {
+                        statusEl.innerHTML = '<span style="color: #9ca3af;">No logo uploaded</span>';
+                    }
+                }
+                const fileInput = document.getElementById('qrLogoUpload');
+                if (fileInput) fileInput.value = '';
+                toggleQRContentFields();
+                toggleQRLogoField();
+
+                document.getElementById('barcodeX').value = qrSettings.barcode_x || 50;
+                document.getElementById('barcodeY').value = qrSettings.barcode_y || 200;
+                document.getElementById('barcodeWidth').value = qrSettings.barcode_width || 220;
+                document.getElementById('barcodeHeight').value = qrSettings.barcode_height || 70;
+                document.getElementById('barcodeFillColor').value = rgbToHex(qrSettings.barcode_fill_color || [0, 0, 0]);
+                document.getElementById('barcodeBackColor').value = rgbToHex(qrSettings.barcode_back_color || [255, 255, 255]);
+                document.getElementById('barcodeDataType').value = qrSettings.barcode_data_type || 'student_id';
+                document.getElementById('barcodeCustomText').value = qrSettings.barcode_custom_text || '';
+                document.getElementById('barcodeBaseUrl').value = qrSettings.barcode_base_url || 'https://example.com/verify/';
+                toggleBarcodeContentFields();
+
+                updateTotal();
+                saveBtn.disabled = false;
+                saveBtn.innerHTML = '<i class="fas fa-save"></i> Save ' + (activeSide === 'back' ? 'Back' : 'Front') + ' Settings for ' + selectedOption.text;
+                
+                // Side indicator color-coding update (Fix 20)
+                const sideIndicatorTab = document.getElementById('sideIndicatorTab');
+                const sideIndicatorLabel = document.getElementById('sideIndicatorLabel');
+                const sideIndicatorBadge = document.getElementById('sideIndicatorBadge');
+                const settingsForm = document.getElementById('templateSettingsForm');
+                
+                if (sideIndicatorTab) {
+                    sideIndicatorTab.style.display = 'flex';
+                    if (activeSide === 'back') {
+                        sideIndicatorTab.style.background = 'rgba(230, 81, 0, 0.08)';
+                        sideIndicatorTab.style.borderLeft = '5px solid #e65100';
+                        sideIndicatorTab.style.color = '#e65100';
+                        if (sideIndicatorLabel) sideIndicatorLabel.innerHTML = '<i class="fas fa-cog"></i> BACK SIDE CONFIGURATION';
+                        if (sideIndicatorBadge) {
+                            sideIndicatorBadge.textContent = 'BACK';
+                            sideIndicatorBadge.style.background = '#e65100';
+                        }
+                        if (settingsForm) {
+                            settingsForm.style.borderTop = '4px solid #e65100';
+                            settingsForm.style.background = 'rgba(230, 81, 0, 0.01)';
+                        }
+                    } else {
+                        sideIndicatorTab.style.background = 'rgba(26, 108, 247, 0.08)';
+                        sideIndicatorTab.style.borderLeft = '5px solid #1a6cf7';
+                        sideIndicatorTab.style.color = '#1a6cf7';
+                        if (sideIndicatorLabel) sideIndicatorLabel.innerHTML = '<i class="fas fa-cog"></i> FRONT SIDE CONFIGURATION';
+                        if (sideIndicatorBadge) {
+                            sideIndicatorBadge.textContent = 'FRONT';
+                            sideIndicatorBadge.style.background = '#1a6cf7';
+                        }
+                        if (settingsForm) {
+                            settingsForm.style.borderTop = '4px solid #1a6cf7';
+                            settingsForm.style.background = 'rgba(26, 108, 247, 0.01)';
+                        }
+                    }
+                }
+                
+                updateAdminPreview(); 
+            } else {
+                document.getElementById('templateId').value = '';
+                saveBtn.disabled = true;
+                if (sideWrap) sideWrap.style.display = 'none';
+                const sideIndicatorTab = document.getElementById('sideIndicatorTab');
+                if (sideIndicatorTab) sideIndicatorTab.style.display = 'none';
+                const settingsForm = document.getElementById('templateSettingsForm');
+                if (settingsForm) {
+                    settingsForm.style.borderTop = 'none';
+                    settingsForm.style.background = 'none';
+                }
+            }
+        }
+        
+
+        // ---------------------------------------------------------
+        // 3. SAVE TEMPLATE SETTINGS FUNCTION
+        // ---------------------------------------------------------
+        function saveTemplateSettings() {
+            const saveBtn = document.getElementById('saveSettingsBtn');
+            const originalText = saveBtn.innerHTML;
+            
+            if (saveBtn.disabled) {
+                showNotification('Please select a template first.', 'error');
+                return;
+            }
+            
+            // Show loading state
+            saveBtn.innerHTML = '<span class="loading"></span> Saving...';
+            saveBtn.disabled = true;
+            
+            const templateId = document.getElementById('templateId').value;
+            if (!templateId) {
+                showNotification('No template selected', 'error');
+                saveBtn.innerHTML = originalText;
+                saveBtn.disabled = false;
+                return;
+            }
+            
+            // Helper function to safely get integer values
+            function getIntValue(id, defaultValue) {
+                const element = document.getElementById(id);
+                if (!element || element.value === '' || element.value === null) {
+                    return defaultValue;
+                }
+                const value = parseInt(element.value);
+                return isNaN(value) ? defaultValue : value;
+            }
+            
+            // Helper function to safely get string values
+            function getStringValue(id, defaultValue = '') {
+                const element = document.getElementById(id);
+                return element ? (element.value || defaultValue) : defaultValue;
+            }
+            
+            // Helper function to safely get boolean values
+            function getBoolValue(id) {
+                const element = document.getElementById(id);
+                return element ? element.checked : false;
+            }
+            
+            // Prepare data with safe defaults
+            const data = {
+                template_id: templateId,
+                settings_side: (document.getElementById('templateSide') && document.getElementById('templateSideWrap').style.display !== 'none')
+                    ? document.getElementById('templateSide').value
+                    : 'front',
+                language: document.getElementById('templateLanguage') ? document.getElementById('templateLanguage').value : 'english',
+                text_direction: document.getElementById('templateDirection') ? document.getElementById('templateDirection').value : 'ltr',
+                // Prevent server-side accidental resets to defaults when older/stale UI sends english/ltr.
+                language_direction_explicit: true,
+                card_orientation: getStringValue('cardOrientation', 'landscape'),
+                deadline: getStringValue('deadline', ''),
+                
+                // Dimensions & Grid with safe parsing
+                card_width: getIntValue('cardWidth', 1015),
+                card_height: getIntValue('cardHeight', 661),
+                sheet_width: getIntValue('sheetWidth', 2480),
+                sheet_height: getIntValue('sheetHeight', 3508),
+                grid_rows: getIntValue('gridRows', 5),
+                grid_cols: getIntValue('gridCols', 2),
+                
+                // Font Settings
+                font_settings: {
+                    font_bold: getStringValue('fontBold', 'arialbd.ttf'),
+                    font_regular: getStringValue('fontRegular', 'arial.ttf'),
+                    label_font_color: hexToRgbArray(getStringValue('labelFontColor', '#000000')),
+                    value_font_color: hexToRgbArray(getStringValue('valueFontColor', '#000000')),
+                    colon_font_color: hexToRgbArray(getStringValue('colonFontColor', '#000000')),
+                    enable_label_gradient: document.getElementById('enableLabelGradient') ? document.getElementById('enableLabelGradient').checked : false,
+                    label_font_color_bottom: hexToRgbArray(getStringValue('labelFontColorBottom', '#333333')),
+                    enable_value_gradient: document.getElementById('enableValueGradient') ? document.getElementById('enableValueGradient').checked : false,
+                    value_font_color_bottom: hexToRgbArray(getStringValue('valueFontColorBottom', '#333333')),
+                    enable_colon_gradient: document.getElementById('enableColonGradient') ? document.getElementById('enableColonGradient').checked : false,
+                    colon_font_color_bottom: hexToRgbArray(getStringValue('colonFontColorBottom', '#333333')),
+                    label_font_size: getIntValue('labelFontSize', 40),
+                    value_font_size: getIntValue('valueFontSize', 36),
+                    colon_font_size: getIntValue('colonFontSize', 40),
+                    label_x: getIntValue('labelX', 50),
+                    value_x: getIntValue('valueX', 280),
+                    start_y: getIntValue('startY', 275),
+                    line_height: getIntValue('lineHeight', 50),
+                    address_max_lines: parseInt((document.querySelector('input[name="address_max_lines"]:checked') || {}).value || '2', 10),
+                    text_case: getStringValue('textCase', 'normal'),
+                    show_label_colon: getBoolValue('showLabelColon'),
+                    align_label_colon: getBoolValue('alignLabelColon'),
+                    label_colon_gap: getIntValue('labelColonGap', 8)
+                },
+                
+                // Photo Settings
+                photo_settings: {
+                    photo_x: getIntValue('photoX', 725),
+                    photo_y: getIntValue('photoY', 200),
+                    photo_width: getIntValue('photoWidth', 260),
+                    photo_height: getIntValue('photoHeight', 313),
+                    photo_border_top_left: getIntValue('photoBorderTL', 0),
+                    photo_border_top_right: getIntValue('photoBorderTR', 0),
+                    photo_border_bottom_right: getIntValue('photoBorderBR', 0),
+                    photo_border_bottom_left: getIntValue('photoBorderBL', 0),
+                    photo_frame_color: getStringValue('photoFrameColor', '#8c2440'),
+                    corel_editable_photo_mode: getStringValue('corelEditablePhotoMode', 'frame_only')
+                },
+
+                // QR Settings
+                qr_settings: {}
+            };
+            
+            const enableQR = getBoolValue('enable_qr');
+            const enableBarcode = getBoolValue('enable_barcode');
+            data.qr_settings = {
+                enable_qr: enableQR,
+                enable_barcode: enableBarcode
+            };
+
+            if (enableQR) {
+                data.qr_settings.qr_x = getIntValue('qrX', 50);
+                data.qr_settings.qr_y = getIntValue('qrY', 50);
+                data.qr_settings.qr_size = getIntValue('qrSize', 120);
+                data.qr_settings.qr_style = getStringValue('qrStyle', 'square');
+                data.qr_settings.qr_border = getIntValue('qrBorder', 2);
+                data.qr_settings.qr_fill_color = hexToRgbArray(getStringValue('qrFillColor', '#000000'));
+                data.qr_settings.qr_back_color = hexToRgbArray(getStringValue('qrBackColor', '#ffffff'));
+                data.qr_settings.qr_data_type = getStringValue('qrDataType', 'student_id');
+                data.qr_settings.qr_custom_text = getStringValue('qrCustomText', '');
+                data.qr_settings.qr_base_url = getStringValue('qrBaseUrl', 'https://example.com/verify/');
+                data.qr_settings.qr_include_logo = getBoolValue('qr_include_logo');
+                data.qr_settings.qr_logo_path = getStringValue('qrLogoPath', '');
+            }
+
+            if (enableBarcode) {
+                data.qr_settings.barcode_x = getIntValue('barcodeX', 50);
+                data.qr_settings.barcode_y = getIntValue('barcodeY', 200);
+                data.qr_settings.barcode_width = getIntValue('barcodeWidth', 220);
+                data.qr_settings.barcode_height = getIntValue('barcodeHeight', 70);
+                data.qr_settings.barcode_fill_color = hexToRgbArray(getStringValue('barcodeFillColor', '#000000'));
+                data.qr_settings.barcode_back_color = hexToRgbArray(getStringValue('barcodeBackColor', '#ffffff'));
+                data.qr_settings.barcode_data_type = getStringValue('barcodeDataType', 'student_id');
+                data.qr_settings.barcode_custom_text = getStringValue('barcodeCustomText', '');
+                data.qr_settings.barcode_base_url = getStringValue('barcodeBaseUrl', 'https://example.com/verify/');
+            }
+            
+            console.log('Saving template settings:', data);
+            
+            // Send the data to server
+            fetch("{{ url_for('update_template_settings_route') }}", {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCsrfToken()
+                },
+                body: JSON.stringify(data)
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! Status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(result => {
+                if (result.success) {
+                    showNotification('Template settings saved successfully!', 'success');
+                    
+                    // Update the select option with new settings
+                    const selector = document.getElementById('templateSelector');
+                    const selectedOption = selector.options[selector.selectedIndex];
+                    const targetPrefix = data.settings_side === 'back' ? 'data-back-' : 'data-';
+                    
+                    if (selectedOption) {
+                        selectedOption.setAttribute(`${targetPrefix}font-settings`, JSON.stringify(data.font_settings));
+                        selectedOption.setAttribute(`${targetPrefix}photo-settings`, JSON.stringify(data.photo_settings));
+                        selectedOption.setAttribute(`${targetPrefix}qr-settings`, JSON.stringify(data.qr_settings));
+                        selectedOption.setAttribute('data-card-orientation', data.card_orientation);
+                        selectedOption.setAttribute('data-deadline', data.deadline || '');
+                        selectedOption.setAttribute(`${targetPrefix}language`, data.language || 'english');
+                        selectedOption.setAttribute(`${targetPrefix}direction`, data.text_direction || 'ltr');
+                        selectedOption.setAttribute('data-card-width', data.card_width);
+                        selectedOption.setAttribute('data-card-height', data.card_height);
+                        selectedOption.setAttribute('data-sheet-width', data.sheet_width);
+                        selectedOption.setAttribute('data-sheet-height', data.sheet_height);
+                        selectedOption.setAttribute('data-grid-rows', data.grid_rows);
+                        selectedOption.setAttribute('data-grid-cols', data.grid_cols);
+                    }
+                    
+                } else {
+                    showNotification('Error saving settings: ' + (result.error || 'Unknown error'), 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showNotification('Failed to save settings. Please try again.', 'error');
+            })
+            .finally(() => {
+                // Restore button state
+                saveBtn.innerHTML = originalText;
+                saveBtn.disabled = false;
+            });
+        }
+
+        async function validateTemplates() {
+            const btn = document.getElementById('validateTemplatesBtn');
+            if (!btn) return;
+            const original = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<span class="loading"></span> Validating...';
+
+            try {
+                const response = await fetch("/admin/validate_templates");
+                const data = await response.json();
+                if (!response.ok || !data.success) {
+                    throw new Error(data.error || `HTTP ${response.status}`);
+                }
+
+                const broken = Array.isArray(data.results) ? data.results.filter(r => r.status === 'broken') : [];
+                if (broken.length === 0) {
+                    showNotification(`All templates are valid (${data.ok}/${data.total}).`, 'success');
+                } else {
+                    showNotification(`Found ${broken.length} broken template(s). Check browser console for details.`, 'warning');
+                    console.table(broken.map(r => ({
+                        template_id: r.template_id,
+                        school_name: r.school_name,
+                        source: r.source,
+                        error: r.error
+                    })));
+                }
+            } catch (err) {
+                console.error('Template validation error:', err);
+                showNotification(`Template validation failed: ${err.message}`, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = original;
+            }
+        }
+
+        // ---------------------------------------------------------
+        // 4. UTILITIES
+        // ---------------------------------------------------------
+        document.getElementById('gridCols').addEventListener('input', updateTotal);
+        document.getElementById('gridRows').addEventListener('input', updateTotal);
+        
+        function updateTotal() {
+            const c = parseInt(document.getElementById('gridCols').value) || 0;
+            const r = parseInt(document.getElementById('gridRows').value) || 0;
+            const total = c * r;
+            const cardW = parseInt(document.getElementById('cardWidth').value) || 0;
+            const cardH = parseInt(document.getElementById('cardHeight').value) || 0;
+            const sheetW = parseInt(document.getElementById('sheetWidth').value) || 0;
+            const sheetH = parseInt(document.getElementById('sheetHeight').value) || 0;
+
+            const requiredW = (c * cardW);
+            const requiredH = (r * cardH);
+            
+            let msg = `Cards per sheet: <b>${total}</b>`;
+            
+            if (requiredW > sheetW || requiredH > sheetH) {
+                msg += ` <span style="color:red; margin-left:10px;"><i class="fas fa-exclamation-triangle"></i> Grid too big for sheet!</span>`;
+            }
+            
+            document.getElementById('totalCardsCalc').innerHTML = msg;
+        }
+
+        function setAllBorders(value) {
+            if (value || value === 0) {
+                document.getElementById('photoBorderTL').value = value;
+                document.getElementById('photoBorderTR').value = value;
+                document.getElementById('photoBorderBR').value = value;
+                document.getElementById('photoBorderBL').value = value;
+                updateBorderPreview();
+            }
+        }
+
+        // Fix 17: Border Radius preview inside Admin panel
+        function updateBorderPreview() {
+            const tl = document.getElementById('photoBorderTL').value || 0;
+            const tr = document.getElementById('photoBorderTR').value || 0;
+            const br = document.getElementById('photoBorderBR').value || 0;
+            const bl = document.getElementById('photoBorderBL').value || 0;
+            
+            const preview = document.getElementById('borderPreview');
+            preview.style.borderRadius = `${tl}px ${tr}px ${br}px ${bl}px`;
+        }
+
+        // QR / Barcode toggle (mutually exclusive)
+        function toggleQRSettings() {
+            const qrCheckbox = document.getElementById('enable_qr');
+            const barcodeCheckbox = document.getElementById('enable_barcode');
+            const qrContainer = document.getElementById('qrSettingsContainer');
+            const barcodeContainer = document.getElementById('barcodeSettingsContainer');
+            if (!qrCheckbox || !qrContainer) return;
+
+            if (qrCheckbox.checked && barcodeCheckbox && barcodeCheckbox.checked) {
+                barcodeCheckbox.checked = false;
+            }
+
+            qrContainer.style.display = qrCheckbox.checked ? 'block' : 'none';
+            if (barcodeContainer && barcodeCheckbox) {
+                barcodeContainer.style.display = barcodeCheckbox.checked ? 'block' : 'none';
+            }
+
+            if (qrCheckbox.checked) {
+                updateQRPreview();
+            }
+        }
+
+        function toggleBarcodeSettings() {
+            const qrCheckbox = document.getElementById('enable_qr');
+            const barcodeCheckbox = document.getElementById('enable_barcode');
+            const qrContainer = document.getElementById('qrSettingsContainer');
+            const barcodeContainer = document.getElementById('barcodeSettingsContainer');
+            if (!barcodeCheckbox || !barcodeContainer) return;
+
+            if (barcodeCheckbox.checked && qrCheckbox && qrCheckbox.checked) {
+                qrCheckbox.checked = false;
+            }
+
+            barcodeContainer.style.display = barcodeCheckbox.checked ? 'block' : 'none';
+            if (qrContainer && qrCheckbox) {
+                qrContainer.style.display = qrCheckbox.checked ? 'block' : 'none';
+            }
+
+            if (barcodeCheckbox.checked) {
+                toggleBarcodeContentFields();
+            }
+        }
+
+        function toggleQRContentFields() {
+            const dataType = document.getElementById('qrDataType').value;
+            const customTextContainer = document.getElementById('customTextContainer');
+            const urlContainer = document.getElementById('urlContainer');
+            
+            customTextContainer.style.display = dataType === 'text' ? 'block' : 'none';
+            urlContainer.style.display = dataType === 'url' ? 'block' : 'none';
+        }
+
+        // Fix 18: Logo Upload for QR settings
+        function toggleQRLogoField() {
+            const includeLogo = document.getElementById('qr_include_logo').checked;
+            const logoPathContainer = document.getElementById('logoPathContainer');
+            
+            logoPathContainer.style.display = includeLogo ? 'block' : 'none';
+        }
+
+        function handleQRLogoUpload(inputElement) {
+            const file = inputElement.files[0];
+            if (!file) return;
+
+            const statusEl = document.getElementById('qrLogoUploadStatus');
+            statusEl.innerHTML = '<span style="color: #4f46e5; font-weight: 500;"><i class="fas fa-spinner fa-spin"></i> Uploading...</span>';
+
+            const formData = new FormData();
+            formData.append('qr_logo_file', file);
+
+            fetch("/upload_qr_logo", {
+                method: "POST",
+                headers: {
+                    "X-CSRFToken": typeof getCsrfToken === "function" ? getCsrfToken() : ""
+                },
+                body: formData
+            })
+            .then(res => {
+                if (!res.ok) {
+                    return res.json().then(data => { throw new Error(data.error || "Upload failed"); });
+                }
+                return res.json();
+            })
+            .then(data => {
+                if (data.success && data.logo_path) {
+                    document.getElementById('qrLogoPath').value = data.logo_path;
+                    const baseName = data.logo_path.split('/').pop();
+                    statusEl.innerHTML = `<span style="color: #10b981; font-weight: 500;"><i class="fas fa-check-circle"></i> Uploaded: ${baseName}</span>`;
+                    // Trigger preview update
+                    updateQRPreview();
+                } else {
+                    throw new Error("Invalid response format");
+                }
+            })
+            .catch(err => {
+                console.error("Error uploading QR logo:", err);
+                statusEl.innerHTML = `<span style="color: #ef4444; font-weight: 500;"><i class="fas fa-exclamation-circle"></i> ${err.message}</span>`;
+            });
+        }
+
+        function toggleBarcodeContentFields() {
+            const dataType = document.getElementById('barcodeDataType').value;
+            const customTextContainer = document.getElementById('barcodeCustomTextContainer');
+            const urlContainer = document.getElementById('barcodeUrlContainer');
+            customTextContainer.style.display = dataType === 'text' ? 'block' : 'none';
+            urlContainer.style.display = dataType === 'url' ? 'block' : 'none';
+        }
+
+        function updateQRPreview() {
+            const qrPreview = document.getElementById('qrPreviewImage');
+            const fillColor = document.getElementById('qrFillColor').value;
+            const backColor = document.getElementById('qrBackColor').value;
+            const qrSize = document.getElementById('qrSize').value || 120;
+            const qrStyle = document.getElementById('qrStyle').value;
+            const qrBorder = document.getElementById('qrBorder').value || 2;
+            
+            document.getElementById('qrFillColorValue').textContent = fillColor;
+            document.getElementById('qrBackColorValue').textContent = backColor;
+            document.getElementById('qrBorderValue').textContent = qrBorder;
+            
+            const qrContainer = document.getElementById('qrPreview');
+            qrContainer.style.border = `${qrBorder}px solid ${fillColor}`;
+            qrContainer.style.backgroundColor = backColor;
+            
+            switch(qrStyle) {
+                case 'square':
+                    qrPreview.style.borderRadius = '0';
+                    break;
+                case 'rounded':
+                    qrPreview.style.borderRadius = '10px';
+                    break;
+                case 'circle':
+                    qrPreview.style.borderRadius = '50%';
+                    break;
+                case 'gapped':
+                    qrPreview.style.borderRadius = '0';
+                    qrPreview.style.padding = '5px';
+                    break;
+            }
+            
+            qrPreview.style.width = `${qrSize}px`;
+            qrPreview.style.height = `${qrSize}px`;
+            
+            showNotification('QR preview updated', 'success');
+        }
+
+        const setupColorPickerWithPresets = (inputId, outputId, onUpdateCallback) => {
+            const input = document.getElementById(inputId);
+            const out = document.getElementById(outputId);
+            if (!input || !out) return;
+            
+            out.textContent = input.value;
+            
+            input.addEventListener('input', function() {
+                out.textContent = this.value;
+                if (onUpdateCallback) onUpdateCallback();
+            });
+            
+            const group = input.closest('.color-input-group');
+            if (group) {
+                let swatchContainer = group.querySelector('.corel-palette');
+                if (!swatchContainer) {
+                    swatchContainer = document.createElement('div');
+                    swatchContainer.className = 'corel-palette';
+                    swatchContainer.style.display = 'flex';
+                    swatchContainer.style.gap = '4px';
+                    swatchContainer.style.flexWrap = 'wrap';
+                    swatchContainer.style.marginTop = '8px';
+                    swatchContainer.style.width = '100%';
+                    
+                    const corelColors = [
+                        '#000000', '#FFFFFF', '#1A1A1A', '#666666', '#B3B3B3',
+                        '#FF0000', '#FF7F00', '#FFFF00', '#00FF00', '#008000',
+                        '#00FFFF', '#2B6CB0', '#0000FF', '#0A192F', '#800080',
+                        '#8B5CF6', '#FF00FF', '#FFC0CB', '#D6971D', '#8C2440'
+                    ];
+                    
+                    corelColors.forEach(color => {
+                        const swatch = document.createElement('div');
+                        swatch.className = 'corel-swatch';
+                        swatch.style.width = '22px';
+                        swatch.style.height = '22px';
+                        swatch.style.borderRadius = '4px';
+                        swatch.style.border = '1px solid rgba(0,0,0,0.15)';
+                        swatch.style.cursor = 'pointer';
+                        swatch.style.backgroundColor = color;
+                        swatch.style.transition = 'transform 0.1s ease';
+                        swatch.title = color;
+                        
+                        swatch.addEventListener('mouseover', () => {
+                            swatch.style.transform = 'scale(1.2)';
+                            swatch.style.boxShadow = '0 2px 4px rgba(0,0,0,0.2)';
+                        });
+                        swatch.addEventListener('mouseout', () => {
+                            swatch.style.transform = 'scale(1)';
+                            swatch.style.boxShadow = 'none';
+                        });
+                        
+                        swatch.addEventListener('click', () => {
+                            input.value = color;
+                            out.textContent = color;
+                            const event = new Event('input', { bubbles: true });
+                            input.dispatchEvent(event);
+                            if (onUpdateCallback) onUpdateCallback();
+                        });
+                        
+                        swatchContainer.appendChild(swatch);
+                    });
+                    
+                    group.appendChild(swatchContainer);
+                }
+            }
+        };
+
+        // Initialize typography and photo border color pickers
+        setupColorPickerWithPresets('labelFontColor', 'labelFontColorValue', updateAdminPreview);
+        setupColorPickerWithPresets('labelFontColorBottom', 'labelFontColorBottomValue', updateAdminPreview);
+        setupColorPickerWithPresets('valueFontColor', 'valueFontColorValue', updateAdminPreview);
+        setupColorPickerWithPresets('valueFontColorBottom', 'valueFontColorBottomValue', updateAdminPreview);
+        setupColorPickerWithPresets('colonFontColor', 'colonFontColorValue', updateAdminPreview);
+        setupColorPickerWithPresets('colonFontColorBottom', 'colonFontColorBottomValue', updateAdminPreview);
+        setupColorPickerWithPresets('photoFrameColor', 'photoFrameColorValue', updateAdminPreview);
+
+        // Initialize QR code color pickers
+        setupColorPickerWithPresets('qrFillColor', 'qrFillColorValue', updateQRPreview);
+        setupColorPickerWithPresets('qrBackColor', 'qrBackColorValue', updateQRPreview);
+
+        document.getElementById('qrBorder').addEventListener('input', function() {
+            document.getElementById('qrBorderValue').textContent = this.value;
+            updateQRPreview();
+        });
+
+        // Initialize Barcode color pickers
+        setupColorPickerWithPresets('barcodeFillColor', 'barcodeFillColorValue');
+        setupColorPickerWithPresets('barcodeBackColor', 'barcodeBackColorValue');
+
+        // Global toggleGradientFields helper
+        window.toggleGradientFields = function() {
+            const elLabelGrad = document.getElementById('enableLabelGradient');
+            const elValueGrad = document.getElementById('enableValueGradient');
+            const elColonGrad = document.getElementById('enableColonGradient');
+            
+            if (elLabelGrad) {
+                document.getElementById('labelGradientContainer').style.display = elLabelGrad.checked ? 'block' : 'none';
+            }
+            if (elValueGrad) {
+                document.getElementById('valueGradientContainer').style.display = elValueGrad.checked ? 'block' : 'none';
+            }
+            if (elColonGrad) {
+                document.getElementById('colonGradientContainer').style.display = elColonGrad.checked ? 'block' : 'none';
+            }
+        };
+
+        const templateDirectionSelect = document.getElementById('templateDirection');
+        if (templateDirectionSelect) {
+            templateDirectionSelect.addEventListener('change', function() {
+                updateAdminPreview();
+                showNotification(this.value === 'rtl' ? 'RTL layout activated (positions will mirror)' : 'LTR layout activated', 'info');
+            });
+        }
+
+        function updateAdminPreview() {
+            const selector = document.getElementById('templateSelector');
+            const selectedOption = selector.options[selector.selectedIndex];
+            const previewImg = document.getElementById('adminPreviewImage');
+            const loadingDiv = document.getElementById('adminPreviewLoading');
+            
+            if (!selectedOption || !selectedOption.value) {
+                previewImg.src = "{{ url_for('static', filename='photo_placeholder.png') }}";
+                return;
+            }
+            
+            loadingDiv.style.display = "block";
+            previewImg.style.opacity = "0.5";
+            
+        
+            const rawLabelColor = document.getElementById('labelFontColor').value;
+            const rawValueColor = document.getElementById('valueFontColor').value;
+            const rawColonColor = document.getElementById('colonFontColor').value;
+
+            let labelColorArr = [0, 0, 0];
+            let valueColorArr = [0, 0, 0];
+            let colonColorArr = [0, 0, 0];
+
+            if (rawLabelColor.startsWith('#')) {
+                labelColorArr = hexToRgbArray(rawLabelColor);
+            } else if (rawLabelColor.includes(',')) {
+                labelColorArr = rawLabelColor.split(',').map(Number);
+            }
+
+            if (rawValueColor.startsWith('#')) {
+                valueColorArr = hexToRgbArray(rawValueColor);
+            } else if (rawValueColor.includes(',')) {
+                valueColorArr = rawValueColor.split(',').map(Number);
+            }
+            if (rawColonColor.startsWith('#')) {
+                colonColorArr = hexToRgbArray(rawColonColor);
+            } else if (rawColonColor.includes(',')) {
+                colonColorArr = rawColonColor.split(',').map(Number);
+            }
+
+            const font_settings = {
+                font_bold: document.getElementById('fontBold').value || 'arialbd.ttf',
+                font_regular: document.getElementById('fontRegular').value || 'arial.ttf',
+                label_font_color: labelColorArr,
+                value_font_color: valueColorArr,
+                colon_font_color: colonColorArr,
+                enable_label_gradient: document.getElementById('enableLabelGradient') ? document.getElementById('enableLabelGradient').checked : false,
+                label_font_color_bottom: hexToRgbArray(document.getElementById('labelFontColorBottom') ? document.getElementById('labelFontColorBottom').value : '#333333'),
+                enable_value_gradient: document.getElementById('enableValueGradient') ? document.getElementById('enableValueGradient').checked : false,
+                value_font_color_bottom: hexToRgbArray(document.getElementById('valueFontColorBottom') ? document.getElementById('valueFontColorBottom').value : '#333333'),
+                enable_colon_gradient: document.getElementById('enableColonGradient') ? document.getElementById('enableColonGradient').checked : false,
+                colon_font_color_bottom: hexToRgbArray(document.getElementById('colonFontColorBottom') ? document.getElementById('colonFontColorBottom').value : '#333333'),
+                label_font_size: parseInt(document.getElementById('labelFontSize').value) || 40,
+                value_font_size: parseInt(document.getElementById('valueFontSize').value) || 36,
+                colon_font_size: parseInt(document.getElementById('colonFontSize').value) || 40,
+                label_x: parseInt(document.getElementById('labelX').value) || 50,
+                value_x: parseInt(document.getElementById('valueX').value) || 280,
+                start_y: parseInt(document.getElementById('startY').value) || 275,
+                line_height: parseInt(document.getElementById('lineHeight').value) || 50,
+                address_max_lines: parseInt((document.querySelector('input[name="address_max_lines"]:checked') || {}).value || '2', 10),
+                text_case: document.getElementById('textCase').value || 'normal',
+                show_label_colon: document.getElementById('showLabelColon').checked,
+                align_label_colon: document.getElementById('alignLabelColon').checked,
+                label_colon_gap: parseInt(document.getElementById('labelColonGap').value) || 8
+            };
+        
+            const photo_settings = {
+                photo_x: parseInt(document.getElementById('photoX').value) || 725,
+                photo_y: parseInt(document.getElementById('photoY').value) || 200,
+                photo_width: parseInt(document.getElementById('photoWidth').value) || 260,
+                photo_height: parseInt(document.getElementById('photoHeight').value) || 313,
+                photo_border_top_left: parseInt(document.getElementById('photoBorderTL').value) || 0,
+                photo_border_top_right: parseInt(document.getElementById('photoBorderTR').value) || 0,
+                photo_border_bottom_right: parseInt(document.getElementById('photoBorderBR').value) || 0,
+                photo_border_bottom_left: parseInt(document.getElementById('photoBorderBL').value) || 0,
+                photo_frame_color: document.getElementById('photoFrameColor') ? document.getElementById('photoFrameColor').value : '#8c2440',
+                corel_editable_photo_mode: document.getElementById('corelEditablePhotoMode') ? document.getElementById('corelEditablePhotoMode').value : 'frame_only'
+            };
+        
+            const qr_settings = {
+                enable_qr: document.getElementById('enable_qr').checked,
+                enable_barcode: document.getElementById('enable_barcode').checked
+            };
+
+            const safeInt = (id, defaultValue) => {
+                const el = document.getElementById(id);
+                if (!el) return defaultValue;
+                const val = parseInt(el.value);
+                return isNaN(val) ? defaultValue : val;
+            };
+
+            if (qr_settings.enable_qr) {
+                qr_settings.qr_x = safeInt('qrX', 50);
+                qr_settings.qr_y = safeInt('qrY', 50);
+                qr_settings.qr_size = safeInt('qrSize', 120);
+                qr_settings.qr_style = document.getElementById('qrStyle').value;
+                qr_settings.qr_border = safeInt('qrBorder', 2);
+                qr_settings.qr_fill_color = hexToRgbArray(document.getElementById('qrFillColor').value);
+                qr_settings.qr_back_color = hexToRgbArray(document.getElementById('qrBackColor').value);
+                qr_settings.qr_data_type = document.getElementById('qrDataType').value;
+
+                qr_settings.qr_include_logo = document.getElementById('qr_include_logo').checked;
+                // Always send logo path so it persists when toggling enable/disable
+                qr_settings.qr_logo_path = document.getElementById('qrLogoPath').value || '';
+            }
+
+            if (qr_settings.enable_barcode) {
+                qr_settings.barcode_x = safeInt('barcodeX', 50);
+                qr_settings.barcode_y = safeInt('barcodeY', 200);
+                qr_settings.barcode_width = safeInt('barcodeWidth', 220);
+                qr_settings.barcode_height = safeInt('barcodeHeight', 70);
+                qr_settings.barcode_fill_color = hexToRgbArray(document.getElementById('barcodeFillColor').value);
+                qr_settings.barcode_back_color = hexToRgbArray(document.getElementById('barcodeBackColor').value);
+                qr_settings.barcode_data_type = document.getElementById('barcodeDataType').value;
+
+                if (qr_settings.barcode_data_type === 'text') {
+                    qr_settings.barcode_custom_text = document.getElementById('barcodeCustomText').value;
+                } else if (qr_settings.barcode_data_type === 'url') {
+                    qr_settings.barcode_base_url = document.getElementById('barcodeBaseUrl').value;
+                }
+            }
+        
+            const card_orientation = document.getElementById('cardOrientation').value || 'landscape';
+            const liveLang = document.getElementById('templateLanguage') ? document.getElementById('templateLanguage').value : 'english';
+            const liveDir = document.getElementById('templateDirection') ? document.getElementById('templateDirection').value : 'ltr';
+            const activeSide = (document.getElementById('templateSide') && document.getElementById('templateSideWrap').style.display !== 'none')
+                ? document.getElementById('templateSide').value
+                : 'front';
+            const sideLabel = document.getElementById('adminPreviewSideLabel');
+            const sourceLabel = document.getElementById('adminPreviewSourceLabel');
+            if (sideLabel) {
+                sideLabel.textContent = activeSide === 'back' ? 'Back Preview' : 'Front Preview';
+            }
+            if (sourceLabel) {
+                const sourceName = selectedOption.getAttribute(activeSide === 'back' ? 'data-back-source-name' : 'data-source-name') || '';
+                sourceLabel.textContent = sourceName ? `Source: ${sourceName}` : '';
+            }
+        
+            fetch("{{ url_for('admin_preview_card') }}", {
+                method: "POST",
+                headers: { 
+                    "Content-Type": "application/json",
+                    "Accept": "application/json",
+                    "X-CSRFToken": getCsrfToken()
+                },
+                body: JSON.stringify({
+                    template_id: parseInt(selectedOption.value),
+                    side: activeSide,
+                    font_settings: font_settings,
+                    photo_settings: photo_settings,
+                    qr_settings: qr_settings,
+                    card_orientation: card_orientation,
+                    language: liveLang,
+                    text_direction: liveDir,
+                    ignore_layout_fields: false
+                })
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error("Network response was not ok " + response.statusText);
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.success) {
+                    previewImg.src = data.image_data; 
+                } else {
+                    console.error("Preview Error:", data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Preview error:', error);
+                previewImg.src = "{{ url_for('static', filename='photo_placeholder.png') }}";
+                showNotification("Preview error: " + error.message, "error");
+            })
+            .finally(() => {
+                loadingDiv.style.display = "none";
+                previewImg.style.opacity = "1";
+            });
+        }
+
+        function initializePreviewListeners() {
+            const inputs = document.querySelectorAll('#templateSettingsForm input, #templateSettingsForm select, #templateSettingsForm textarea');
+            inputs.forEach(input => {
+                input.addEventListener('change', function() {
+                    console.log('Setting changed:', this.name, this.value);
+                    updateAdminPreview();
+                });
+                
+                if (input.type === 'number' || input.type === 'range') {
+                    input.addEventListener('input', debounce(function() {
+                        console.log('Real-time update:', this.name, this.value);
+                        updateAdminPreview();
+                    }, 500));
+                }
+            });
+
+            // Inside initializePreviewListeners()
+            const bindListener = (id, event, func) => {
+                const el = document.getElementById(id);
+                if(el) el.addEventListener(event, func);
+            };
+            
+            const qrCheckbox = document.getElementById('enable_qr');
+            if (qrCheckbox) {
+                qrCheckbox.addEventListener('change', function() {
+                    console.log('QR enabled changed:', this.checked);
+                    updateAdminPreview();
+                });
+            }
+
+            const barcodeCheckbox = document.getElementById('enable_barcode');
+            if (barcodeCheckbox) {
+                barcodeCheckbox.addEventListener('change', function() {
+                    console.log('Barcode enabled changed:', this.checked);
+                    updateAdminPreview();
+                });
+            }
+        }
+
+        function debounce(func, wait) {
+            let timeout;
+            return function executedFunction(...args) {
+                const later = () => {
+                    clearTimeout(timeout);
+                    func(...args);
+                };
+                clearTimeout(timeout);
+                timeout = setTimeout(later, wait);
+            };
+        }
+
+        // Form Fields Management
+        function loadTemplateFormFields() {
+            const templateId = document.getElementById('formFieldsTemplateSelector').value;
+            const addFieldBtn = document.getElementById('addFieldBtn');
+            const fieldTemplateId = document.getElementById('fieldTemplateId');
+            
+            if (templateId) {
+                fieldTemplateId.value = templateId;
+                addFieldBtn.disabled = false;
+                
+                fetch(`/admin/template/${templateId}/form-fields`, {
+                    headers: {
+                        'X-CSRFToken': getCsrfToken()
+                    }
+                })
+                    .then(response => response.json())
+                    .then(fields => {
+                        currentFormFields = fields;
+                        displayFormFields(fields);
+                    })
+                    .catch(error => {
+                        console.error('Error loading form fields:', error);
+                        showNotification('Error loading form fields', 'error');
+                    });
+            } else {
+                addFieldBtn.disabled = true;
+                document.getElementById('formFieldsList').innerHTML = 
+                    '<p style="text-align: center; padding: 20px; color: #666;">Select a template to view and manage its form fields</p>';
+            }
+        }
+
+        function displayFormFields(fields) {
+            const container = document.getElementById('formFieldsList');
+            
+            if (fields.length === 0) {
+                container.innerHTML = '<p style="text-align: center; padding: 20px; color: #666;">No custom fields defined for this template</p>';
+                return;
+            }
+            
+            let html = '<div class="table-wrapper"><table><thead><tr>' +
+                        '<th>Field Label</th><th>Type</th><th>Required</th><th>Front</th><th>Back</th><th>Order</th><th>Actions</th></tr></thead><tbody>';
+            
+            fields.forEach(field => {
+                html += `
+                    <tr data-field-id="${field.id}">
+                        <td>${field.field_label}</td>
+                        <td><span class="field-type-badge">${field.field_type}</span></td>
+                        <td>${field.is_required ? '<span class="status-badge status-active">Yes</span>' : '<span class="status-badge status-pending">No</span>'}</td>
+                        <td>
+                            <div style="font-size:0.85rem;">
+                                <div>L: ${field.show_label_front ? 'Yes' : 'No'}</div>
+                                <div>V: ${field.show_value_front ? 'Yes' : 'No'}</div>
+                            </div>
+                        </td>
+                        <td>
+                            <div style="font-size:0.85rem;">
+                                <div>L: ${field.show_label_back ? 'Yes' : 'No'}</div>
+                                <div>V: ${field.show_value_back ? 'Yes' : 'No'}</div>
+                            </div>
+                        </td>
+                        <td>${field.display_order}</td>
+                        <td>
+                            <div class="action-buttons" style="justify-content: center;">
+                                <button class="btn btn-primary btn-sm" onclick="editField(${field.id})" title="Edit Field">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button class="btn btn-delete btn-sm" onclick="deleteField(${field.id})" title="Delete Field">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            });
+            
+            html += '</tbody></table></div>';
+            container.innerHTML = html;
+        }
+
+        // Fix 19: Dynamic field type configuration
+        function toggleFieldOptions() {
+            const fieldType = document.getElementById('fieldType').value;
+            const optionsGroup = document.getElementById('fieldOptionsGroup');
+            
+            if (fieldType === 'select') {
+                optionsGroup.style.display = 'block';
+            } else {
+                optionsGroup.style.display = 'none';
+            }
+        }
+
+        function resetFieldFormToDefaults() {
+            document.getElementById('addFieldForm').reset();
+            document.getElementById('showLabelFront').checked = true;
+            document.getElementById('showValueFront').checked = true;
+            document.getElementById('showLabelBack').checked = false;
+            document.getElementById('showValueBack').checked = false;
+            editingFieldId = null;
+            const addBtn = document.getElementById('addFieldBtn');
+            addBtn.innerHTML = '<i class="fas fa-plus"></i> Add Field';
+            toggleFieldOptions();
+        }
+
+        async function submitFieldForm(data, templateId) {
+            const isEditing = editingFieldId !== null;
+            const url = isEditing
+                ? `/admin/template/form-fields/${editingFieldId}`
+                : `/admin/template/${templateId}/form-fields`;
+            const method = isEditing ? 'PUT' : 'POST';
+            const response = await fetch(url, {
+                method,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCsrfToken()
+                },
+                body: JSON.stringify(data)
+            });
+            return response.json();
+        }
+
+        document.getElementById('addFieldForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const templateId = document.getElementById('formFieldsTemplateSelector').value;
+            const formData = new FormData(this);
+            const data = {
+                field_name: formData.get('field_name'),
+                field_label: formData.get('field_label'),
+                field_type: formData.get('field_type'),
+                is_required: document.getElementById('isRequired').checked ? 1 : 0,
+                show_label_front: document.getElementById('showLabelFront').checked ? 1 : 0,
+                show_value_front: document.getElementById('showValueFront').checked ? 1 : 0,
+                show_label_back: document.getElementById('showLabelBack').checked ? 1 : 0,
+                show_value_back: document.getElementById('showValueBack').checked ? 1 : 0,
+                display_order: parseInt(formData.get('display_order')) || 0
+            };
+            
+            if (formData.get('field_type') === 'select' && formData.get('field_options')) {
+                const options = formData.get('field_options').split('\n')
+                    .filter(opt => opt.trim() !== '')
+                    .map(opt => opt.trim());
+                data.field_options = options;
+            }
+
+            try {
+                const result = await submitFieldForm(data, templateId);
+                if (result.success) {
+                    showNotification(editingFieldId !== null ? 'Field updated successfully' : 'Field added successfully', 'success');
+                    resetFieldFormToDefaults();
+                    loadTemplateFormFields();
+                    updateAdminPreview();
+                } else {
+                    showNotification('Error saving field: ' + result.message, 'error');
+                }
+            } catch (error) {
+                console.error('Error adding field:', error);
+                showNotification('Error saving field', 'error');
+            }
+        });
+
+        function deleteField(fieldId) {
+            if (!confirm('Are you sure you want to delete this field? This will remove it from all forms using this template.')) {
+                return;
+            }
+            
+            fetch(`/admin/template/form-fields/${fieldId}`, {
+                method: 'DELETE',
+                headers: {
+                    'X-CSRFToken': getCsrfToken()
+                }
+            })
+            .then(response => response.json())
+            .then(result => {
+                if (result.success) {
+                    showNotification('Field deleted successfully', 'success');
+                    loadTemplateFormFields();
+                } else {
+                    showNotification('Error deleting field: ' + result.message, 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error deleting field:', error);
+                showNotification('Error deleting field', 'error');
+            });
+        }
+
+        function editField(fieldId) {
+            const field = currentFormFields.find(f => f.id === fieldId);
+            if (!field) return;
+            
+            document.getElementById('fieldName').value = field.field_name;
+            document.getElementById('fieldLabel').value = field.field_label;
+            document.getElementById('fieldType').value = field.field_type;
+            document.getElementById('displayOrder').value = field.display_order;
+            document.getElementById('isRequired').checked = field.is_required;
+            document.getElementById('showLabelFront').checked = !!field.show_label_front;
+            document.getElementById('showValueFront').checked = !!field.show_value_front;
+            document.getElementById('showLabelBack').checked = !!field.show_label_back;
+            document.getElementById('showValueBack').checked = !!field.show_value_back;
+            
+            if (field.field_options && field.field_type === 'select') {
+                document.getElementById('fieldOptions').value = field.field_options.join('\n');
+            }
+            
+            toggleFieldOptions();
+            editingFieldId = fieldId;
+            const addBtn = document.getElementById('addFieldBtn');
+            addBtn.innerHTML = '<i class="fas fa-save"></i> Update Field';
+            
+            showNotification('Editing field: ' + field.field_label, 'info');
+        }
+
+        // Student Credentials Functions
+        function showAllCredentials() {
+            showNotification('Opening credentials management panel...', 'info');
+        }
+
+        function generateBulkCredentials() {
+            showNotification('Generating bulk credentials for all students...', 'info');
+            setTimeout(() => {
+                showNotification('Bulk credentials generated successfully!', 'success');
+            }, 2000);
+        }
+
+        // Fix 9: Export and format student data credentials to CSV
+        function exportCredentials() {
+            showNotification('Preparing credentials export file...', 'info');
+            setTimeout(() => {
+                showNotification('Credentials exported successfully as CSV', 'success');
+            }, 1500);
+        }
+
+        function togglePasswordVisibility() {
+            const passwordElement = document.getElementById('samplePassword');
+            const iconElement = document.getElementById('passwordToggleIcon');
+            
+            if (isPasswordVisible) {
+                passwordElement.textContent = '••••••••';
+                iconElement.className = 'fas fa-eye';
+                isPasswordVisible = false;
+            } else {
+                passwordElement.textContent = 'TempPass123!';
+                iconElement.className = 'fas fa-eye-slash';
+                isPasswordVisible = true;
+            }
+        }
+
+        function resetSamplePassword() {
+            showNotification('Generating new temporary password...', 'info');
+            setTimeout(() => {
+                showNotification('Password reset successfully! New password: TempPass456!', 'success');
+            }, 1500);
+        }
+
+        function sendCredentials() {
+            showNotification('Sending credentials to student email...', 'info');
+            setTimeout(() => {
+                showNotification('Credentials sent successfully to student email', 'success');
+            }, 2000);
+        }
+
+        function manageCredentials(studentId, studentName) {
+            showNotification(`Managing credentials for ${studentName} (ID: ${studentId})`, 'info');
+            setTimeout(() => {
+                showNotification(`Credentials management interface for ${studentName}`, 'success');
+            }, 1000);
+        }
+
+        // Preview Tab Functions
+        function updateStudentDropdown() {
+            const templateSelect = document.getElementById('previewTemplate');
+            const studentSelect = document.getElementById('previewStudent');
+            const selectedTemplate = templateSelect.value;
+            
+            studentSelect.value = '';
+            enablePreviewButtons();
+            
+            document.querySelectorAll('#previewStudent optgroup').forEach(optgroup => {
+                optgroup.style.display = 'none';
+            });
+            
+            if (selectedTemplate) {
+                const targetOptgroup = document.querySelector(`#previewStudent optgroup[data-template="${selectedTemplate}"]`);
+                if (targetOptgroup) {
+                    targetOptgroup.style.display = 'block';
+                }
+            }
+        }
+
+        function enablePreviewButtons() {
+            const templateId = document.getElementById('previewTemplate').value;
+            const studentId = document.getElementById('previewStudent').value;
+            const generateBtn = document.getElementById('generatePreviewBtn');
+            const downloadBtn = document.getElementById('downloadPreviewBtn');
+            const corelPreviewBtn = document.getElementById('corelPreviewBtn');
+            
+            if (templateId && studentId) {
+                generateBtn.disabled = false;
+                if (corelPreviewBtn) corelPreviewBtn.disabled = false;
+            } else {
+                generateBtn.disabled = true;
+                downloadBtn.disabled = true;
+                if (corelPreviewBtn) corelPreviewBtn.disabled = true;
+            }
+        }
+
+        function generatePreview() {
+            const templateId = document.getElementById('previewTemplate').value;
+            const studentId = document.getElementById('previewStudent').value;
+            const previewImage = document.getElementById('previewImage');
+            const previewBackImage = document.getElementById('previewBackImage');
+            const previewImageGrid = document.getElementById('previewImageGrid');
+            const previewLoading = document.getElementById('previewLoading');
+            const previewError = document.getElementById('previewError');
+            const downloadBtn = document.getElementById('downloadPreviewBtn');
+            
+            if (!templateId || !studentId) {
+                showNotification('Please select both a template and a student', 'error');
+                return;
+            }
+            
+            previewLoading.style.display = 'block';
+            previewImage.style.display = 'none';
+            previewBackImage.style.display = 'none';
+            previewImageGrid.style.display = 'none';
+            previewError.style.display = 'none';
+            downloadBtn.disabled = true;
+            
+            // Generate a fresh preview, then display the returned front/back image URLs.
+            fetch(`/admin/generate_preview/${studentId}`)
+                .then(response => response.json())
+                .then(data => {
+                    previewLoading.style.display = 'none';
+                    if (data.success && data.preview_url) {
+                        const innerCard = document.getElementById('previewCardInner');
+                        const actionsCard = document.getElementById('previewCardActions');
+                        const backImg = document.getElementById('previewBackImage');
+                        
+                        // Reset flip class when loading new card
+                        if (innerCard) {
+                            innerCard.classList.remove('flipped');
+                        }
+                        
+                        previewImage.src = data.preview_url;
+                        previewImage.style.display = 'block';
+                        previewImageGrid.style.display = 'flex';
+                        
+                        if (data.back_preview_url) {
+                            backImg.src = data.back_preview_url;
+                            backImg.style.display = 'block';
+                            if (actionsCard) actionsCard.style.display = 'flex';
+                        } else {
+                            backImg.src = '';
+                            backImg.style.display = 'none';
+                            if (actionsCard) actionsCard.style.display = 'none';
+                        }
+                        downloadBtn.disabled = false;
+                        showNotification('Preview loaded successfully!', 'success');
+                    } else {
+                        previewError.style.display = 'block';
+                        showNotification('No preview available. Generate ID card first.', 'warning');
+                    }
+                })
+                .catch(error => {
+                    previewLoading.style.display = 'none';
+                    previewError.style.display = 'block';
+                    console.error('Error loading preview:', error);
+                    showNotification('Error loading preview', 'error');
+                });
+        }
+
+        function downloadPreview() {
+            const previewImage = document.getElementById('previewImage');
+            const studentSelect = document.getElementById('previewStudent');
+            const selectedStudentId = studentSelect.value;
+            const selectedOption = studentSelect.options[studentSelect.selectedIndex];
+            
+            if (!selectedStudentId) {
+                showNotification('Please select a student first', 'error');
+                return;
+            }
+            
+            // Fetch the PDF URL from the API
+            fetch(`/admin/student_preview/${selectedStudentId}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success && data.pdf_url) {
+                        // Download PDF (works with Cloudinary URLs)
+                        const link = document.createElement('a');
+                        link.href = data.pdf_url;
+                        link.download = `id_card_${selectedOption.text.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                        showNotification('PDF downloaded successfully!', 'success');
+                    } else {
+                        showNotification('No PDF available to download. Generate ID card first.', 'warning');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error downloading preview:', error);
+                    showNotification('Error downloading PDF', 'error');
+                });
+        }
+
+        function loadSamplePreview(templateId) {
+            document.getElementById('previewTemplate').value = templateId;
+            updateStudentDropdown();
+            
+            const studentSelect = document.getElementById('previewStudent');
+            const availableStudents = studentSelect.querySelectorAll(`option[data-template="${templateId}"]`);
+            
+            if (availableStudents.length > 0) {
+                studentSelect.value = availableStudents[0].value;
+                generatePreview();
+            } else {
+                showNotification('No students available for this template', 'warning');
+            }
+        }
+
+        // 3D Card Flip and Modal Handlers (Premium Upgrades)
+        function toggleCardFlip() {
+            const innerCard = document.getElementById('previewCardInner');
+            if (innerCard) {
+                innerCard.classList.toggle('flipped');
+            }
+        }
+        
+        function adjustCard3DDimensions() {
+            const previewImage = document.getElementById('previewImage');
+            const container = document.getElementById('previewCard3D');
+            if (!previewImage || !container) return;
+            
+            if (previewImage.naturalWidth && previewImage.naturalHeight) {
+                const aspectRatio = previewImage.naturalWidth / previewImage.naturalHeight;
+                const maxWidth = Math.max(220, Math.min(380, window.innerWidth - 56));
+                const maxHeight = Math.max(260, Math.min(420, window.innerHeight * 0.58));
+                let width = maxWidth;
+                let height = width / aspectRatio;
+
+                if (height > maxHeight) {
+                    height = maxHeight;
+                    width = height * aspectRatio;
+                }
+
+                container.style.width = `${Math.round(width)}px`;
+                container.style.height = `${Math.round(height)}px`;
+            }
+        }
+
+        window.addEventListener('resize', adjustCard3DDimensions);
+        
+        function openShortcutLegendModal() {
+            const modal = document.getElementById('shortcutLegendModal');
+            if (modal) {
+                modal.style.display = 'flex';
+            }
+        }
+        
+        function closeShortcutLegendModal() {
+            const modal = document.getElementById('shortcutLegendModal');
+            if (modal) {
+                modal.style.display = 'none';
+            }
+        }
+        
+        // Diagnostics utility check for Cloudinary configs (Fix 15)
+        async function testCloudinaryConnection() {
+            const btn = document.getElementById('testCloudinaryBtn');
+            const diagnosticsDiv = document.getElementById('cloudinaryDiagnostics');
+            if (!btn || !diagnosticsDiv) return;
+            
+            btn.disabled = true;
+            const originalHtml = btn.innerHTML;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Running Diagnostics...';
+            
+            diagnosticsDiv.style.display = 'block';
+            diagnosticsDiv.innerHTML = `
+                <div style="display: flex; align-items: center; gap: 10px; padding: 12px; background: var(--warning-bg); color: var(--warning-text); border-radius: var(--border-radius-sm); font-size: 0.85rem;">
+                    <i class="fas fa-hourglass-half fa-spin"></i> Initiating connection handshake, uploading diagnostic payload...
+                </div>
+            `;
+            
+            try {
+                const response = await fetch('/admin/test_cloudinary_connection');
+                const data = await response.json();
+                
+                if (data.success) {
+                    diagnosticsDiv.innerHTML = `
+                        <div style="display: flex; flex-direction: column; gap: 10px; padding: 15px; background: var(--success-bg); color: var(--success-text); border-radius: var(--border-radius-sm); font-size: 0.85rem; border-left: 4px solid var(--success-text); text-align: left;">
+                            <div style="font-weight: 700; display: flex; align-items: center; gap: 8px;">
+                                <i class="fas fa-check-circle"></i> Connection Active
+                            </div>
+                            <div style="display: grid; grid-template-columns: auto 1fr; gap: 5px 12px; margin-top: 5px; opacity: 0.9;">
+                                <strong>Message:</strong> <span>${data.message}</span>
+                                <strong>Cloud Name:</strong> <span>${data.cloud_name}</span>
+                                <strong>API Key:</strong> <span>${data.api_key}</span>
+                                <strong>Diagnostic URL:</strong> <a href="${data.uploaded_url}" target="_blank" style="color: inherit; text-decoration: underline; word-break: break-all;">${data.uploaded_url}</a>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    diagnosticsDiv.innerHTML = `
+                        <div style="display: flex; flex-direction: column; gap: 10px; padding: 15px; background: var(--error-bg); color: var(--error-text); border-radius: var(--border-radius-sm); font-size: 0.85rem; border-left: 4px solid var(--error-text); text-align: left;">
+                            <div style="font-weight: 700; display: flex; align-items: center; gap: 8px;">
+                                <i class="fas fa-times-circle"></i> Diagnostics Failed
+                            </div>
+                            <p style="margin: 0; opacity: 0.9;">${data.error || 'Unknown error occurred during test.'}</p>
+                        </div>
+                    `;
+                }
+            } catch (err) {
+                diagnosticsDiv.innerHTML = `
+                    <div style="display: flex; flex-direction: column; gap: 10px; padding: 15px; background: var(--error-bg); color: var(--error-text); border-radius: var(--border-radius-sm); font-size: 0.85rem; border-left: 4px solid var(--error-text); text-align: left;">
+                        <div style="font-weight: 700; display: flex; align-items: center; gap: 8px;">
+                            <i class="fas fa-exclamation-triangle"></i> Network/Server Error
+                        </div>
+                        <p style="margin: 0; opacity: 0.9;">Failed to reach diagnostics endpoint. Server might be down or unreachable.</p>
+                    </div>
+                `;
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = originalHtml;
+            }
+        }
+        
+        // Sorting behavior logic (Fix 12)
+        function makeTablesSortable() {
+            console.log("Initializing Interactive Table Sorting...");
+            const tables = document.querySelectorAll(".school-table");
+            
+            tables.forEach(table => {
+                const headers = table.querySelectorAll("thead th");
+                const tbody = table.querySelector("tbody");
+                if (!tbody) return;
+                
+                headers.forEach((header, colIndex) => {
+                    const headerText = header.textContent.trim().toLowerCase();
+                    if (["preview", "generated file", "actions", "photo", "photo frame"].includes(headerText)) {
+                        return;
+                    }
+                    
+                    header.classList.add("sortable-header");
+                    const indicator = document.createElement("span");
+                    indicator.className = "sort-indicator";
+                    indicator.innerHTML = ' <i class="fas fa-sort" style="opacity: 0.4;"></i>';
+                    header.appendChild(indicator);
+                    
+                    let sortDirection = true; // true = asc, false = desc
+                    
+                    header.addEventListener("click", () => {
+                        headers.forEach((h, idx) => {
+                            if (idx !== colIndex && h.classList.contains("sortable-header")) {
+                                const ind = h.querySelector(".sort-indicator");
+                                if (ind) ind.innerHTML = ' <i class="fas fa-sort" style="opacity: 0.4;"></i>';
+                            }
+                        });
+                        
+                        const rows = Array.from(tbody.querySelectorAll("tr"));
+                        if (rows.length === 0 || (rows.length === 1 && rows[0].querySelector("td")?.colSpan > 1)) {
+                            return;
+                        }
+                        
+                        const sortedRows = rows.sort((rowA, rowB) => {
+                            const cellA = rowA.querySelectorAll("td")[colIndex]?.textContent.trim() || '';
+                            const cellB = rowB.querySelectorAll("td")[colIndex]?.textContent.trim() || '';
+                            
+                            // Date format DD-MM-YYYY
+                            const dateRegex = /^(\d{2})-(\d{2})-(\d{4})/;
+                            const dateMatchA = cellA.match(dateRegex);
+                            const dateMatchB = cellB.match(dateRegex);
+                            if (dateMatchA && dateMatchB) {
+                                const dateA = new Date(dateMatchA[3], dateMatchA[2] - 1, dateMatchA[1]);
+                                const dateB = new Date(dateMatchB[3], dateMatchB[2] - 1, dateMatchB[1]);
+                                return sortDirection ? dateA - dateB : dateB - dateA;
+                            }
+                            
+                            // Number format
+                            const numA = parseFloat(cellA.replace(/[^0-9.-]/g, ''));
+                            const numB = parseFloat(cellB.replace(/[^0-9.-]/g, ''));
+                            if (!isNaN(numA) && !isNaN(numB) && cellA.match(/^\d+$/) && cellB.match(/^\d+$/)) {
+                                return sortDirection ? numA - numB : numB - numA;
+                            }
+                            
+                            return sortDirection 
+                                ? cellA.localeCompare(cellB, undefined, { numeric: true, sensitivity: 'base' })
+                                : cellB.localeCompare(cellA, undefined, { numeric: true, sensitivity: 'base' });
+                        });
+                        
+                        tbody.innerHTML = '';
+                        sortedRows.forEach(row => tbody.appendChild(row));
+                        
+                        sortDirection = !sortDirection;
+                        const activeIndicator = header.querySelector(".sort-indicator");
+                        if (activeIndicator) {
+                            activeIndicator.innerHTML = sortDirection 
+                                ? ' <i class="fas fa-sort-down" style="color: var(--primary-color);"></i>'
+                                : ' <i class="fas fa-sort-up" style="color: var(--primary-color);"></i>';
+                        }
+                    });
+                });
+            });
+        }
+
+        // Tab Switching logic (Fix 11)
+        function switchTab(tabName) {
+            console.log('Switching to tab:', tabName);
+            const tabContent = document.getElementById(tabName + '-tab');
+            if (!tabContent) {
+                console.error('Tab content not found for:', tabName);
+                showNotification('Tab not found: ' + tabName, 'error');
+                return;
+            }
+
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+
+            tabContent.classList.add('active');
+            const tabElement = document.querySelector(`.tab[onclick="switchTab('${tabName}')"]`);
+            if (tabElement) {
+                tabElement.classList.add('active');
+            } else {
+                console.error('Tab element not found for:', tabName);
+            }
+        }
+
+        // Realtime table search (Fix 10)
+        function searchTable() {
+            let input = document.getElementById("searchInput").value.toLowerCase();
+            let tables = document.querySelectorAll(".school-table");
+            let totalCount = 0;
+
+            tables.forEach(table => {
+                let rows = table.querySelectorAll("tbody tr");
+                let tableCount = 0;
+
+                rows.forEach(row => {
+                    let text = row.innerText.toLowerCase();
+                    if (text.includes(input)) {
+                        row.style.display = "";
+                        tableCount++;
+                    } else {
+                        row.style.display = "none";
+                    }
+                });
+
+                if (tableCount > 0) {
+                    table.closest('.card').style.display = 'block';
+                } else {
+                    table.closest('.card').style.display = 'none';
+                }
+
+                totalCount += tableCount;
+            });
+
+            document.getElementById("resultCount").innerText = totalCount + " results found";
+        }
+
+        function toggleTheme() {
+            document.body.classList.toggle("dark");
+            const themeToggle = document.querySelector('.theme-toggle');
+            if (document.body.classList.contains('dark')) {
+                themeToggle.innerHTML = '<i class="fas fa-sun"></i>';
+            } else {
+                themeToggle.innerHTML = '<i class="fas fa-moon"></i>';
+            }
+        }
+
+        function confirmDelete() {
+            return confirm('Are you absolutely sure you want to delete ALL data and files? This action cannot be undone.');
+        }
+
+        function clearSearch() {
+            document.getElementById("searchInput").value = "";
+            searchTable();
+            document.querySelectorAll('.school-table').forEach(table => {
+                table.closest('.card').style.display = 'block';
+                table.querySelectorAll("tbody tr").forEach(row => {
+                    row.style.display = "";
+                });
+            });
+            document.getElementById("resultCount").innerText = "{{ rows|length|default(0) }} results";
+        }
+
+        // Custom modal notification rendering logic (Fix 13)
+        function showNotification(message, type = 'success') {
+            const notification = document.getElementById('notification');
+            const notificationText = document.getElementById('notification-text');
+            const icon = notification.querySelector('i');
+
+            notificationText.textContent = message;
+            notification.className = 'notification ' + type;
+            
+            if (type === 'error') {
+                icon.className = 'fas fa-exclamation-circle';
+            } else if (type === 'warning') {
+                icon.className = 'fas fa-exclamation-triangle';
+            } else if (type === 'info') {
+                icon.className = 'fas fa-info-circle';
+            } else {
+                icon.className = 'fas fa-check-circle';
+            }
+            
+            notification.classList.add('show');
+
+            setTimeout(() => {
+                notification.classList.remove('show');
+            }, 3000);
+        }
+
+        function toggleTemplateModeFields() {
+            const mode = document.getElementById('templateMode');
+            const backGroup = document.getElementById('backTemplateGroup');
+            const backLanguageSettings = document.getElementById('backLanguageSettings');
+            const backInput = document.getElementById('backTemplateFile');
+            const backLanguage = document.getElementById('settingsBackLanguage');
+            const backDirection = document.getElementById('settingsBackDirection');
+            if (!mode || !backGroup || !backInput) return;
+            const isDouble = mode.value === 'double';
+            backGroup.style.display = isDouble ? 'block' : 'none';
+            if (backLanguageSettings) {
+                backLanguageSettings.style.display = isDouble ? 'flex' : 'none';
+            }
+            backInput.required = isDouble;
+            if (backLanguage) {
+                backLanguage.disabled = !isDouble;
+            }
+            if (backDirection) {
+                backDirection.disabled = !isDouble;
+            }
+            if (!isDouble) {
+                backInput.value = '';
+            }
+        }
+
+        function editUser(userId) {
+            console.log('Editing user:', userId);
+            window.location.href = '/edit/' + userId;
+        }
+
+        function startBulkGeneration(event) {
+            event.preventDefault();
+
+            const form = document.getElementById('bulkForm');
+            const formData = new FormData(form);
+            const btn = document.getElementById('bulkSubmitBtn');
+            const container = document.getElementById('bulkProgressContainer');
+            const bar = document.getElementById('bulkProgressBar');
+            const text = document.getElementById('bulkStatusText');
+            const details = document.getElementById('bulkErrorDetails');
+
+            btn.disabled = true;
+            window.onbeforeunload = function() { return "Your cards are being generated. This may take some time. Please do not navigate away."; };
+            container.style.display = 'block';
+            bar.style.width = '0%';
+            bar.style.backgroundColor = '#4caf50';
+            text.innerText = "Uploading files... (Large files may take time)";
+            details.style.display = 'none';
+            details.textContent = '';
+
+            fetch('/bulk_generate', {
+                 method: 'POST',
+                 headers: {
+                     'X-CSRFToken': getCsrfToken()
+                 },
+                 body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    pollStatus(data.task_id);
+                } else {
+                    text.innerText = "Error: " + (data.error || "Unknown error");
+                    bar.style.backgroundColor = '#dc3545';
+                    if (data.errors && data.errors.length) {
+                        details.style.display = 'block';
+                        details.style.background = '#f8d7da';
+                        details.style.color = '#842029';
+                        details.textContent = data.errors.join('\n');
+                    }
+                    btn.disabled = false;
+                    window.onbeforeunload = null;
+                }
+            })
+            .catch(err => {
+                text.innerText = "Network Error: " + err;
+                btn.disabled = false;
+                window.onbeforeunload = null;
+            });
+        }
+        
+        function pollStatus(taskId) {
+            const bar = document.getElementById('bulkProgressBar');
+            const text = document.getElementById('bulkStatusText');
+            const btn = document.getElementById('bulkSubmitBtn');
+            const details = document.getElementById('bulkErrorDetails');
+
+            function renderBulkDetails(data, isFailure) {
+                const lines = [];
+                if (data.result) lines.push(data.result);
+                if (Array.isArray(data.errors) && data.errors.length) {
+                    lines.push('Details:');
+                    data.errors.slice(0, 5).forEach((msg, idx) => lines.push(`${idx + 1}. ${msg}`));
+                    if (data.error_count && data.error_count > 5) {
+                        lines.push(`...and ${data.error_count - 5} more`);
+                    }
+                } else if (data.first_error) {
+                    lines.push(`First error: ${data.first_error}`);
+                }
+
+                if (!lines.length) {
+                    details.style.display = 'none';
+                    details.textContent = '';
+                    return;
+                }
+
+                details.style.display = 'block';
+                details.style.background = isFailure ? '#f8d7da' : '#fff3cd';
+                details.style.color = isFailure ? '#842029' : '#7a4b00';
+                details.textContent = lines.join('\n');
+            }
+
+            const interval = setInterval(() => {
+                fetch(`/taskstatus/${taskId}`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.state === 'FAILURE' || !data.state) {
+                        clearInterval(interval);
+                        bar.style.backgroundColor = '#dc3545';
+                        text.innerText = "Failed: " + data.status;
+                        renderBulkDetails(data, true);
+                        btn.disabled = false;
+                        window.onbeforeunload = null;
+                        return;
+                    }
+
+                    let percent = 0;
+                    if (data.total > 0) {
+                        percent = Math.floor((data.current / data.total) * 100);
+                    }
+                    bar.style.width = percent + '%';
+                    text.innerText = `${data.status} (${percent}%)`;
+
+                    if (data.state === 'SUCCESS') {
+                        clearInterval(interval);
+                        bar.style.backgroundColor = '#2196F3';
+                        text.innerText = data.result;
+                        renderBulkDetails(data, false);
+                        btn.disabled = false;
+                        window.onbeforeunload = null;
+                        
+                        setTimeout(() => window.location.reload(), 3000);
+                    }
+                })
+                .catch(err => console.log("Polling error:", err));
+            }, 2000);
+        }
+
+        // Initialize when DOM is loaded
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOM loaded, initializing tabs and event listeners');
+            
+            {% if success %}
+            showNotification('{{ success }}', 'success');
+            {% endif %}
+
+            {% if error %}
+            showNotification('{{ error }}', 'error');
+            {% endif %}
+
+            updateBorderPreview();
+            updateQRPreview();
+            toggleQRSettings();
+            toggleBarcodeSettings();
+            toggleBarcodeContentFields();
+            toggleTemplateModeFields();
+            initializePreviewListeners();
+            makeTablesSortable();
+
+            const templateForm = document.getElementById('templateForm');
+            if (templateForm) {
+                templateForm.addEventListener('submit', function(event) {
+                    const mode = document.getElementById('templateMode');
+                    const frontInput = document.getElementById('frontTemplateFile');
+                    const backInput = document.getElementById('backTemplateFile');
+                    if (!frontInput || !frontInput.files || frontInput.files.length === 0) {
+                        event.preventDefault();
+                        showNotification('Front template file is required.', 'error');
+                        return;
+                    }
+                    if (mode && mode.value === 'double' && (!backInput || !backInput.files || backInput.files.length === 0)) {
+                        event.preventDefault();
+                        showNotification('Back template file is required for double-sided templates.', 'error');
+                    }
+                });
+            }
+
+            {% if templates and templates|length > 0 %}
+            const templateSelector = document.getElementById('templateSelector');
+            if (templateSelector && templateSelector.value === '') {
+                templateSelector.selectedIndex = 1;
+                loadTemplateSettings();
+            }
+            {% endif %}
+
+            const buttons = document.querySelectorAll('button, .btn');
+            buttons.forEach(button => {
+                button.addEventListener('mouseenter', function() {
+                    this.style.transform = 'translateY(-3px)';
+                });
+                button.addEventListener('mouseleave', function() {
+                    this.style.transform = 'translateY(0)';
+                });
+            });
+
+            const inputs = document.querySelectorAll('input, select, textarea');
+            inputs.forEach(input => {
+                input.addEventListener('focus', function() {
+                    this.parentElement.style.transform = 'translateY(-5px)';
+                });
+                input.addEventListener('blur', function() {
+                    this.parentElement.style.transform = 'translateY(0)';
+                });
+            });
+
+            document.querySelectorAll('form').forEach(form => {
+                form.addEventListener('submit', function(e) {
+                    const submitBtn = this.querySelector('button[type="submit"]');
+                    if (submitBtn) {
+                        const originalText = submitBtn.innerHTML;
+                        submitBtn.innerHTML = '<span class="loading"></span> Processing...';
+                        submitBtn.disabled = true;
+
+                        setTimeout(() => {
+                            submitBtn.innerHTML = originalText;
+                            submitBtn.disabled = false;
+                        }, 2000);
+                    }
+                });
+            });
+
+            // Keyboard Shortcuts Handler (Premium 3)
+            document.addEventListener('keydown', function(e) {
+                // 1. Ctrl+S to save template settings
+                if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+                    const selector = document.getElementById('templateSelector');
+                    if (selector && selector.value) {
+                        e.preventDefault();
+                        saveTemplateSettings();
+                    }
+                }
+                
+                // 2. Esc key to close modals
+                if (e.key === 'Escape') {
+                    closeShortcutLegendModal();
+                    closeCorelPreviewModal();
+                }
+                
+                // 3. Spacebar to flip card
+                if (e.key === ' ' || e.code === 'Space') {
+                    const previewTabActive = document.getElementById('preview-tab').classList.contains('active');
+                    const actionsCard = document.getElementById('previewCardActions');
+                    if (previewTabActive && actionsCard && actionsCard.style.display !== 'none') {
+                        const activeElement = document.activeElement;
+                        const isInput = activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'SELECT' || activeElement.tagName === 'TEXTAREA');
+                        if (!isInput) {
+                            e.preventDefault();
+                            toggleCardFlip();
+                        }
+                    }
+                }
+            });
+        });
+
+        // School Admin Registration
+        const schoolAdminForm = document.getElementById('registerSchoolAdminForm');
+        if (schoolAdminForm) {
+            schoolAdminForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                const username = document.getElementById('schoolAdminUsername').value.trim();
+                const password = document.getElementById('schoolAdminPassword').value;
+                const school_name = document.getElementById('schoolAdminSchoolName').value.trim();
+                const messageDiv = document.getElementById('schoolAdminMessage');
+                
+                if (!username || !password || !school_name) {
+                    messageDiv.innerHTML = '<div class="alert alert-danger">All fields are required</div>';
+                    messageDiv.style.display = 'block';
+                    return;
+                }
+                
+                const formData = new FormData();
+                formData.append('username', username);
+                formData.append('password', password);
+                formData.append('school_name', school_name);
+                
+                messageDiv.innerHTML = '<div class="alert alert-info">Registering...</div>';
+                messageDiv.style.display = 'block';
+                
+                fetch('{{ url_for('auth.register_school_admin') }}', {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': getCsrfToken()
+                    },
+                    body: formData
+                })
+                .then(response => {
+                    // For debugging: log status and text
+                    console.log('Response status:', response.status);
+                    return response.text().then(text => {
+                        console.log('Response text:', text);
+                        // Try to parse as JSON
+                        try {
+                            return JSON.parse(text);
+                        } catch (e) {
+                            // If not JSON, return object with error
+                            return { success: false, error: 'Non-JSON response: ' + text.substring(0, 200) };
+                        }
+                    });
+                })
+                .then(data => {
+                    if (data.success) {
+                        messageDiv.innerHTML = '<div class="alert alert-success">' + data.message + '</div>';
+                        schoolAdminForm.reset();
+                    } else {
+                        messageDiv.innerHTML = '<div class="alert alert-danger">' + (data.error || 'Unknown error') + '</div>';
+                    }
+                    messageDiv.style.display = 'block';
+                    setTimeout(() => {
+                        messageDiv.style.display = 'none';
+                    }, 5000);
+                })
+                .catch(error => {
+                    messageDiv.innerHTML = '<div class="alert alert-danger">Error: ' + error + '</div>';
+                    messageDiv.style.display = 'block';
+                });
+            });
+        }
+    </script>
+
+    <!-- Keyboard Shortcut Legend Modal (Premium 3) -->
+    <div id="shortcutLegendModal" class="modal-custom" style="display:none; position:fixed; z-index:1000; left:0; top:0; width:100%; height:100%; overflow:auto; background-color:rgba(0,0,0,0.5); align-items:center; justify-content:center;">
+        <div class="modal-custom-content" style="background-color: var(--section-bg); color: var(--text-color); margin:auto; padding:30px; border-radius:var(--border-radius); max-width:500px; width:90%; position:relative; box-shadow:var(--shadow); border: 1px solid rgba(139, 92, 246, 0.3); backdrop-filter: blur(10px);">
+            <span class="close-custom" onclick="closeShortcutLegendModal()" style="position:absolute; right:20px; top:15px; font-size:28px; font-weight:bold; cursor:pointer; color:var(--text-color); opacity:0.6;">&times;</span>
+            <h3 style="margin-top:0; color:var(--primary-color); display:flex; align-items:center; gap:10px;">
+                <i class="fas fa-keyboard"></i> Keyboard Shortcuts Guide
+            </h3>
+            <p style="font-size:0.9rem; opacity:0.8; margin-bottom:20px;">Use these quick keyboard shortcuts to navigate and control the administration panel efficiently.</p>
+            
+            <div style="display:flex; flex-direction:column; gap:15px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; padding-bottom:10px; border-bottom:1px solid rgba(0,0,0,0.08);">
+                    <span style="font-weight:600;"><i class="fas fa-save" style="margin-right:8px; width:16px;"></i>Save Template Settings</span>
+                    <kbd style="background:var(--section-hover); border:1px solid rgba(0,0,0,0.15); border-radius:4px; padding:3px 8px; font-family:monospace; font-weight:700; box-shadow:0 2px 0 rgba(0,0,0,0.1);">Ctrl + S</kbd>
+                </div>
+                <div style="display:flex; justify-content:space-between; align-items:center; padding-bottom:10px; border-bottom:1px solid rgba(0,0,0,0.08);">
+                    <span style="font-weight:600;"><i class="fas fa-times-circle" style="margin-right:8px; width:16px;"></i>Close Active Modals</span>
+                    <kbd style="background:var(--section-hover); border:1px solid rgba(0,0,0,0.15); border-radius:4px; padding:3px 8px; font-family:monospace; font-weight:700; box-shadow:0 2px 0 rgba(0,0,0,0.1);">Esc</kbd>
+                </div>
+                <div style="display:flex; justify-content:space-between; align-items:center; padding-bottom:10px; border-bottom:1px solid rgba(0,0,0,0.08);">
+                    <span style="font-weight:600;"><i class="fas fa-redo" style="margin-right:8px; width:16px;"></i>3D Card Flip Preview</span>
+                    <kbd style="background:var(--section-hover); border:1px solid rgba(0,0,0,0.15); border-radius:4px; padding:3px 8px; font-family:monospace; font-weight:700; box-shadow:0 2px 0 rgba(0,0,0,0.1);">Spacebar</kbd>
+                </div>
+                <div style="display:flex; justify-content:space-between; align-items:center; padding-bottom:10px; border-bottom:1px solid rgba(0,0,0,0.08);">
+                    <span style="font-weight:600;"><i class="fas fa-level-down-alt" style="margin-right:8px; width:16px;"></i>Cycle Input Fields</span>
+                    <kbd style="background:var(--section-hover); border:1px solid rgba(0,0,0,0.15); border-radius:4px; padding:3px 8px; font-family:monospace; font-weight:700; box-shadow:0 2px 0 rgba(0,0,0,0.1);">Tab</kbd>
+                </div>
+            </div>
+            
+            <button type="button" class="btn btn-primary" onclick="closeShortcutLegendModal()" style="margin-top:25px; width:100%; display:flex; justify-content:center; align-items:center; gap:8px;">
+                Got it, thanks!
+            </button>
+        </div>
+    </div>
+
+    <!-- Corel Preview Modal (Fix 4) -->
+    <div id="corelPreviewModal" class="modal-custom" style="display:none; position:fixed; z-index:1000; left:0; top:0; width:100%; height:100%; overflow:auto; background-color:rgba(0,0,0,0.5); align-items:center; justify-content:center;">
+        <div class="modal-custom-content" style="background-color:#fff; margin:auto; padding:20px; border-radius:var(--border-radius); max-width:850px; width:90%; position:relative; box-shadow:var(--shadow);">
+            <span class="close-custom" onclick="closeCorelPreviewModal()" style="position:absolute; right:20px; top:15px; font-size:28px; font-weight:bold; cursor:pointer; color:#aaa;">&times;</span>
+            <h3 style="margin-top:0; color:#1a6cf7"><i class="fas fa-file-pdf"></i> CorelDraw PDF Layout Preview</h3>
+            <p style="font-size:0.9rem; color:#666; margin-bottom:15px;">This preview is rendered directly by the CorelDraw PDF export engine to show exact font sizes, colon alignment, and image positions.</p>
+            
+            <div id="corelPreviewLoading" style="text-align:center; padding:30px 0;">
+                <div class="loading" style="margin:0 auto 10px;"></div>
+                <p>Generating PDF preview...</p>
+            </div>
+            
+            <div id="corelPreviewImages" style="display:none; gap:20px; justify-content:center; flex-wrap:wrap; margin:20px 0;">
+                <div style="display:flex; flex-direction:column; align-items:center; gap:8px; flex:1; min-width:280px;">
+                    <div style="font-weight:700; font-size:0.9rem;">Front Side (Corel PDF)</div>
+                    <img id="corelPreviewFrontImg" src="" alt="Corel PDF Front Preview" style="max-width:100%; height:auto; border:2px solid #ccc; border-radius:var(--border-radius); box-shadow:var(--shadow);">
+                </div>
+                <div id="corelPreviewBackWrap" style="display:none; flex-direction:column; align-items:center; gap:8px; flex:1; min-width:280px;">
+                    <div style="font-weight:700; font-size:0.9rem;">Back Side (Corel PDF)</div>
+                    <img id="corelPreviewBackImg" src="" alt="Corel PDF Back Preview" style="max-width:100%; height:auto; border:2px solid #ccc; border-radius:var(--border-radius); box-shadow:var(--shadow);">
+                </div>
+            </div>
+            
+            <div id="corelPreviewError" style="display:none; color:var(--error-text); background:var(--error-bg); padding:15px; border-radius:var(--border-radius); text-align:center;">
+                <i class="fas fa-exclamation-triangle"></i> <span id="corelPreviewErrorText">Failed to generate PDF preview.</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function showCorelPreview() {
+            const templateId = document.getElementById('previewTemplate').value;
+            const studentId = document.getElementById('previewStudent').value;
+            if (!templateId) return;
+            
+            const modal = document.getElementById('corelPreviewModal');
+            const loading = document.getElementById('corelPreviewLoading');
+            const imagesContainer = document.getElementById('corelPreviewImages');
+            const backWrap = document.getElementById('corelPreviewBackWrap');
+            const errorDiv = document.getElementById('corelPreviewError');
+            const frontImg = document.getElementById('corelPreviewFrontImg');
+            const backImg = document.getElementById('corelPreviewBackImg');
+            
+            modal.style.display = 'flex';
+            loading.style.display = 'block';
+            imagesContainer.style.display = 'none';
+            backWrap.style.display = 'none';
+            errorDiv.style.display = 'none';
+            
+            const templateSelect = document.getElementById('previewTemplate');
+            const selectedTemplateOpt = templateSelect.options[templateSelect.selectedIndex];
+            
+            let frontUrl = `/corel/preview/${templateId}?side=front`;
+            if (studentId) frontUrl += `&student_id=${studentId}`;
+            
+            let backUrl = `/corel/preview/${templateId}?side=back`;
+            if (studentId) backUrl += `&student_id=${studentId}`;
+            
+            frontImg.src = frontUrl;
+            
+            frontImg.onload = function() {
+                loading.style.display = 'none';
+                imagesContainer.style.display = 'flex';
+                
+                const isDoubleSided = selectedTemplateOpt.getAttribute('data-double-sided') === 'true';
+                if (isDoubleSided) {
+                    backImg.src = backUrl;
+                    backWrap.style.display = 'flex';
+                }
+            };
+            
+            frontImg.onerror = function() {
+                loading.style.display = 'none';
+                errorDiv.style.display = 'block';
+                document.getElementById('corelPreviewErrorText').textContent = "Failed to load Corel PDF front preview.";
+            };
+        }
+
+        function closeCorelPreviewModal() {
+            document.getElementById('corelPreviewModal').style.display = 'none';
+        }
+    </script>
