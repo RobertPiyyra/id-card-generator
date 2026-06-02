@@ -1722,7 +1722,8 @@ def index():
                     for line in wrapped_addr[:address_max_lines]:
                         line_display = process_text_for_drawing(line, lang)
                         # Use slightly tighter spacing if we shrunk the font significantly
-                        spacing = line_height if curr_size > 20 else curr_size + 5
+                        val_line_height = layout_item.get("value_line_height") or line_height
+                        spacing = val_line_height if curr_size > 20 else curr_size + 5
                         if layout_item["value_visible"]:
                             value_draw_x = flip_x_for_text_direction(
                                 value_x_eff,
