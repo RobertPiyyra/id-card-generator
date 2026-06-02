@@ -1384,6 +1384,8 @@
 
         <div class="tabs">
             <div class="tab active" onclick="switchTab('settings')"><i class="fas fa-cog"></i> Settings</div>
+            <div class="tab" onclick="switchTab('premium')"><i class="fas fa-gem"></i> Premium</div>
+            <div class="tab" onclick="switchTab('bulk')"><i class="fas fa-cogs"></i> Bulk Ops</div>
             <div class="tab" onclick="switchTab('data')"><i class="fas fa-database"></i> Data Management</div>
             <div class="tab" onclick="switchTab('preview')"><i class="fas fa-eye"></i> Preview</div>
             <div class="tab" onclick="switchTab('formFields')"><i class="fas fa-list-alt"></i> Form Fields</div>
@@ -1392,10 +1394,16 @@
         <div id="settings-tab" class="tab-content active">
             <div class="grid-container">
                 {% include 'admin/_template_upload.html' %}
+            </div>
+        </div>
 
+        <div id="premium-tab" class="tab-content">
+            <div class="grid-container">
                 {% include 'admin/_template_settings.html' %}
             </div>
         </div>
+
+        {% include 'admin/_bulk_ops_tab.html' %}
 
         <div id="data-tab" class="tab-content">
             <div class="grid-container">

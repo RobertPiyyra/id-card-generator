@@ -1,31 +1,120 @@
 import os
 import logging
+from datetime import datetime, timezone
+import csv
+import io
 from flask import Blueprint, request, jsonify, render_template, url_for, session
 from sqlalchemy import text
 
-from models import db, Student, Template, TemplateField
+from models import (
+    db,
+    Student,
+    Template,
+    TemplateField,
+    TemplateVersion,
+    TemplateWorkflow,
+    ImmutableAuditEvent,
+    VerificationAudit,
+    ImportMapping,
+    DisasterRecoverySnapshot,
+)
+from app.services.template_lifecycle_service import (
+    apply_snapshot_to_template,
+    create_template_version_snapshot,
+    get_or_create_template_workflow,
+    get_session_actor,
+    log_immutable_audit_event,
+    transition_template_workflow,
+)
+from app.services.premium_service import (
+    run_design_qa,
+    build_signed_verify_token,
+    parse_signed_verify_token,
+    simple_photo_quality_score,
+)
 from utils import PLACEHOLDER_PATH
+from utils import get_localized_standard_labels
 from app.services import redis_service
 from app.services.redis_service import _redis_candidate_urls, get_redis_client
+from app.services.bulk_job_service import _get_bulk_job_state, _list_bulk_job_states, _set_bulk_job_state
+from app.services.photo_service import resolve_student_photo_reference
 
 logger = logging.getLogger(__name__)
 
 api_bp = Blueprint("api", __name__)
 
-
-def get_legacy_helpers():
-    import app.legacy_app as legacy
-    return legacy
-
-
 # ================== Task Status Route ==================
 @api_bp.route('/taskstatus/<task_id>')
 def taskstatus(task_id):
-    legacy = get_legacy_helpers()
-    task = legacy._get_bulk_job_state(task_id)
+    task = _get_bulk_job_state(task_id)
     if not task:
         return jsonify({'state': 'FAILURE', 'status': 'Task not found', 'errors': ['Task not found']}), 404
     return jsonify(task)
+
+
+@api_bp.route('/admin/bulk-jobs', methods=['GET'])
+def list_bulk_jobs():
+    if not session.get("admin"):
+        return jsonify({"success": False, "message": "Unauthorized"}), 403
+    limit = request.args.get("limit", 100, type=int)
+    rows = _list_bulk_job_states(limit=limit)
+    return jsonify({"success": True, "jobs": rows})
+
+
+@api_bp.route('/admin/bulk-jobs/<task_id>/cancel', methods=['POST'])
+def cancel_bulk_job(task_id):
+    if not session.get("admin"):
+        return jsonify({"success": False, "message": "Unauthorized"}), 403
+    task = _get_bulk_job_state(task_id)
+    if not task:
+        return jsonify({"success": False, "message": "Task not found"}), 404
+    current_state = str(task.get("state") or "").upper()
+    if current_state in {"SUCCESS", "FAILURE", "CANCELLED"}:
+        return jsonify({"success": False, "message": f"Cannot cancel task in state {current_state}"}), 400
+    _set_bulk_job_state(
+        task_id,
+        cancel_requested=True,
+        status="Cancellation requested by admin...",
+        updated_at=datetime.now(timezone.utc).isoformat(),
+    )
+    return jsonify({"success": True, "message": "Cancellation requested", "task_id": task_id})
+
+
+@api_bp.route('/admin/bulk-jobs/<task_id>/failed-rows.csv', methods=['GET'])
+def bulk_job_failed_rows_csv(task_id):
+    if not session.get("admin"):
+        return jsonify({"success": False, "message": "Unauthorized"}), 403
+    task = _get_bulk_job_state(task_id)
+    if not task:
+        return jsonify({"success": False, "message": "Task not found"}), 404
+    errors = task.get("errors") if isinstance(task, dict) else None
+    errors = errors if isinstance(errors, list) else []
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["row_number", "error_message"])
+    for e in errors:
+        msg = str(e or "").strip()
+        row_no = ""
+        if msg.lower().startswith("row "):
+            parts = msg.split(":", 1)
+            head = parts[0].strip()
+            tail = parts[1].strip() if len(parts) > 1 else msg
+            try:
+                row_no = int(head.split()[1])
+            except Exception:
+                row_no = ""
+            writer.writerow([row_no, tail])
+        else:
+            writer.writerow([row_no, msg])
+
+    csv_bytes = output.getvalue().encode("utf-8")
+    from flask import Response
+    return Response(
+        csv_bytes,
+        mimetype="text/csv",
+        headers={"Content-Disposition": f"attachment; filename=bulk_failed_rows_{task_id}.csv"},
+    )
 
 
 # ================== Template Form Fields Routes ==================
@@ -208,10 +297,8 @@ def verify_student(student_identifier):
         if not student:
             return render_template("verify.html", error="Student record not found.", valid=False)
         
-        legacy = get_legacy_helpers()
         final_photo_url = None
-
-        photo_url, local_photo_path = legacy.resolve_student_photo_reference(student)
+        photo_url, local_photo_path = resolve_student_photo_reference(student)
         if photo_url:
             final_photo_url = photo_url
         elif local_photo_path:
@@ -250,3 +337,527 @@ def health_check():
         return jsonify({"status": "unhealthy", "error": str(e)}), 500
 
 __all__ = ["api_bp"]
+
+
+@api_bp.route("/admin/template/<int:template_id>/versions", methods=["GET"])
+def template_versions(template_id):
+    if not session.get("admin"):
+        return jsonify({"success": False, "message": "Unauthorized"}), 403
+    versions = (
+        TemplateVersion.query.filter_by(template_id=template_id)
+        .order_by(TemplateVersion.version_number.desc())
+        .limit(100)
+        .all()
+    )
+    return jsonify(
+        {
+            "success": True,
+            "versions": [
+                {
+                    "id": v.id,
+                    "version_number": v.version_number,
+                    "source": v.source,
+                    "created_by": v.created_by,
+                    "created_role": v.created_role,
+                    "rollback_of_version_id": v.rollback_of_version_id,
+                    "created_at": v.created_at.isoformat() if v.created_at else None,
+                }
+                for v in versions
+            ],
+        }
+    )
+
+
+@api_bp.route("/admin/template/<int:template_id>/rollback/<int:version_id>", methods=["POST"])
+def rollback_template_version(template_id, version_id):
+    if not session.get("admin"):
+        return jsonify({"success": False, "message": "Unauthorized"}), 403
+    template = db.session.get(Template, template_id)
+    if not template:
+        return jsonify({"success": False, "message": "Template not found"}), 404
+    version = TemplateVersion.query.filter_by(id=version_id, template_id=template_id).first()
+    if not version:
+        return jsonify({"success": False, "message": "Version not found"}), 404
+    try:
+        apply_snapshot_to_template(template, version.snapshot_json or {})
+        actor, actor_role = get_session_actor()
+        create_template_version_snapshot(
+            template,
+            source="rollback",
+            note=f"Rollback to version #{version.version_number}",
+            rollback_of_version_id=version.id,
+            actor=actor,
+            actor_role=actor_role,
+        )
+        log_immutable_audit_event(
+            entity_type="template",
+            entity_id=template_id,
+            action="template_rolled_back",
+            payload={"template_id": template_id, "target_version_id": version_id, "target_version_number": version.version_number},
+            actor=actor,
+            actor_role=actor_role,
+        )
+        db.session.commit()
+        return jsonify({"success": True, "message": "Rollback applied"})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+@api_bp.route("/admin/template/<int:template_id>/workflow", methods=["GET", "POST"])
+def template_workflow(template_id):
+    if not session.get("admin"):
+        return jsonify({"success": False, "message": "Unauthorized"}), 403
+    template = db.session.get(Template, template_id)
+    if not template:
+        return jsonify({"success": False, "message": "Template not found"}), 404
+
+    if request.method == "GET":
+        wf = get_or_create_template_workflow(template_id)
+        db.session.commit()
+        return jsonify(
+            {
+                "success": True,
+                "state": wf.state,
+                "updated_by": wf.updated_by,
+                "updated_role": wf.updated_role,
+                "updated_at": wf.updated_at.isoformat() if wf.updated_at else None,
+                "note": wf.note,
+            }
+        )
+
+    payload = request.get_json(silent=True) or {}
+    new_state = payload.get("state")
+    note = payload.get("note")
+    try:
+        actor, actor_role = get_session_actor()
+        wf = transition_template_workflow(template_id, new_state, note=note, actor=actor, actor_role=actor_role)
+        log_immutable_audit_event(
+            entity_type="template",
+            entity_id=template_id,
+            action="template_workflow_transition",
+            payload={"template_id": template_id, "new_state": wf.state, "note": note},
+            actor=actor,
+            actor_role=actor_role,
+        )
+        db.session.commit()
+        return jsonify({"success": True, "state": wf.state})
+    except PermissionError as pe:
+        db.session.rollback()
+        return jsonify({"success": False, "message": str(pe)}), 403
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"success": False, "message": str(e)}), 400
+
+
+@api_bp.route("/admin/audit-events", methods=["GET"])
+def admin_audit_events():
+    if not session.get("admin"):
+        return jsonify({"success": False, "message": "Unauthorized"}), 403
+    entity_type = (request.args.get("entity_type") or "").strip()
+    entity_id = (request.args.get("entity_id") or "").strip()
+    q = ImmutableAuditEvent.query
+    if entity_type:
+        q = q.filter(ImmutableAuditEvent.entity_type == entity_type)
+    if entity_id:
+        q = q.filter(ImmutableAuditEvent.entity_id == entity_id)
+    rows = q.order_by(ImmutableAuditEvent.id.desc()).limit(200).all()
+    return jsonify(
+        {
+            "success": True,
+            "events": [
+                {
+                    "id": r.id,
+                    "entity_type": r.entity_type,
+                    "entity_id": r.entity_id,
+                    "action": r.action,
+                    "actor": r.actor,
+                    "actor_role": r.actor_role,
+                    "payload_json": r.payload_json,
+                    "created_at": r.created_at.isoformat() if r.created_at else None,
+                }
+                for r in rows
+            ],
+        }
+    )
+
+
+@api_bp.route("/admin/template/<int:template_id>/design-qa", methods=["GET"])
+def template_design_qa(template_id):
+    if not session.get("admin"):
+        return jsonify({"success": False, "message": "Unauthorized"}), 403
+    template = db.session.get(Template, template_id)
+    if not template:
+        return jsonify({"success": False, "message": "Template not found"}), 404
+    return jsonify({"success": True, "qa": run_design_qa(template)})
+
+
+@api_bp.route("/admin/template/<int:template_id>/qa-settings", methods=["GET", "POST"])
+def template_qa_settings(template_id):
+    if not session.get("admin"):
+        return jsonify({"success": False, "message": "Unauthorized"}), 403
+    template = db.session.get(Template, template_id)
+    if not template:
+        return jsonify({"success": False, "message": "Template not found"}), 404
+    if request.method == "GET":
+        return jsonify({"success": True, "qa_settings": template.qa_settings or {}})
+    payload = request.get_json(silent=True) or {}
+    template.qa_settings = payload.get("qa_settings") or {}
+    db.session.commit()
+    return jsonify({"success": True, "qa_settings": template.qa_settings})
+
+
+@api_bp.route("/admin/preview-modes/<int:student_id>", methods=["GET"])
+def preview_modes(student_id):
+    if not session.get("admin"):
+        return jsonify({"success": False, "message": "Unauthorized"}), 403
+    student = db.session.get(Student, student_id)
+    if not student:
+        return jsonify({"success": False, "message": "Student not found"}), 404
+    visual_url = url_for("dashboard.student_preview", student_id=student_id)
+    print_safe_url = url_for("dashboard.generate_preview", student_id=student_id)
+    corel_url = url_for("corel.corel_preview", template_id=student.template_id, student_id=student_id, side="front")
+    return jsonify({"success": True, "visual_url": visual_url, "print_safe_url": print_safe_url, "corel_url": corel_url})
+
+
+@api_bp.route("/admin/template/<int:template_id>/batch-rules", methods=["GET", "POST"])
+def template_batch_rules(template_id):
+    if not session.get("admin"):
+        return jsonify({"success": False, "message": "Unauthorized"}), 403
+    template = db.session.get(Template, template_id)
+    if not template:
+        return jsonify({"success": False, "message": "Template not found"}), 404
+    if request.method == "GET":
+        return jsonify({"success": True, "rules": template.batch_rules or {}})
+    payload = request.get_json(silent=True) or {}
+    template.batch_rules = payload.get("rules") or {}
+    db.session.commit()
+    return jsonify({"success": True, "rules": template.batch_rules})
+
+
+@api_bp.route("/verify/v2/token/<int:student_id>", methods=["POST"])
+def issue_verify_token_v2(student_id):
+    if not session.get("admin"):
+        return jsonify({"success": False, "message": "Unauthorized"}), 403
+    student = db.session.get(Student, student_id)
+    if not student:
+        return jsonify({"success": False, "message": "Student not found"}), 404
+    ttl = int((request.get_json(silent=True) or {}).get("ttl_seconds") or 3600)
+    token_id = f"{student_id}-{int(datetime.now(timezone.utc).timestamp())}"
+    token = build_signed_verify_token(
+        secret_key=os.getenv("SECRET_KEY", "dev-key"),
+        student_id=student.id,
+        template_id=student.template_id or 0,
+        token_id=token_id,
+    )
+    return jsonify({"success": True, "token": token, "expires_in": ttl, "verify_url": url_for("api.verify_v2", token=token, _external=True)})
+
+
+@api_bp.route("/verify/v2/<token>", methods=["GET"])
+def verify_v2(token):
+    payload, status = parse_signed_verify_token(os.getenv("SECRET_KEY", "dev-key"), token, max_age_seconds=86400)
+    audit = VerificationAudit(
+        status=status,
+        token_id=(payload.get("jti") if payload else None),
+        student_id=(payload.get("sid") if payload else None),
+        template_id=(payload.get("tid") if payload else None),
+        ip_address=request.remote_addr,
+        user_agent=(request.headers.get("User-Agent") or "")[:512],
+        details_json={"token_status": status},
+    )
+    db.session.add(audit)
+    db.session.commit()
+    if status != "ok" or not payload:
+        return render_template("verify.html", error=f"Verification {status}.", valid=False)
+    student = db.session.get(Student, int(payload.get("sid")))
+    if not student:
+        return render_template("verify.html", error="Student not found.", valid=False)
+    if bool(getattr(student, "verification_revoked", False)):
+        return render_template("verify.html", error="Credential revoked.", valid=False)
+    student_data = {
+        "name": student.name,
+        "father_name": student.father_name,
+        "school_name": student.school_name,
+        "photo_url": student.photo_url or url_for('static', filename=os.path.basename(PLACEHOLDER_PATH)),
+        "class_name": student.class_name,
+        "status": "Verified",
+    }
+    return render_template("verify.html", student=student_data, valid=True)
+
+
+@api_bp.route("/admin/analytics/overview", methods=["GET"])
+def analytics_overview():
+    if not session.get("admin"):
+        return jsonify({"success": False, "message": "Unauthorized"}), 403
+    rows = db.session.query(Template.school_name, db.func.count(Student.id)).join(Student, Student.template_id == Template.id, isouter=True).group_by(Template.school_name).all()
+    by_school = [{"school_name": r[0], "cards_generated": int(r[1] or 0)} for r in rows]
+    revoked = db.session.query(db.func.count(Student.id)).filter(Student.verification_revoked == True).scalar() or 0
+    low_quality = db.session.query(db.func.count(Student.id)).filter(Student.photo_quality_status == "fail").scalar() or 0
+    duplicate_hash = db.session.query(db.func.count(Student.id)).filter(Student.data_hash.isnot(None)).scalar() or 0
+    return jsonify({"success": True, "by_school": by_school, "revoked_count": int(revoked), "photo_quality_fail_count": int(low_quality), "records_with_hash": int(duplicate_hash)})
+
+
+@api_bp.route("/admin/template/<int:template_id>/localization-pack", methods=["GET", "POST"])
+def localization_pack(template_id):
+    if not session.get("admin"):
+        return jsonify({"success": False, "message": "Unauthorized"}), 403
+    template = db.session.get(Template, template_id)
+    if not template:
+        return jsonify({"success": False, "message": "Template not found"}), 404
+    if request.method == "GET":
+        return jsonify({"success": True, "localization_pack": template.localization_pack or {}, "language_lock_rules": template.language_lock_rules or {}})
+    payload = request.get_json(silent=True) or {}
+    template.localization_pack = payload.get("localization_pack") or {}
+    template.language_lock_rules = payload.get("language_lock_rules") or {}
+    db.session.commit()
+    return jsonify({"success": True})
+
+
+@api_bp.route("/admin/template/<int:template_id>/localized-labels", methods=["GET"])
+def template_localized_labels(template_id):
+    if not session.get("admin"):
+        return jsonify({"success": False, "message": "Unauthorized"}), 403
+    template = db.session.get(Template, template_id)
+    if not template:
+        return jsonify({"success": False, "message": "Template not found"}), 404
+    side = (request.args.get("side") or "front").strip().lower()
+    if side not in {"front", "back"}:
+        side = "front"
+    if side == "back":
+        language = (template.back_language or template.language or "english").strip().lower()
+    else:
+        language = (template.language or "english").strip().lower()
+    lock_rules = template.language_lock_rules or {}
+    if isinstance(lock_rules, dict):
+        locked = str(lock_rules.get(side, "") or "").strip().lower()
+        if locked:
+            language = locked
+    labels = get_localized_standard_labels(language, template.localization_pack or {})
+    return jsonify({"success": True, "side": side, "language": language, "labels": labels})
+
+
+@api_bp.route("/admin/template/<int:template_id>/branding", methods=["GET", "POST"])
+def template_branding(template_id):
+    if not session.get("admin"):
+        return jsonify({"success": False, "message": "Unauthorized"}), 403
+    template = db.session.get(Template, template_id)
+    if not template:
+        return jsonify({"success": False, "message": "Template not found"}), 404
+    if request.method == "GET":
+        return jsonify({"success": True, "branding_config": template.branding_config or {}, "print_profile": template.print_profile or {}})
+    payload = request.get_json(silent=True) or {}
+    template.branding_config = payload.get("branding_config") or {}
+    template.print_profile = payload.get("print_profile") or {}
+    db.session.commit()
+    return jsonify({"success": True})
+
+
+@api_bp.route("/admin/import-mappings/<int:template_id>", methods=["GET", "POST"])
+def import_mappings(template_id):
+    if not session.get("admin"):
+        return jsonify({"success": False, "message": "Unauthorized"}), 403
+    if request.method == "GET":
+        rows = ImportMapping.query.filter_by(template_id=template_id).order_by(ImportMapping.updated_at.desc()).all()
+        return jsonify({"success": True, "mappings": [{"id": r.id, "name": r.name, "mapping_json": r.mapping_json} for r in rows]})
+    payload = request.get_json(silent=True) or {}
+    row = ImportMapping(
+        template_id=template_id,
+        school_name=payload.get("school_name"),
+        name=(payload.get("name") or f"mapping-{template_id}"),
+        mapping_json=payload.get("mapping_json") or {},
+        created_by=session.get("student_email"),
+    )
+    db.session.add(row)
+    db.session.commit()
+    return jsonify({"success": True, "id": row.id})
+
+
+@api_bp.route("/admin/import-mappings/preview", methods=["POST"])
+def import_mapping_preview():
+    if not session.get("admin"):
+        return jsonify({"success": False, "message": "Unauthorized"}), 403
+    payload = request.get_json(silent=True) or {}
+    headers = payload.get("headers") or []
+    mapping = payload.get("mapping_json") or {}
+    required = ["name"]
+    missing = []
+    for req in required:
+        src = mapping.get(req)
+        if not src or src not in headers:
+            missing.append(req)
+    return jsonify({"success": True, "valid": len(missing) == 0, "missing_required_targets": missing, "headers": headers, "mapping": mapping})
+
+
+@api_bp.route("/admin/disaster-recovery/snapshot", methods=["POST"])
+def dr_create_snapshot():
+    if not session.get("admin"):
+        return jsonify({"success": False, "message": "Unauthorized"}), 403
+    payload = {
+        "templates": [
+            {
+                "id": t.id,
+                "school_name": t.school_name,
+                "font_settings": t.font_settings,
+                "photo_settings": t.photo_settings,
+                "qr_settings": t.qr_settings,
+                "layout_config": t.layout_config,
+                "back_layout_config": t.back_layout_config,
+                "batch_rules": t.batch_rules,
+                "localization_pack": t.localization_pack,
+                "branding_config": t.branding_config,
+                "print_profile": t.print_profile,
+            }
+            for t in Template.query.all()
+        ]
+    }
+    name = f"snapshot-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}"
+    row = DisasterRecoverySnapshot(snapshot_name=name, scope="full", payload_json=payload, created_by=session.get("student_email"))
+    db.session.add(row)
+    db.session.commit()
+    return jsonify({"success": True, "snapshot_id": row.id, "snapshot_name": row.snapshot_name})
+
+
+def _restore_snapshot_payload(payload):
+    restored = 0
+    for t in payload.get("templates", []) or []:
+        template = db.session.get(Template, int(t.get("id"))) if t.get("id") else None
+        if not template:
+            continue
+        template.font_settings = t.get("font_settings") or template.font_settings
+        template.photo_settings = t.get("photo_settings") or template.photo_settings
+        template.qr_settings = t.get("qr_settings") or template.qr_settings
+        template.layout_config = t.get("layout_config")
+        template.back_layout_config = t.get("back_layout_config")
+        template.batch_rules = t.get("batch_rules") or {}
+        template.localization_pack = t.get("localization_pack") or {}
+        template.branding_config = t.get("branding_config") or {}
+        template.print_profile = t.get("print_profile") or {}
+        restored += 1
+    db.session.commit()
+    return restored
+
+
+@api_bp.route("/admin/disaster-recovery/snapshots", methods=["GET"])
+def dr_list_snapshots():
+    if not session.get("admin"):
+        return jsonify({"success": False, "message": "Unauthorized"}), 403
+    rows = DisasterRecoverySnapshot.query.order_by(DisasterRecoverySnapshot.created_at.desc()).limit(100).all()
+    return jsonify({"success": True, "snapshots": [{"id": r.id, "snapshot_name": r.snapshot_name, "created_at": r.created_at.isoformat()} for r in rows]})
+
+
+@api_bp.route("/admin/disaster-recovery/restore/<int:snapshot_id>", methods=["POST"])
+def dr_restore_snapshot(snapshot_id):
+    if not session.get("admin"):
+        return jsonify({"success": False, "message": "Unauthorized"}), 403
+    snap = db.session.get(DisasterRecoverySnapshot, snapshot_id)
+    if not snap:
+        return jsonify({"success": False, "message": "Snapshot not found"}), 404
+    payload = snap.payload_json or {}
+    restored = _restore_snapshot_payload(payload)
+    return jsonify({"success": True, "restored_templates": restored})
+
+
+@api_bp.route("/admin/disaster-recovery/restore-to-date", methods=["POST"])
+def dr_restore_to_date():
+    if not session.get("admin"):
+        return jsonify({"success": False, "message": "Unauthorized"}), 403
+    payload = request.get_json(silent=True) or {}
+    target_at = (payload.get("target_at") or "").strip()
+    if not target_at:
+        return jsonify({"success": False, "message": "target_at is required"}), 400
+    try:
+        normalized = target_at.replace("Z", "+00:00")
+        target_dt = datetime.fromisoformat(normalized)
+        if target_dt.tzinfo is None:
+            target_dt = target_dt.replace(tzinfo=timezone.utc)
+        target_dt = target_dt.astimezone(timezone.utc)
+    except Exception:
+        return jsonify({"success": False, "message": "Invalid target_at format"}), 400
+
+    snap = (
+        DisasterRecoverySnapshot.query
+        .filter(DisasterRecoverySnapshot.created_at <= target_dt)
+        .order_by(DisasterRecoverySnapshot.created_at.desc())
+        .first()
+    )
+    if not snap:
+        return jsonify({"success": False, "message": "No snapshot exists at/before requested date"}), 404
+    restored = _restore_snapshot_payload(snap.payload_json or {})
+    return jsonify({
+        "success": True,
+        "restored_templates": restored,
+        "snapshot_id": snap.id,
+        "snapshot_name": snap.snapshot_name,
+        "snapshot_created_at": snap.created_at.isoformat() if snap.created_at else None,
+    })
+
+
+@api_bp.route("/admin/students/<int:student_id>/photo-quality", methods=["POST"])
+def photo_quality_check(student_id):
+    if not session.get("admin"):
+        return jsonify({"success": False, "message": "Unauthorized"}), 403
+    student = db.session.get(Student, student_id)
+    if not student:
+        return jsonify({"success": False, "message": "Student not found"}), 404
+    photo_url, local_path = resolve_student_photo_reference(student)
+    img_bytes = None
+    if local_path and os.path.exists(local_path):
+        with open(local_path, "rb") as f:
+            img_bytes = f.read()
+    elif photo_url:
+        import requests
+        resp = requests.get(photo_url, timeout=10)
+        if resp.ok:
+            img_bytes = resp.content
+    if not img_bytes:
+        return jsonify({"success": False, "message": "No photo available"}), 400
+    score, status = simple_photo_quality_score(img_bytes)
+    student.photo_quality_score = float(score)
+    student.photo_quality_status = status
+    db.session.commit()
+    return jsonify({"success": True, "score": score, "status": status})
+
+
+@api_bp.route("/admin/students/<int:student_id>/verification-status", methods=["POST"])
+def update_student_verification_status(student_id):
+    if not session.get("admin"):
+        return jsonify({"success": False, "message": "Unauthorized"}), 403
+    student = db.session.get(Student, student_id)
+    if not student:
+        return jsonify({"success": False, "message": "Student not found"}), 404
+    payload = request.get_json(silent=True) or {}
+    student.verification_revoked = bool(payload.get("revoked"))
+    db.session.commit()
+    return jsonify({
+        "success": True,
+        "student_id": student.id,
+        "verification_revoked": bool(student.verification_revoked),
+    })
+
+
+@api_bp.route("/admin/verification-audits", methods=["GET"])
+def list_verification_audits():
+    if not session.get("admin"):
+        return jsonify({"success": False, "message": "Unauthorized"}), 403
+    student_id = request.args.get("student_id", type=int)
+    limit = max(1, min(200, request.args.get("limit", 50, type=int)))
+    query = VerificationAudit.query
+    if student_id:
+        query = query.filter(VerificationAudit.student_id == student_id)
+    rows = query.order_by(VerificationAudit.created_at.desc()).limit(limit).all()
+    return jsonify({
+        "success": True,
+        "audits": [
+            {
+                "id": r.id,
+                "student_id": r.student_id,
+                "template_id": r.template_id,
+                "status": r.status,
+                "token_id": r.token_id,
+                "ip_address": r.ip_address,
+                "user_agent": r.user_agent,
+                "created_at": r.created_at.isoformat() if r.created_at else None,
+            }
+            for r in rows
+        ],
+    })

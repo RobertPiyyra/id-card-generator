@@ -130,44 +130,6 @@
 </div>
 
 <div class="section">
-    <h3><i class="fas fa-cogs"></i> Bulk Generate Cards</h3>
-    <form id="bulkForm" onsubmit="startBulkGeneration(event)">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-        <div class="mb-3">
-            <label class="form-label">Select Template</label>
-            <select name="template_id" class="form-control" required>
-                <option value="">-- Select Template --</option>
-                {% for t in templates %}
-                <option value="{{ t.id }}">{{ t.school_name }}</option>
-                {% endfor %}
-            </select>
-        </div>
-
-        <div class="mb-3">
-            <label class="form-label">Upload Student Data (.xlsx or .csv)</label>
-            <input type="file" name="excel_file" class="form-control" accept=".csv, .xlsx" required>
-        </div>
-
-        <div class="mb-3">
-            <label class="form-label">Upload Photos (Optional)</label>
-            <input type="file" name="bulk_photos" class="form-control" multiple accept="image/*">
-        </div>
-
-        <div id="bulkProgressContainer" style="display:none; margin-top: 15px;">
-            <div style="height: 25px; background: #e9ecef; border-radius: 5px; overflow: hidden;">
-                <div id="bulkProgressBar" style="width: 0%; height: 100%; background: #4caf50; transition: width 0.5s;"></div>
-            </div>
-            <p id="bulkStatusText" style="text-align: center; margin-top: 5px; color: #666;">Initializing...</p>
-            <div id="bulkErrorDetails" style="display:none; margin-top:10px; padding:12px; border-radius:8px; background:#fff3cd; color:#7a4b00; white-space:pre-line; font-size:0.92rem;"></div>
-        </div>
-
-        <button type="submit" class="btn btn-success w-100" id="bulkSubmitBtn">
-            <i class="fas fa-cogs"></i> Start Bulk Generation
-        </button>
-    </form>
-</div>
-
-<div class="section">
     <h3><i class="fas fa-exclamation-triangle"></i> Duplicate Check Settings</h3>
     <form action="{{ url_for('update_duplicate_settings') }}" method="post" class="enhanced-form">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>

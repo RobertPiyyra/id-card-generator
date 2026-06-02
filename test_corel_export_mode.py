@@ -86,6 +86,26 @@ class CorelExportModeTests(unittest.TestCase):
         cfg = get_default_font_config()
         self.assertIn("colon_font_color", cfg)
 
+    def test_parse_rgb_color(self):
+        from utils import _parse_rgb_color
+        self.assertEqual(_parse_rgb_color("#ff0000"), [255, 0, 0])
+        self.assertEqual(_parse_rgb_color("#00ff00"), [0, 255, 0])
+        self.assertEqual(_parse_rgb_color("#0000ff"), [0, 0, 255])
+        self.assertEqual(_parse_rgb_color("#abc"), [170, 187, 204])
+        self.assertEqual(_parse_rgb_color("255, 100, 50"), [255, 100, 50])
+        self.assertEqual(_parse_rgb_color([10, 20, 30]), [10, 20, 30])
+        self.assertEqual(_parse_rgb_color(None), [0, 0, 0])
+        self.assertEqual(_parse_rgb_color("invalid"), [0, 0, 0])
+
+    def test_default_font_config_has_gradient_keys(self):
+        cfg = get_default_font_config()
+        self.assertIn("enable_label_gradient", cfg)
+        self.assertIn("label_font_color_bottom", cfg)
+        self.assertIn("enable_value_gradient", cfg)
+        self.assertIn("value_font_color_bottom", cfg)
+        self.assertIn("enable_colon_gradient", cfg)
+        self.assertIn("colon_font_color_bottom", cfg)
+
 
 if __name__ == "__main__":
     unittest.main()

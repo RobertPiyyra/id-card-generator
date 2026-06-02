@@ -1,6 +1,6 @@
 # SQLAlchemy imports
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, Boolean, JSON
+from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, Boolean, JSON, Float
 from sqlalchemy.orm import relationship, backref
 from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.sql import func
@@ -55,6 +55,13 @@ class Template(db.Model):
 
     layout_config = db.Column(db.Text, nullable=True)  # JSON string for layout configuration
     back_layout_config = db.Column(db.Text, nullable=True)
+    qa_settings = Column(MutableDict.as_mutable(JSON), default=dict)
+    batch_rules = Column(MutableDict.as_mutable(JSON), default=dict)
+    localization_pack = Column(MutableDict.as_mutable(JSON), default=dict)
+    language_lock_rules = Column(MutableDict.as_mutable(JSON), default=dict)
+    branding_config = Column(MutableDict.as_mutable(JSON), default=dict)
+    print_profile = Column(MutableDict.as_mutable(JSON), default=dict)
+    verification_config = Column(MutableDict.as_mutable(JSON), default=dict)
 
     # Relationships
     students = relationship('Student', backref='template_rel', lazy='dynamic')
@@ -115,6 +122,9 @@ class Student(db.Model):
     # Sheet Tracking (Legacy support)
     sheet_filename = Column(String(255)) 
     sheet_position = Column(Integer)
+    verification_revoked = Column(Boolean, default=False)
+    photo_quality_score = Column(Float, default=0.0)
+    photo_quality_status = Column(String(20), default='unknown')
 
 
 # ================== Activity Log Model ==================
@@ -211,3 +221,132 @@ class AdminUser(db.Model):
     role = db.Column(db.String(50), default='school_admin')  # e.g., 'super_admin' or 'school_admin'
     school_name = db.Column(db.String(255), nullable=True)   # Scopes access for school_admin
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+# ================== Phase-1 Premium Models ==================
+class TemplateVersion(db.Model):
+    __tablename__ = 'template_versions'
+
+    id = db.Column(db.Integer, primary_key=True)
+    template_id = db.Column(db.Integer, db.ForeignKey('templates.id', ondelete='CASCADE'), nullable=False, index=True)
+    version_number = db.Column(db.Integer, nullable=False, default=1)
+    snapshot_json = db.Column(MutableDict.as_mutable(JSON), nullable=False, default=dict)
+    source = db.Column(db.String(80), nullable=True)  # e.g., admin_settings, visual_editor, rollback
+    created_by = db.Column(db.String(255), nullable=True)
+    created_role = db.Column(db.String(80), nullable=True)
+    rollback_of_version_id = db.Column(db.Integer, nullable=True)
+    checksum = db.Column(db.String(128), nullable=True)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+
+    template = db.relationship('Template', backref=db.backref('versions', lazy='dynamic', cascade='all, delete-orphan'))
+
+
+class TemplateWorkflow(db.Model):
+    __tablename__ = 'template_workflows'
+
+    id = db.Column(db.Integer, primary_key=True)
+    template_id = db.Column(db.Integer, db.ForeignKey('templates.id', ondelete='CASCADE'), nullable=False, unique=True, index=True)
+    state = db.Column(db.String(32), nullable=False, default='draft')  # draft, review, approved, published
+    updated_by = db.Column(db.String(255), nullable=True)
+    updated_role = db.Column(db.String(80), nullable=True)
+    note = db.Column(db.Text, nullable=True)
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+
+    template = db.relationship('Template', backref=db.backref('workflow', uselist=False, cascade='all, delete-orphan'))
+
+
+class ImmutableAuditEvent(db.Model):
+    __tablename__ = 'immutable_audit_events'
+
+    id = db.Column(db.Integer, primary_key=True)
+    entity_type = db.Column(db.String(80), nullable=False, index=True)  # template, bulk_job, etc.
+    entity_id = db.Column(db.String(80), nullable=False, index=True)
+    action = db.Column(db.String(120), nullable=False)
+    actor = db.Column(db.String(255), nullable=True)
+    actor_role = db.Column(db.String(80), nullable=True)
+    ip_address = db.Column(db.String(64), nullable=True)
+    user_agent = db.Column(db.String(512), nullable=True)
+    payload_json = db.Column(MutableDict.as_mutable(JSON), nullable=False, default=dict)
+    prev_event_hash = db.Column(db.String(128), nullable=True)
+    event_hash = db.Column(db.String(128), nullable=False, unique=True)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), nullable=False, index=True)
+
+
+class BulkJob(db.Model):
+    __tablename__ = 'bulk_jobs'
+
+    id = db.Column(db.Integer, primary_key=True)
+    template_id = db.Column(db.Integer, db.ForeignKey('templates.id', ondelete='SET NULL'), nullable=True, index=True)
+    job_type = db.Column(db.String(80), nullable=False, default='bulk_card_generation')
+    status = db.Column(db.String(32), nullable=False, default='draft')  # draft, review, approved, published, processing, completed, failed
+    total_items = db.Column(db.Integer, nullable=False, default=0)
+    processed_items = db.Column(db.Integer, nullable=False, default=0)
+    failed_items = db.Column(db.Integer, nullable=False, default=0)
+    meta_json = db.Column(MutableDict.as_mutable(JSON), nullable=False, default=dict)
+    created_by = db.Column(db.String(255), nullable=True)
+    created_role = db.Column(db.String(80), nullable=True)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), nullable=False, onupdate=lambda: datetime.now(timezone.utc))
+
+    template = db.relationship('Template', backref=db.backref('bulk_jobs', lazy='dynamic'))
+
+
+class BulkJobItem(db.Model):
+    __tablename__ = 'bulk_job_items'
+
+    id = db.Column(db.Integer, primary_key=True)
+    bulk_job_id = db.Column(db.Integer, db.ForeignKey('bulk_jobs.id', ondelete='CASCADE'), nullable=False, index=True)
+    row_index = db.Column(db.Integer, nullable=False, default=0)
+    student_id = db.Column(db.Integer, db.ForeignKey('students.id', ondelete='SET NULL'), nullable=True, index=True)
+    status = db.Column(db.String(32), nullable=False, default='pending')  # pending, processing, completed, failed, skipped
+    error_message = db.Column(db.Text, nullable=True)
+    payload_json = db.Column(MutableDict.as_mutable(JSON), nullable=False, default=dict)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), nullable=False, onupdate=lambda: datetime.now(timezone.utc))
+
+    bulk_job = db.relationship('BulkJob', backref=db.backref('items', lazy='dynamic', cascade='all, delete-orphan'))
+    student = db.relationship('Student', backref=db.backref('bulk_job_items', lazy='dynamic'))
+
+
+class VerificationAudit(db.Model):
+    __tablename__ = 'verification_audits'
+
+    id = db.Column(db.Integer, primary_key=True)
+    student_id = db.Column(db.Integer, db.ForeignKey('students.id', ondelete='SET NULL'), nullable=True, index=True)
+    template_id = db.Column(db.Integer, db.ForeignKey('templates.id', ondelete='SET NULL'), nullable=True, index=True)
+    token_id = db.Column(db.String(128), nullable=True, index=True)
+    status = db.Column(db.String(32), nullable=False, default='ok')  # ok, revoked, expired, invalid, tampered
+    ip_address = db.Column(db.String(64), nullable=True)
+    user_agent = db.Column(db.String(512), nullable=True)
+    details_json = db.Column(MutableDict.as_mutable(JSON), nullable=False, default=dict)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+
+    student = db.relationship('Student', backref=db.backref('verification_events', lazy='dynamic'))
+    template = db.relationship('Template', backref=db.backref('verification_events', lazy='dynamic'))
+
+
+class ImportMapping(db.Model):
+    __tablename__ = 'import_mappings'
+
+    id = db.Column(db.Integer, primary_key=True)
+    school_name = db.Column(db.String(255), nullable=True, index=True)
+    template_id = db.Column(db.Integer, db.ForeignKey('templates.id', ondelete='CASCADE'), nullable=False, index=True)
+    name = db.Column(db.String(120), nullable=False)
+    mapping_json = db.Column(MutableDict.as_mutable(JSON), nullable=False, default=dict)
+    created_by = db.Column(db.String(255), nullable=True)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), nullable=False, onupdate=lambda: datetime.now(timezone.utc))
+
+    template = db.relationship('Template', backref=db.backref('import_mappings', lazy='dynamic', cascade='all, delete-orphan'))
+
+
+class DisasterRecoverySnapshot(db.Model):
+    __tablename__ = 'dr_snapshots'
+
+    id = db.Column(db.Integer, primary_key=True)
+    snapshot_name = db.Column(db.String(160), nullable=False)
+    scope = db.Column(db.String(64), nullable=False, default='full')
+    payload_json = db.Column(MutableDict.as_mutable(JSON), nullable=False, default=dict)
+    created_by = db.Column(db.String(255), nullable=True)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)

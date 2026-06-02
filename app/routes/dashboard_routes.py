@@ -528,6 +528,11 @@ def generate_student_preview(student_id):
                 labels_map["MOBILE"],
             ]
 
+            p_x = photo_settings.get('photo_x', 0) if photo_settings.get('enable_photo', True) else 0
+            p_y = photo_settings.get('photo_y', 0) if photo_settings.get('enable_photo', True) else 0
+            p_w = photo_settings.get('photo_width', 0) if photo_settings.get('enable_photo', True) else 0
+            p_h = photo_settings.get('photo_height', 0) if photo_settings.get('enable_photo', True) else 0
+
             current_y = get_initial_flow_y_for_side(template, font_settings, side="front")
             for i, (label, value) in enumerate(zip(labels, values)):
                 y = current_y
@@ -548,7 +553,21 @@ def generate_student_preview(student_id):
                 colon_y_eff = layout_item.get("colon_y", label_y_eff)
                 colon_x_eff = layout_item.get("colon_x")
                 colon_grow_eff = layout_item.get("colon_grow")
-                max_value_width = template_img.width - value_x_eff - 50
+                max_value_width = int(get_anchor_max_text_width(
+                    card_width=template_img.width,
+                    anchor_x=value_x_eff,
+                    text_direction=direction,
+                    line_y=value_y_eff,
+                    line_height=line_height,
+                    grow_mode=layout_item['value_grow'],
+                    photo_x=p_x,
+                    photo_y=p_y,
+                    photo_width=p_w,
+                    photo_height=p_h,
+                    page_margin=20,
+                    photo_gap=15,
+                    min_width=20,
+                ))
 
                 # Text shaping
                 display_label = process_text_for_drawing(apply_text_case(label, text_case), lang)
@@ -597,6 +616,7 @@ def generate_student_preview(student_id):
                     direction,
                     draw=draw,
                     grow_mode=layout_item["value_grow"],
+                )
 
                 if label_visible:
                     draw_text_gradient(
@@ -629,18 +649,71 @@ def generate_student_preview(student_id):
                         bottom_color=colon_fill_bottom,
                     )
                 if value_visible:
-                    draw_text_gradient(
-                        draw,
-                        (value_draw_x, value_y_eff),
-                        display_value,
-                        font=value_font,
-                        top_color=value_fill,
-                        bottom_color=value_fill_bottom,
-                        enable_gradient=enable_value_gradient,
-                        lang=lang,
-                        target_image=template_img,
-                        **get_draw_text_kwargs(display_value, lang),
-                    )
+                    # Special handling for ADDRESS field: wrap to max_lines
+                    if field_key == "ADDRESS":
+                        from app.services.render_service import fit_wrapped_text_pil
+                        
+                        address_max_lines = int(font_settings.get("address_max_lines", 2))
+                        
+                        # Get font loader
+                        def font_loader(size_px):
+                            return load_font_dynamic(FONT_REGULAR_PATH, "X", template_img.width, size_px, language=lang)
+                        
+                        # Fit wrapped text for address
+                        best_size, wrapped_lines = fit_wrapped_text_pil(
+                            display_value,
+                            font_loader,
+                            start_size_px=value_font_size_eff,
+                            min_size_px=12,
+                            max_width_px=max_value_width,
+                            max_lines=address_max_lines,
+                            char_spacing=0,
+                            lang=lang,
+                        )
+                        
+                        # Load font at best size
+                        best_font = load_font_dynamic(FONT_REGULAR_PATH, "X", template_img.width, best_size, language=lang)
+                        
+                        # Draw each line
+                        val_line_height = layout_item.get("value_line_height") or line_height
+                        line_spacing = val_line_height if best_size > 20 else best_size + 5
+                        for line_idx, line in enumerate(wrapped_lines[:address_max_lines]):
+                            line_y = value_y_eff + (line_idx * line_spacing)
+                            line_draw_x = flip_x_for_text_direction(
+                                value_x_eff,
+                                line,
+                                best_font,
+                                template_img.width,
+                                direction,
+                                draw=draw,
+                                grow_mode=layout_item["value_grow"],
+                            )
+                            draw_text_gradient(
+                                draw,
+                                (line_draw_x, line_y),
+                                line,
+                                font=best_font,
+                                top_color=value_fill,
+                                bottom_color=value_fill_bottom,
+                                enable_gradient=enable_value_gradient,
+                                lang=lang,
+                                target_image=template_img,
+                                **get_draw_text_kwargs(line, lang),
+                            )
+                    else:
+                        # For non-ADDRESS fields, draw normally
+                        draw_text_gradient(
+                            draw,
+                            (value_draw_x, value_y_eff),
+                            display_value,
+                            font=value_font,
+                            top_color=value_fill,
+                            bottom_color=value_fill_bottom,
+                            enable_gradient=enable_value_gradient,
+                            lang=lang,
+                            target_image=template_img,
+                            **get_draw_text_kwargs(display_value, lang),
+                        )
 
                 if advances_flow:
                     current_y += line_height
@@ -1602,8 +1675,8 @@ def index():
                     min_width=20,
                 ))
 
-                # --- SPECIAL LOGIC FOR ADDRESS: FIT IN 2 LINES (FIXED) ---
-                if item['label'] == labels_map['ADDRESS']:
+                # --- SPECIAL LOGIC FOR ADDRESS: FIT IN X LINES (DYNAMIC) ---
+                if field_key == 'ADDRESS':
                     # Start shrinking logic
                     curr_size = value_font_size_eff
                     min_size = 10 
@@ -2578,8 +2651,8 @@ def edit_student(student_id):
                     min_width=20,
                 ))
                 
-                # --- ADDRESS LOGIC (PIXEL-ACCURATE, MAX 2 LINES) ---
-                if field_key == "ADDRESS" or lbl == "ADDRESS":
+                # --- ADDRESS LOGIC (PIXEL-ACCURATE, DYNAMIC LINES) ---
+                if field_key == "ADDRESS":
                     if layout_item["label_visible"]:
                         draw_text_gradient(
                             draw,
@@ -2683,16 +2756,21 @@ def edit_student(student_id):
                 # --- STANDARD FIELDS ---
                 else:
                     if layout_item["label_visible"]:
-                        draw.text(
+                        draw_text_gradient(
+                            draw,
                             (label_draw_x, label_y_eff),
                             label_text_final,
                             font=l_font,
-                            fill=label_fill,
+                            top_color=label_fill,
+                            bottom_color=label_fill_bottom,
+                            enable_gradient=enable_label_gradient,
+                            lang=lang,
+                            target_image=template,
                             **get_draw_text_kwargs(label_text_final, lang),
                         )
-                        draw_aligned_colon_pil(
+                        draw_aligned_colon_pil_helper(
                             draw,
-                            card_width, # type: ignore
+                            card_width,
                             direction,
                             value_x_eff,
                             colon_y_eff,
@@ -2703,6 +2781,9 @@ def edit_student(student_id):
                             label_colon_gap,
                             anchor_x=colon_x_eff,
                             grow_mode=colon_grow_eff,
+                            target_image=template,
+                            enable_gradient=enable_colon_gradient,
+                            bottom_color=colon_fill_bottom,
                         )
 
                     v_font, _ = fit_dynamic_font_to_single_line(
@@ -2723,11 +2804,16 @@ def edit_student(student_id):
                             draw=draw,
                             grow_mode=layout_item["value_grow"],
                         )
-                        draw.text(
+                        draw_text_gradient(
+                            draw,
                             (value_draw_x, value_y_eff),
                             display_val,
                             font=v_font,
-                            fill=value_fill,
+                            top_color=value_fill,
+                            bottom_color=value_fill_bottom,
+                            enable_gradient=enable_value_gradient,
+                            lang=lang,
+                            target_image=template,
                             **get_draw_text_kwargs(display_val, lang),
                         )
                     if advances_flow:
@@ -3055,4 +3141,3 @@ def reset_activity_log():
         db.session.rollback()
         logger.error(f"Error clearing activity log: {e}")
         return redirect(url_for("dashboard.view_activity_log", error=f"Failed to clear log: {str(e)}"))
-

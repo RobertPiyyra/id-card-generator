@@ -80,9 +80,11 @@ from utils import (
     split_label_and_colon, colon_anchor_for_value, get_template_language_direction,
     get_template_layout_config, get_anchor_max_text_width, get_layout_flow_start_y,
     derive_font_settings_from_layout_config
+    ,get_localized_standard_labels
 )
 from cloudinary_config import upload_image
-from models import db, Student, Template, TemplateField, ActivityLog, NotificationPreference, NotificationLog, KeyboardLanguagePreference, AdminUser
+from models import db, Student, Template, TemplateField, ActivityLog, NotificationPreference, NotificationLog, KeyboardLanguagePreference, AdminUser, TemplateVersion, TemplateWorkflow, ImmutableAuditEvent, BulkJob, BulkJobItem, ImportMapping
+from app.services.template_lifecycle_service import create_template_version_snapshot, log_immutable_audit_event, get_session_actor
 from notifications import (
     notify_deadline_approaching, notify_card_ready, notify_generation_error,
     check_and_notify_approaching_deadlines
@@ -293,21 +295,22 @@ def _build_qr_hash(student_like):
 
 def _build_payload(settings, student_like, student_id, school_name, prefix):
     data_type = settings.get(f'{prefix}_data_type', 'student_id')
+    str_student_id = str(student_id) if student_id is not None else None
     if data_type == 'url':
         base = settings.get(f'{prefix}_base_url', '') or ''
         if base and not base.endswith('/'):
             base += '/'
-        return base + (student_id or _build_qr_hash(student_like))
+        return base + (str_student_id or _build_qr_hash(student_like))
     if data_type == 'text':
         return settings.get(f'{prefix}_custom_text', 'Sample Text')
     if data_type == 'json':
         return json.dumps({
-            'student_id': student_id or _build_qr_hash(student_like),
+            'student_id': str_student_id or _build_qr_hash(student_like),
             'name': getattr(student_like, 'name', '') or '',
             'class': getattr(student_like, 'class_name', '') or '',
             'school_name': school_name or getattr(student_like, 'school_name', '') or '',
         })
-    return _build_qr_hash(student_like)
+    return str_student_id or _build_qr_hash(student_like)
 
 
 
@@ -1044,12 +1047,47 @@ def apply_layout_custom_objects_pil(template_img, template_obj, font_settings, s
                             font_path = local_font_file
             if not font_path:
                 font_path = font_bold_path if bool(obj.get("bold")) else font_reg_path
+            char_spacing = int(obj.get("char_spacing" or 0) or 0)
+            auto_fit = bool(obj.get("auto_fit", False))
+            auto_fit_width = int(obj.get("auto_fit_width" or 200) or 200)
+
+            # Auto-fit logic
+            if auto_fit and auto_fit_width:
+                max_w_val = float(auto_fit_width) * scale
+                while font_size > 6:
+                    temp_font = load_font_dynamic(font_path, text, template_img.width, font_size, language=language)
+                    char_space_px = font_size * (char_spacing / 1000.0) * scale
+                    w = 0.0
+                    for char in text:
+                        w += draw.textlength(char, font=temp_font, **get_draw_text_kwargs(text, language))
+                    w += char_space_px * (len(text) - 1)
+                    if w <= max_w_val:
+                        break
+                    font_size -= 1
+
             font = load_font_dynamic(font_path, text, template_img.width, font_size, language=language)
+            char_space_px = font_size * (char_spacing / 1000.0) * scale
+
             bbox = draw.textbbox((0, 0), text, font=font, **get_draw_text_kwargs(text, language))
-            text_w = max(1, (bbox[2] - bbox[0]) + 6)
+            spaced_w = 0.0
+            for char in text:
+                spaced_w += draw.textlength(char, font=font, **get_draw_text_kwargs(text, language))
+            spaced_w += char_space_px * (len(text) - 1)
+            
+            text_w = max(1, int(spaced_w) + 6)
             text_h = max(1, (bbox[3] - bbox[1]) + 6)
             overlay = Image.new("RGBA", (text_w, text_h), (0, 0, 0, 0))
-            ImageDraw.Draw(overlay).text((3 - bbox[0], 3 - bbox[1]), text, font=font, fill=fill_rgba, **get_draw_text_kwargs(text, language))
+            overlay_draw = ImageDraw.Draw(overlay)
+            
+            # Draw letter by letter with spacing
+            cursor_x = 3 - bbox[0]
+            is_rtl = (language in ("urdu", "arabic") or any(ord(c) >= 0x0600 and ord(c) <= 0x06FF for c in text))
+            if is_rtl:
+                overlay_draw.text((3 - bbox[0], 3 - bbox[1]), text, font=font, fill=fill_rgba, **get_draw_text_kwargs(text, language))
+            else:
+                for char in text:
+                    overlay_draw.text((cursor_x, 3 - bbox[1]), char, font=font, fill=fill_rgba, **get_draw_text_kwargs(text, language))
+                    cursor_x += draw.textlength(char, font=font, **get_draw_text_kwargs(text, language)) + char_space_px
 
         if overlay is not None:
             if obj.get("flip_x"):
@@ -1460,8 +1498,45 @@ def migrate_database():
                                         logger.warning(f"Could not add {col_name} to template_fields: {inner_e}")
                 except Exception as e:
                     logger.warning(f"TemplateField migration skipped/failed: {e}")
+
+                # --- Premium defaults backfill (safe/no-op for already populated rows) ---
+                try:
+                    conn.execute(text("UPDATE students SET verification_revoked = 0 WHERE verification_revoked IS NULL"))
+                except Exception:
+                    pass
+                try:
+                    conn.execute(text("UPDATE students SET photo_quality_score = 0 WHERE photo_quality_score IS NULL"))
+                except Exception:
+                    pass
+                try:
+                    conn.execute(text("UPDATE students SET photo_quality_status = 'unknown' WHERE photo_quality_status IS NULL"))
+                except Exception:
+                    pass
+                try:
+                    # Keep JSON fields non-null for premium settings UIs.
+                    conn.execute(text("UPDATE templates SET qa_settings = '{}' WHERE qa_settings IS NULL"))
+                    conn.execute(text("UPDATE templates SET batch_rules = '{}' WHERE batch_rules IS NULL"))
+                    conn.execute(text("UPDATE templates SET localization_pack = '{}' WHERE localization_pack IS NULL"))
+                    conn.execute(text("UPDATE templates SET language_lock_rules = '{}' WHERE language_lock_rules IS NULL"))
+                    conn.execute(text("UPDATE templates SET branding_config = '{}' WHERE branding_config IS NULL"))
+                    conn.execute(text("UPDATE templates SET print_profile = '{}' WHERE print_profile IS NULL"))
+                    conn.execute(text("UPDATE templates SET verification_config = '{}' WHERE verification_config IS NULL"))
+                except Exception:
+                    pass
                 
                 conn.commit()
+
+            # Ensure workflow row exists for all templates (backfill safe/no-op for existing)
+            try:
+                templates_all = Template.query.all()
+                for _t in templates_all:
+                    existing_wf = TemplateWorkflow.query.filter_by(template_id=_t.id).first()
+                    if not existing_wf:
+                        db.session.add(TemplateWorkflow(template_id=_t.id, state="draft", updated_by="migration", updated_role="system"))
+                db.session.commit()
+            except Exception as wf_e:
+                db.session.rollback()
+                logger.warning(f"Template workflow backfill skipped: {wf_e}")
 
         logger.info("Database migration check completed")
     except Exception as e:
@@ -2095,6 +2170,21 @@ def update_template_settings(template_id, font_settings=None, photo_settings=Non
         # -------------------------------
         
         db.session.commit()
+        try:
+            actor, actor_role = get_session_actor()
+            create_template_version_snapshot(template, source="update_template_settings", actor=actor, actor_role=actor_role)
+            log_immutable_audit_event(
+                entity_type="template",
+                entity_id=template.id,
+                action="template_settings_updated",
+                payload={"template_id": template.id, "card_orientation": template.card_orientation},
+                actor=actor,
+                actor_role=actor_role,
+            )
+            db.session.commit()
+        except Exception as lifecycle_exc:
+            db.session.rollback()
+            logger.warning("Template lifecycle hooks failed for template %s: %s", template_id, lifecycle_exc)
         log_activity("Updated Template Settings", target=f"Template {template_id}", 
                      details=f"Orientation: {card_orientation}")
         
@@ -2821,6 +2911,16 @@ def update_template_settings_route():
             incoming_language = ""
         if incoming_text_direction and incoming_text_direction not in allowed_directions:
             incoming_text_direction = ""
+
+        # Localization Pack Manager: side-level language lock enforcement
+        # Example: {"front":"english","back":"hindi"}
+        lock_rules = getattr(template, "language_lock_rules", None) or {}
+        side_lock_lang = ""
+        if isinstance(lock_rules, dict):
+            side_lock_lang = str(lock_rules.get(settings_side, "") or "").strip().lower()
+        if side_lock_lang in allowed_languages:
+            incoming_language = side_lock_lang
+            incoming_text_direction = default_text_direction_for_language(side_lock_lang)
 
         # If the client did not explicitly confirm language/direction changes, don't allow
         # "reset to defaults" to overwrite an already-configured template.
@@ -3751,19 +3851,20 @@ def admin_preview_card():
                 )
         incoming_lang = str(data.get("language") or "").strip().lower()
         incoming_direction = str(data.get("text_direction") or "").strip().lower()
+        lock_rules = getattr(template, "language_lock_rules", None) if template else {}
+        if isinstance(lock_rules, dict):
+            locked_lang = str(lock_rules.get(side, "") or "").strip().lower()
+            if locked_lang in {"english", "urdu", "hindi", "arabic"}:
+                incoming_lang = locked_lang
+                incoming_direction = "rtl" if locked_lang in {"urdu", "arabic"} else "ltr"
         if incoming_lang in {"english", "urdu", "hindi", "arabic"}:
             lang = incoming_lang
         if incoming_direction in {"ltr", "rtl"}:
             direction = incoming_direction
 
-        # Standard Labels
-        std_labels = {
-            'english': {'NAME': 'NAME', 'F_NAME': 'F.NAME', 'CLASS': 'CLASS', 'DOB': 'D.O.B', 'MOBILE': 'MOBILE', 'ADDRESS': 'ADDRESS'},
-            'urdu':    {'NAME': 'نام', 'F_NAME': 'ولدیت', 'CLASS': 'جماعت', 'DOB': 'تاریخ پیدائش', 'MOBILE': 'موبائل', 'ADDRESS': 'پتہ'},
-            'hindi':   {'NAME': 'नाम', 'F_NAME': 'पिता का नाम', 'CLASS': 'कक्षा', 'DOB': 'जन्म तिथि', 'MOBILE': 'मोबाइल', 'ADDRESS': 'पता'},
-            'arabic':  {'NAME': 'الاسم', 'F_NAME': 'اسم الأب', 'CLASS': 'الصف', 'DOB': 'تاريخ الميلاد', 'MOBILE': 'رقم الهاتف', 'ADDRESS': 'العنوان'}
-        }
-        
+        localization_pack = getattr(template, "localization_pack", None) if template else None
+        labels_map = get_localized_standard_labels(lang, localization_pack)
+
         sample_data_map = {
             'english': {'NAME': 'John Doe', 'F_NAME': 'Richard Roe', 'CLASS': 'X - A', 'DOB': '01-01-2010', 'MOBILE': '9876543210', 'ADDRESS': '123 Long Street Name, Apartment 4B, Big City District, State 560001'},
             'urdu':    {'NAME': 'محمد علی', 'F_NAME': 'احمد علی', 'CLASS': 'دہم - اے', 'DOB': '01-01-2010', 'MOBILE': '9876543210', 'ADDRESS': 'مکان نمبر 123، سٹریٹ 4، لاہور، پاکستان'},
@@ -3771,7 +3872,6 @@ def admin_preview_card():
             'arabic':  {'NAME': 'محمد أحمد', 'F_NAME': 'علي أحمد', 'CLASS': 'العاشر - أ', 'DOB': '01-01-2010', 'MOBILE': '9876543210', 'ADDRESS': 'شارع الملك فيصل، مبنى ٤، الرياض'}
         }
 
-        labels_map = std_labels.get(lang, std_labels['english'])
         values_map = sample_data_map.get(lang, sample_data_map['english'])
 
         layout_config_raw = (
@@ -3869,40 +3969,47 @@ def admin_preview_card():
             if not field_consumes_layout_space(layout_item, raw_val):
                 continue
             advances_flow = field_advances_layout_flow(layout_item, raw_val, separate_colon=bool(colon_text_final))
-            if advances_flow:
-                current_y = max(int(current_y), int(label_y_eff), int(value_y_eff))
-            l_font = load_safe_font(
-                font_settings.get("font_bold", "arialbd.ttf"),
-                label_font_size_eff,
-                lang,
-                label_text_final,
+            from app.services.render_service import (
+                draw_text_with_spacing_pil,
+                measure_text_width_with_spacing_local,
+                flip_x_for_text_direction_local,
             )
-            colon_font = load_safe_font(
-                font_settings.get("font_bold", "arialbd.ttf"),
-                colon_font_size_eff,
-                lang,
-                colon_text_final or ":",
-            )
+
+            label_char_spacing = layout_item.get("label_char_spacing", 0)
+            label_line_height = layout_item.get("label_line_height") or line_height
+
+            if layout_item.get("label_auto_fit") and layout_item.get("label_max_width"):
+                max_w_lbl = float(layout_item["label_max_width"])
+                while label_font_size_eff > 6:
+                    temp_lbl_font = load_safe_font(font_settings.get("font_bold", "arialbd.ttf"), label_font_size_eff, lang, label_text_final)
+                    w = measure_text_width_with_spacing_local(label_text_final, temp_lbl_font, label_char_spacing, draw=draw, **get_draw_text_kwargs(label_text_final, lang))
+                    if w <= max_w_lbl:
+                        break
+                    label_font_size_eff -= 1
+
+            l_font = load_safe_font(font_settings.get("font_bold", "arialbd.ttf"), label_font_size_eff, lang, label_text_final)
+            colon_font = load_safe_font(font_settings.get("font_bold", "arialbd.ttf"), colon_font_size_eff, lang, colon_text_final or ":")
+
             if layout_item["label_visible"]:
-                label_draw_x = flip_x_for_text_direction(
+                lbl_w = measure_text_width_with_spacing_local(label_text_final, l_font, label_char_spacing, draw=draw, **get_draw_text_kwargs(label_text_final, lang))
+                label_draw_x = flip_x_for_text_direction_local(
                     label_x_eff,
-                    label_text_final,
-                    l_font,
+                    lbl_w,
                     card_width,
                     direction,
-                    draw=draw,
                     grow_mode=layout_item["label_grow"],
                 )
-                draw_text_gradient(
+                draw_text_with_spacing_pil(
                     draw,
                     (label_draw_x, label_y_eff),
                     label_text_final,
                     font=l_font,
-                    top_color=label_fill,
-                    bottom_color=label_fill_bottom,
-                    enable_gradient=enable_label_gradient,
-                    lang=lang,
+                    fill=label_fill,
+                    char_spacing=label_char_spacing,
+                    direction=direction,
                     target_image=template_img,
+                    enable_gradient=enable_label_gradient,
+                    bottom_color=label_fill_bottom,
                     **get_draw_text_kwargs(label_text_final, lang)
                 )
                 draw_aligned_colon_pil(
@@ -3939,16 +4046,29 @@ def admin_preview_card():
                 min_width=20,
             ))
 
-            # --- ADDRESS LOGIC ---
-            if item['label'] == labels_map['ADDRESS']:
+            value_char_spacing = layout_item.get("value_char_spacing", 0)
+            value_line_height = layout_item.get("value_line_height") or line_height
+
+            # --- ADDRESS LOGIC (DYNAMIC LINES) ---
+            if field_key == 'ADDRESS':
                 curr_size = value_font_size_eff
                 min_size = 12 
                 wrapped_addr = []
                 while curr_size >= min_size:
-                    avg_char_w = curr_size * 0.55
+                    addr_font = load_safe_font(font_settings.get("font_regular", "arial.ttf"), curr_size, lang, display_val)
+                    avg_char_w = curr_size * 0.55 + value_char_spacing
                     chars_limit = max(5, int(max_w / max(avg_char_w, 1)))
                     wrapped_addr = safe_wrap_preview(raw_val, chars_limit)
-                    if len(wrapped_addr) <= address_max_lines: break
+                    fits_horizontally = len(wrapped_addr) <= address_max_lines
+                    if fits_horizontally:
+                        for line in wrapped_addr:
+                            measure_text = process_text_for_drawing(line, lang)
+                            line_w = measure_text_width_with_spacing_local(measure_text, addr_font, value_char_spacing, draw=draw, **get_draw_text_kwargs(measure_text, lang))
+                            if line_w > max_w:
+                                fits_horizontally = False
+                                break
+                    if fits_horizontally:
+                        break
                     curr_size -= 2
                 
                 # Load safe font for address using real shaped text (better glyph matching)
@@ -3960,72 +4080,74 @@ def admin_preview_card():
                 )
                 for line in wrapped_addr[:address_max_lines]:
                     line_display = process_text_for_drawing(line, lang)
-                    spacing = line_height if curr_size > 20 else curr_size + 5
                     if layout_item["value_visible"]:
-                        value_draw_x = flip_x_for_text_direction(
+                        line_w = measure_text_width_with_spacing_local(line_display, addr_font, value_char_spacing, draw=draw, **get_draw_text_kwargs(line_display, lang))
+                        value_draw_x = flip_x_for_text_direction_local(
                             value_x_eff,
-                            line_display,
-                            addr_font,
+                            line_w,
                             card_width,
                             direction,
-                            draw=draw,
                             grow_mode=layout_item["value_grow"],
                         )
-                        draw_text_gradient(
+                        draw_text_with_spacing_pil(
                             draw,
                             (value_draw_x, value_y_eff),
                             line_display,
                             font=addr_font,
-                            top_color=value_fill,
-                            bottom_color=value_fill_bottom,
-                            enable_gradient=enable_value_gradient,
-                            lang=lang,
+                            fill=value_fill,
+                            char_spacing=value_char_spacing,
+                            direction=direction,
                             target_image=template_img,
+                            enable_gradient=enable_value_gradient,
+                            bottom_color=value_fill_bottom,
                             **get_draw_text_kwargs(line_display, lang)
                         )
+                    spacing = value_line_height if curr_size > 20 else curr_size + 5
                     value_y_eff += spacing
                     if advances_flow:
                         current_y += spacing
 
             # --- STANDARD FIELDS ---
             else:
-                v_font, _ = fit_loaded_font_to_single_line(
-                    draw,
-                    lambda size: load_safe_font(
-                        font_settings.get("font_regular", "arial.ttf"),
-                        size,
-                        lang,
-                        display_val,
-                    ),
-                    display_val,
-                    max_w,
+                if layout_item.get("value_auto_fit") and layout_item.get("value_max_width"):
+                    max_w_val = float(layout_item["value_max_width"])
+                    while value_font_size_eff > 6:
+                        temp_val_font = load_safe_font(font_settings.get("font_regular", "arial.ttf"), value_font_size_eff, lang, display_val)
+                        w = measure_text_width_with_spacing_local(display_val, temp_val_font, value_char_spacing, draw=draw, **get_draw_text_kwargs(display_val, lang))
+                        if w <= max_w_val:
+                            break
+                        value_font_size_eff -= 1
+
+                v_font = load_safe_font(
+                    font_settings.get("font_regular", "arial.ttf"),
                     value_font_size_eff,
-                    language=lang,
+                    lang,
+                    display_val,
                 )
                 if layout_item["value_visible"]:
-                    value_draw_x = flip_x_for_text_direction(
+                    val_w = measure_text_width_with_spacing_local(display_val, v_font, value_char_spacing, draw=draw, **get_draw_text_kwargs(display_val, lang))
+                    value_draw_x = flip_x_for_text_direction_local(
                         value_x_eff,
-                        display_val,
-                        v_font,
+                        val_w,
                         card_width,
                         direction,
-                        draw=draw,
                         grow_mode=layout_item["value_grow"],
                     )
-                    draw_text_gradient(
+                    draw_text_with_spacing_pil(
                         draw,
                         (value_draw_x, value_y_eff),
                         display_val,
                         font=v_font,
-                        top_color=value_fill,
-                        bottom_color=value_fill_bottom,
-                        enable_gradient=enable_value_gradient,
-                        lang=lang,
+                        fill=value_fill,
+                        char_spacing=value_char_spacing,
+                        direction=direction,
                         target_image=template_img,
+                        enable_gradient=enable_value_gradient,
+                        bottom_color=value_fill_bottom,
                         **get_draw_text_kwargs(display_val, lang)
                     )
                 if advances_flow:
-                    current_y += line_height
+                    current_y += value_line_height
                         
         # 6. Photo & QR Placeholders
         if photo_settings.get("enable_photo", True):
@@ -4540,6 +4662,43 @@ def _get_bulk_job_state(task_id):
     return jobs.get(task_id)
 
 
+def _list_bulk_job_states(limit=100):
+    aggregated = {}
+
+    try:
+        filepath = os.path.join("instance", "bulk_jobs.json")
+        if os.path.exists(filepath):
+            with open(filepath, "r", encoding="utf-8") as f:
+                disk_jobs = json.load(f) or {}
+                if isinstance(disk_jobs, dict):
+                    aggregated.update(disk_jobs)
+    except Exception as e:
+        logger.warning(f"Failed to read bulk job list from JSON file: {e}")
+
+    try:
+        aggregated.update(jobs or {})
+    except Exception:
+        pass
+
+    rows = []
+    for task_id, payload in aggregated.items():
+        if not isinstance(payload, dict):
+            continue
+        row = dict(payload)
+        row.setdefault("task_id", task_id)
+        rows.append(row)
+
+    def _sort_key(item):
+        for k in ("updated_at", "started_at", "created_at"):
+            v = item.get(k)
+            if isinstance(v, str) and v:
+                return v
+        return ""
+
+    rows.sort(key=_sort_key, reverse=True)
+    return rows[: max(1, int(limit or 100))]
+
+
 def _publish_bulk_job_errors(task_id, errors):
     _set_bulk_job_state(
         task_id,
@@ -4549,11 +4708,58 @@ def _publish_bulk_job_errors(task_id, errors):
     )
 
 
+def _apply_batch_rules_for_row(template_obj, row_data, custom_data):
+    rules = (getattr(template_obj, "batch_rules", None) or {})
+    if not isinstance(rules, dict):
+        return row_data, custom_data
+
+    # 1) auto-hide field if empty -> clear label/value visibility hints in custom_data metadata
+    for field_name in rules.get("auto_hide_if_empty", []) or []:
+        key = str(field_name or "").strip()
+        if key and not str((row_data or {}).get(key, "")).strip():
+            custom_data[f"__hide__{key}"] = True
+
+    # 2) text color by class/section -> attach hint for renderer/editor compatibility
+    class_rules = rules.get("text_color_by_class") or {}
+    class_name = str((row_data or {}).get("class_name", "")).strip()
+    if class_name and class_name in class_rules:
+        custom_data["__value_color_override__"] = class_rules.get(class_name)
+
+    # 3) switch layout by language
+    lang_rules = rules.get("layout_by_language") or {}
+    lang = str((row_data or {}).get("language", "")).strip().lower()
+    if lang and lang in lang_rules:
+        custom_data["__layout_profile__"] = lang_rules.get(lang)
+
+    # 4) qr profile by template/school
+    qr_profile = rules.get("qr_profile") or {}
+    if qr_profile:
+        custom_data["__qr_profile__"] = qr_profile
+
+    return row_data, custom_data
+
+
 
 # =========================================================
 # BACKGROUND THREAD WORKER (Pure SQLAlchemy)
 # =========================================================
-def background_bulk_generate(task_id, template_id, excel_path, photo_map):
+def _apply_import_mapping_to_dataframe(df, mapping_json):
+    if df is None or not isinstance(mapping_json, dict):
+        return df
+    rename_map = {}
+    for target_field, source_header in mapping_json.items():
+        target = str(target_field or "").strip().lower()
+        source = str(source_header or "").strip().lower()
+        if not target or not source:
+            continue
+        if source in df.columns and target not in df.columns:
+            rename_map[source] = target
+    if rename_map:
+        df = df.rename(columns=rename_map)
+    return df
+
+
+def background_bulk_generate(task_id, template_id, excel_path, photo_map, import_mapping_id=None):
     """
     Background thread to process bulk generation without blocking the server.
     Uses SQLAlchemy ORM for all database operations.
@@ -4565,7 +4771,14 @@ def background_bulk_generate(task_id, template_id, excel_path, photo_map):
         total_records = 0
         errors = []
         try:
-            _set_bulk_job_state(task_id, state='PROCESSING', status='Reading Excel file...')
+            _set_bulk_job_state(
+                task_id,
+                state='PROCESSING',
+                status='Reading Excel file...',
+                cancel_requested=False,
+                started_at=datetime.now(timezone.utc).isoformat(),
+                updated_at=datetime.now(timezone.utc).isoformat(),
+            )
 
             if excel_path.endswith('.csv'):
                 df = pd.read_csv(excel_path)
@@ -4573,6 +4786,14 @@ def background_bulk_generate(task_id, template_id, excel_path, photo_map):
                 df = pd.read_excel(excel_path, engine='openpyxl')
 
             df.columns = df.columns.str.strip().str.lower()
+            if import_mapping_id:
+                try:
+                    mapping_row = db.session.get(ImportMapping, int(import_mapping_id))
+                    if mapping_row and isinstance(mapping_row.mapping_json, dict):
+                        df = _apply_import_mapping_to_dataframe(df, mapping_row.mapping_json)
+                        logger.info("Applied import mapping %s during bulk generation", import_mapping_id)
+                except Exception as mapping_exc:
+                    logger.warning("Import mapping application failed (%s): %s", import_mapping_id, mapping_exc)
             required_columns = ["name"]
             missing_required = [col for col in required_columns if col not in df.columns]
             if missing_required:
@@ -4630,6 +4851,9 @@ def background_bulk_generate(task_id, template_id, excel_path, photo_map):
 
             def _push_progress(current_index, *, force=False):
                 nonlocal last_progress_update
+                task_state = _get_bulk_job_state(task_id) or {}
+                if bool(task_state.get("cancel_requested")):
+                    raise RuntimeError("Bulk job cancelled by admin.")
                 now = time.monotonic()
                 if (
                     not force
@@ -4642,6 +4866,7 @@ def background_bulk_generate(task_id, template_id, excel_path, photo_map):
                     task_id,
                     current=current_index,
                     status=f"Processing student {current_index} of {total_records}...",
+                    updated_at=datetime.now(timezone.utc).isoformat(),
                 )
                 last_progress_update = now
 
@@ -4695,6 +4920,9 @@ def background_bulk_generate(task_id, template_id, excel_path, photo_map):
                     _publish_bulk_job_errors(task_id, errors)
 
             for idx, row in df.iterrows():
+                task_state = _get_bulk_job_state(task_id) or {}
+                if bool(task_state.get("cancel_requested")):
+                    raise RuntimeError("Bulk job cancelled by admin.")
                 _push_progress(idx + 1)
 
                 try:
@@ -4726,6 +4954,17 @@ def background_bulk_generate(task_id, template_id, excel_path, photo_map):
                         error_count += 1
                         _publish_bulk_job_errors(task_id, errors)
                         continue
+
+                    row_data_for_rules = {
+                        "name": name,
+                        "father_name": father_name,
+                        "class_name": class_name,
+                        "dob": dob,
+                        "address": address,
+                        "phone": phone,
+                        "language": (template_obj.language or "english"),
+                    }
+                    row_data_for_rules, custom_data = _apply_batch_rules_for_row(template_obj, row_data_for_rules, custom_data)
 
                     used_photo = "placeholder.jpg"
                     clean_name = name.lower().strip()
@@ -4883,6 +5122,7 @@ def background_bulk_generate(task_id, template_id, excel_path, photo_map):
                     state='FAILURE',
                     status='No ID cards were generated. See error details below.',
                     result=summary,
+                    updated_at=datetime.now(timezone.utc).isoformat(),
                 )
             elif success_count == 0 and skipped_count > 0 and error_count == 0:
                 _set_bulk_job_state(
@@ -4890,6 +5130,7 @@ def background_bulk_generate(task_id, template_id, excel_path, photo_map):
                     state='SUCCESS',
                     status='Completed with no new cards created.',
                     result=summary,
+                    updated_at=datetime.now(timezone.utc).isoformat(),
                 )
             elif error_count > 0:
                 _set_bulk_job_state(
@@ -4897,6 +5138,7 @@ def background_bulk_generate(task_id, template_id, excel_path, photo_map):
                     state='SUCCESS',
                     status='Completed with some row errors.',
                     result=summary,
+                    updated_at=datetime.now(timezone.utc).isoformat(),
                 )
             else:
                 _set_bulk_job_state(
@@ -4904,6 +5146,7 @@ def background_bulk_generate(task_id, template_id, excel_path, photo_map):
                     state='SUCCESS',
                     status='Completed',
                     result=summary,
+                    updated_at=datetime.now(timezone.utc).isoformat(),
                 )
             
         except Exception as e:
@@ -4918,6 +5161,7 @@ def background_bulk_generate(task_id, template_id, excel_path, photo_map):
                 state='FAILURE',
                 status=f"System Error: {formatted_error}",
                 result=f"Processed {total_records}. Created: {success_count}, Skipped: {skipped_count}, Errors: {max(error_count, 1)}",
+                updated_at=datetime.now(timezone.utc).isoformat(),
             )
         finally:
             try:
@@ -4949,10 +5193,34 @@ def bulk_generate():
         return jsonify({"success": False, "error": "No template selected", "errors": ["No template selected"]}), 400
     
     template_id = int(template_id_raw)
+    import_mapping_id_raw = (request.form.get("import_mapping_id") or "").strip()
+    import_mapping_id = None
+    if import_mapping_id_raw:
+        try:
+            import_mapping_id = int(import_mapping_id_raw)
+        except Exception:
+            return jsonify({"success": False, "error": "Invalid import mapping selected", "errors": ["Invalid import mapping selected"]}), 400
+        mapping_row = db.session.get(ImportMapping, import_mapping_id)
+        if not mapping_row or int(mapping_row.template_id or 0) != template_id:
+            return jsonify({"success": False, "error": "Import mapping does not belong to selected template", "errors": ["Import mapping does not belong to selected template"]}), 400
     
     template_obj = db.session.get(Template, template_id)
     if not template_obj:
         return jsonify({"success": False, "error": "Template not found", "errors": ["Template not found"]}), 404
+    try:
+        from app.services.premium_service import run_design_qa
+        qa_settings = (getattr(template_obj, "qa_settings", None) or {})
+        if bool(qa_settings.get("enforce_before_bulk_generate")):
+            qa_result = run_design_qa(template_obj)
+            if not bool(qa_result.get("ok")):
+                return jsonify({
+                    "success": False,
+                    "error": "Design QA failed. Fix template issues before bulk generate.",
+                    "qa": qa_result,
+                    "errors": ["Design QA failed. Fix template issues before bulk generate."]
+                }), 400
+    except Exception as qa_exc:
+        logger.warning(f"Bulk generate QA gate skipped due to error: {qa_exc}")
 
     if 'excel_file' not in request.files:
         return jsonify({"success": False, "error": "No Excel file uploaded", "errors": ["No Excel file uploaded"]}), 400
@@ -5019,28 +5287,33 @@ def bulk_generate():
             status='Queued',
             errors=[],
             error_count=0,
+            template_id=template_id,
+            import_mapping_id=import_mapping_id,
+            excel_filename=filename,
+            created_at=datetime.now(timezone.utc).isoformat(),
+            updated_at=datetime.now(timezone.utc).isoformat(),
         )
         queue = get_task_queue()
         if queue is not None:
             try:
                 job = queue.enqueue(
                     background_bulk_generate,
-                    args=(task_id, template_id, excel_path, photo_map),
+                    args=(task_id, template_id, excel_path, photo_map, import_mapping_id),
                     job_id=task_id,
                     job_timeout='1h',
                 )
                 task_id = job.get_id()
             except Exception as queue_error:
                 logger.warning("RQ enqueue failed; using local executor: %s", queue_error)
-                executor.submit(background_bulk_generate, task_id, template_id, excel_path, photo_map)
+                executor.submit(background_bulk_generate, task_id, template_id, excel_path, photo_map, import_mapping_id)
         else:
             logger.warning("Redis/RQ unavailable; using local executor for bulk generation.")
-            executor.submit(background_bulk_generate, task_id, template_id, excel_path, photo_map)
+            executor.submit(background_bulk_generate, task_id, template_id, excel_path, photo_map, import_mapping_id)
 
         # Log Activity
         log_activity("Bulk Generation Started", 
                      target=f"Template ID: {template_id}", 
-                     details=f"Task ID: {task_id}, Excel: {filename}, Photos: {len(photo_map)}")
+                     details=f"Task ID: {task_id}, Excel: {filename}, Photos: {len(photo_map)}, Mapping: {import_mapping_id or 'none'}")
 
         return jsonify({"success": True, "task_id": task_id})
 

@@ -35,6 +35,7 @@ def _has_pillow_raqm():
 PIL_RAQM_AVAILABLE = _has_pillow_raqm()
 _HINDI_BASIC_ENGINE_WARNED = False
 _FONT_CMAP_CACHE = {}
+_FONT_PIL_CACHE = {}
 _FONT_MISSING_GLYPH_WARNED = set()
 _REQUESTED_FONT_UNSAFE_WARNED = set()
 try:
@@ -279,6 +280,41 @@ def get_template_path(template_id, side="front"):
         logger.error(f"Error fetching template path for ID {template_id}: {e}")
         return None
 
+def _parse_rgb_color(color_val):
+    if not color_val:
+        return [0, 0, 0]
+    if isinstance(color_val, str):
+        val = color_val.strip()
+        if val.startswith('#'):
+            hex_color = val.lstrip('#')
+            try:
+                if len(hex_color) == 6:
+                    return [
+                        int(hex_color[0:2], 16),
+                        int(hex_color[2:4], 16),
+                        int(hex_color[4:6], 16)
+                    ]
+                elif len(hex_color) == 3:
+                    return [
+                        int(hex_color[0]*2, 16),
+                        int(hex_color[1]*2, 16),
+                        int(hex_color[2]*2, 16)
+                    ]
+            except Exception:
+                return [0, 0, 0]
+        else:
+            try:
+                return [int(x.strip()) for x in val.split(',')]
+            except Exception:
+                return [0, 0, 0]
+    if isinstance(color_val, (list, tuple)):
+        try:
+            return [int(x) for x in color_val[:3]]
+        except Exception:
+            return [0, 0, 0]
+    return [0, 0, 0]
+
+
 def get_template_settings(template_id, side="front"):
     try:
         template = db.session.get(Template, template_id)
@@ -305,39 +341,14 @@ def get_template_settings(template_id, side="front"):
                 # Merge with defaults
                 font_settings.update(loaded_font)
                 
-                # Ensure color values are properly formatted
-                # Convert string colors to lists if needed
-                if isinstance(font_settings.get('label_font_color'), str):
-                    label_color = font_settings['label_font_color']
-                    if label_color.startswith('#'):
-                        # Convert hex to RGB list
-                        hex_color = label_color.lstrip('#')
-                        font_settings['label_font_color'] = [
-                            int(hex_color[0:2], 16),
-                            int(hex_color[2:4], 16),
-                            int(hex_color[4:6], 16)
-                        ]
-                    else:
-                        # Convert comma-separated string to list
-                        font_settings['label_font_color'] = [
-                            int(x.strip()) for x in label_color.split(',')
-                        ]
-                
-                if isinstance(font_settings.get('value_font_color'), str):
-                    value_color = font_settings['value_font_color']
-                    if value_color.startswith('#'):
-                        # Convert hex to RGB list
-                        hex_color = value_color.lstrip('#')
-                        font_settings['value_font_color'] = [
-                            int(hex_color[0:2], 16),
-                            int(hex_color[2:4], 16),
-                            int(hex_color[4:6], 16)
-                        ]
-                    else:
-                        # Convert comma-separated string to list
-                        font_settings['value_font_color'] = [
-                            int(x.strip()) for x in value_color.split(',')
-                        ]
+                # Parse all color fields to lists of integers
+                color_keys = [
+                    'font_color', 'label_font_color', 'value_font_color', 'colon_font_color',
+                    'label_font_color_bottom', 'value_font_color_bottom', 'colon_font_color_bottom'
+                ]
+                for key in color_keys:
+                    if key in font_settings:
+                        font_settings[key] = _parse_rgb_color(font_settings[key])
             
             if side_data["photo_settings"]:
                 photo_settings.update(side_data["photo_settings"])
@@ -345,6 +356,12 @@ def get_template_settings(template_id, side="front"):
             if side_data["qr_settings"]:
                 qr_settings.update(side_data["qr_settings"])
                 
+                # Support legacy alias keys from the editor and stored settings
+                if 'qr_color' in qr_settings and 'qr_fill_color' not in qr_settings:
+                    qr_settings['qr_fill_color'] = _parse_rgb_color(qr_settings['qr_color'])
+                if 'qr_bg_color' in qr_settings and 'qr_back_color' not in qr_settings:
+                    qr_settings['qr_back_color'] = _parse_rgb_color(qr_settings['qr_bg_color'])
+
                 # Ensure colors are lists
                 if isinstance(qr_settings.get('qr_fill_color'), str):
                     fill_color = qr_settings['qr_fill_color']
@@ -504,6 +521,7 @@ def get_default_font_config():
         "show_label_colon": True,
         "align_label_colon": True,
         "label_colon_gap": 8,
+        "address_max_lines": 2,  # Max lines for address field wrapping
         # Gradient settings — default off
         "enable_label_gradient": False,
         "label_font_color_bottom": [51, 51, 51],
@@ -768,14 +786,21 @@ def load_font_dynamic(font_path, text, max_width, start_size, language="english"
         _warn_hindi_basic_engine_once()
 
     def _load_truetype(candidate_path: str, size: int):
+        cache_key = (candidate_path, size, use_raqm_layout)
+        if cache_key in _FONT_PIL_CACHE:
+            return _FONT_PIL_CACHE[cache_key]
         # Force RAQM layout engine for Hindi when available so matras are placed correctly.
+        font = None
         if use_raqm_layout:
             try:
-                return ImageFont.truetype(candidate_path, size, layout_engine=ImageFont.Layout.RAQM)
+                font = ImageFont.truetype(candidate_path, size, layout_engine=ImageFont.Layout.RAQM)
             except TypeError:
                 # Older Pillow may not accept `layout_engine` argument in this build.
                 pass
-        return ImageFont.truetype(candidate_path, size)
+        if font is None:
+            font = ImageFont.truetype(candidate_path, size)
+        _FONT_PIL_CACHE[cache_key] = font
+        return font
 
     # Build candidate font paths (requested + language fallbacks).
     candidates: list[str] = []
@@ -1273,8 +1298,8 @@ def generate_qr_code(data, qr_settings, size=120):
             module_drawer = SquareModuleDrawer()
 
         # Colors
-        fill_color = tuple(qr_settings.get("qr_fill_color", [0, 0, 0]))
-        back_color = tuple(qr_settings.get("qr_back_color", [255, 255, 255]))
+        fill_color = tuple(_parse_rgb_color(qr_settings.get("qr_fill_color", qr_settings.get("qr_color", [0, 0, 0]))))
+        back_color = tuple(_parse_rgb_color(qr_settings.get("qr_back_color", qr_settings.get("qr_bg_color", [255, 255, 255]))))
 
         # Generate image at internal resolution
         img = qr.make_image(
@@ -1639,6 +1664,63 @@ def format_label_for_drawing(label_text, language, text_direction, include_colon
         return label if label.startswith(":") else f":{label}"
 
     return label if label.endswith(":") else f"{label}:"
+
+
+def get_localized_standard_labels(language, localization_pack=None):
+    """
+    Resolve standard label dictionary for a template language, with optional
+    localization-pack overrides.
+
+    Expected keys:
+      NAME, F_NAME, CLASS, DOB, MOBILE, ADDRESS
+    """
+    lang = _normalize_language(language)
+    defaults = {
+        "english": {
+            "NAME": "NAME",
+            "F_NAME": "F.NAME",
+            "CLASS": "CLASS",
+            "DOB": "D.O.B",
+            "MOBILE": "MOBILE",
+            "ADDRESS": "ADDRESS",
+        },
+        "urdu": {
+            "NAME": "نام",
+            "F_NAME": "ولدیت",
+            "CLASS": "جماعت",
+            "DOB": "تاریخ پیدائش",
+            "MOBILE": "موبائل",
+            "ADDRESS": "پتہ",
+        },
+        "hindi": {
+            "NAME": "नाम",
+            "F_NAME": "पिता का नाम",
+            "CLASS": "कक्षा",
+            "DOB": "जन्म तिथि",
+            "MOBILE": "मोबाइल",
+            "ADDRESS": "पता",
+        },
+        "arabic": {
+            "NAME": "الاسم",
+            "F_NAME": "اسم الأب",
+            "CLASS": "الصف",
+            "DOB": "تاريخ الميلاد",
+            "MOBILE": "رقم الهاتف",
+            "ADDRESS": "العنوان",
+        },
+    }
+    base = dict(defaults.get(lang, defaults["english"]))
+    pack = localization_pack if isinstance(localization_pack, dict) else {}
+    pack_lang = pack.get(lang) if isinstance(pack.get(lang), dict) else {}
+    aliases = {"name": "NAME", "f_name": "F_NAME", "class": "CLASS", "dob": "DOB", "mobile": "MOBILE", "address": "ADDRESS"}
+    for raw_key, raw_val in pack_lang.items():
+        key = str(raw_key or "").strip()
+        if not key:
+            continue
+        canonical = aliases.get(key.lower(), key.upper())
+        if canonical in base and raw_val is not None and str(raw_val).strip():
+            base[canonical] = str(raw_val)
+    return base
 
 
 def split_label_and_colon(label_text, language, text_direction, include_colon=True, align_colon=False):
@@ -2166,18 +2248,30 @@ def get_field_layout_item(
         "label_manual_y": False,
         "label_grow": _normalize_grow_mode(None, text_direction),
         "label_font_size": None,
+        "label_char_spacing": 0,
+        "label_line_height": 1.16,
+        "label_auto_fit": False,
+        "label_max_width": 200,
         "value_x": default_value_x,
         "value_y": default_y,
         "value_visible": bool(default_value_visible),
         "value_manual_y": False,
         "value_grow": _normalize_grow_mode(None, text_direction),
         "value_font_size": None,
+        "value_char_spacing": 0,
+        "value_line_height": 1.16,
+        "value_auto_fit": False,
+        "value_max_width": 200,
         "colon_x": None,
         "colon_y": default_y,
         "colon_visible": bool(default_label_visible if default_colon_visible is None else default_colon_visible),
         "colon_manual_y": False,
         "colon_grow": "left" if text_direction == "rtl" else "right",
         "colon_font_size": None,
+        "colon_char_spacing": 0,
+        "colon_line_height": 1.16,
+        "colon_auto_fit": False,
+        "colon_max_width": 200,
     }
 
     if not field_key:
@@ -2204,13 +2298,17 @@ def get_field_layout_item(
     def _part_has_explicit_layout(part_name):
         part_obj = field_obj.get(part_name)
         if isinstance(part_obj, dict):
-            for key in ("x", "y", "manual_y", "font_size", "color", "grow"):
+            for key in ("x", "y", "manual_y", "font_size", "color", "grow", "char_spacing", "line_height", "auto_fit", "max_width"):
                 if key in part_obj:
                     return True
         flat_keys = [
             f"{part_name}_font_size",
             f"{part_name}_color",
             f"{part_name}_grow",
+            f"{part_name}_char_spacing",
+            f"{part_name}_line_height",
+            f"{part_name}_auto_fit",
+            f"{part_name}_max_width",
         ]
         if not prefer_nested_part_layout:
             flat_keys = [f"{part_name}_x", f"{part_name}_y"] + flat_keys
@@ -2236,6 +2334,10 @@ def get_field_layout_item(
         flat_grow = f"{prefix}_grow"
         flat_font_size = f"{prefix}_font_size"
         flat_color = f"{prefix}_color"
+        flat_char_spacing = f"{prefix}_char_spacing"
+        flat_line_height = f"{prefix}_line_height"
+        flat_auto_fit = f"{prefix}_auto_fit"
+        flat_max_width = f"{prefix}_max_width"
 
         if not prefer_nested_part_layout and flat_x in field_obj:
             try:
@@ -2268,6 +2370,23 @@ def get_field_layout_item(
             rgb = _hex_to_rgb_tuple(field_obj.get(flat_color))
             if rgb:
                 result[flat_color] = rgb
+        if flat_char_spacing in field_obj:
+            try:
+                result[flat_char_spacing] = int(field_obj.get(flat_char_spacing))
+            except Exception:
+                pass
+        if flat_line_height in field_obj:
+            try:
+                result[flat_line_height] = float(field_obj.get(flat_line_height))
+            except Exception:
+                pass
+        if flat_auto_fit in field_obj:
+            result[flat_auto_fit] = bool(field_obj.get(flat_auto_fit))
+        if flat_max_width in field_obj:
+            try:
+                result[flat_max_width] = int(field_obj.get(flat_max_width))
+            except Exception:
+                pass
 
     for part, prefix in (("label", "label"), ("value", "value"), ("colon", "colon")):
         part_obj = field_obj.get(part)
@@ -2303,6 +2422,23 @@ def get_field_layout_item(
             rgb = _hex_to_rgb_tuple(part_obj.get("color"))
             if rgb:
                 result[f"{prefix}_color"] = rgb
+        if "char_spacing" in part_obj:
+            try:
+                result[f"{prefix}_char_spacing"] = int(part_obj.get("char_spacing"))
+            except Exception:
+                pass
+        if "line_height" in part_obj:
+            try:
+                result[f"{prefix}_line_height"] = float(part_obj.get("line_height"))
+            except Exception:
+                pass
+        if "auto_fit" in part_obj:
+            result[f"{prefix}_auto_fit"] = bool(part_obj.get("auto_fit"))
+        if "max_width" in part_obj:
+            try:
+                result[f"{prefix}_max_width"] = int(part_obj.get("max_width"))
+            except Exception:
+                pass
 
     # If a part has been explicitly positioned/styled in the visual editor, treat it as visible
     # unless that same layout explicitly set `visible: false`. This keeps old templates with

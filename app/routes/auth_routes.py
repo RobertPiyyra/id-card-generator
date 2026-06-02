@@ -10,24 +10,7 @@ from itsdangerous import URLSafeTimedSerializer, SignatureExpired, BadTimeSignat
 
 from models import db, Student, AdminUser, Template
 from app.extensions import limiter, csrf
-def get_legacy_helpers():
-    import app.legacy_app as legacy
-    return legacy
-
-def get_templates(*args, **kwargs):
-    return get_legacy_helpers().get_templates(*args, **kwargs)
-
-def log_activity(*args, **kwargs):
-    return get_legacy_helpers().log_activity(*args, **kwargs)
-
-def send_email(*args, **kwargs):
-    return get_legacy_helpers().send_email(*args, **kwargs)
-
-def _find_template_dict_by_school(*args, **kwargs):
-    return get_legacy_helpers()._find_template_dict_by_school(*args, **kwargs)
-
-def _normalize_school_name(*args, **kwargs):
-    return get_legacy_helpers()._normalize_school_name(*args, **kwargs)
+from app.services.core_services import get_templates, log_activity, send_email, _find_template_dict_by_school, _normalize_school_name
 
 logger = logging.getLogger(__name__)
 
@@ -588,5 +571,3 @@ def admin_reset_student_password(student_id):
         logger.error(f"Error resetting student password: {e}")
         flash(f"Error resetting password: {str(e)}", "error")
         return redirect(url_for("auth.admin_student_credentials"))
-
-

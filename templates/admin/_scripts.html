@@ -99,9 +99,15 @@
                 if (sideLabel) {
                     sideLabel.textContent = activeSide === 'back' ? 'Back Preview' : 'Front Preview';
                 }
-                if (sourceLabel) {
+                 if (sourceLabel) {
                     const sourceName = selectedOption.getAttribute(activeSide === 'back' ? 'data-back-source-name' : 'data-source-name') || '';
-                    sourceLabel.textContent = sourceName ? `Source: ${sourceName}` : '';
+                    let shortName = sourceName;
+                    if (sourceName) {
+                        const base = sourceName.split(/[/\\]/).pop();
+                        shortName = base.length > 25 ? base.substring(0, 12) + '...' + base.substring(base.length - 10) : base;
+                    }
+                    sourceLabel.textContent = sourceName ? `Source: ${shortName}` : '';
+                    sourceLabel.title = sourceName || '';
                 }
 
                 // Load JSON settings Safely
@@ -297,7 +303,8 @@
                     }
                 }
                 
-                updateAdminPreview(); 
+                updateAdminPreview();
+                loadTemplateLifecyclePanel();
             } else {
                 document.getElementById('templateId').value = '';
                 saveBtn.disabled = true;
@@ -309,6 +316,9 @@
                     settingsForm.style.borderTop = 'none';
                     settingsForm.style.background = 'none';
                 }
+                renderWorkflowBadge('draft');
+                renderTemplateVersions([]);
+                renderTemplateAuditEvents([]);
             }
         }
         
@@ -500,6 +510,7 @@
                         selectedOption.setAttribute('data-grid-rows', data.grid_rows);
                         selectedOption.setAttribute('data-grid-cols', data.grid_cols);
                     }
+                    loadTemplateLifecyclePanel();
                     
                 } else {
                     showNotification('Error saving settings: ' + (result.error || 'Unknown error'), 'error');
@@ -514,6 +525,617 @@
                 saveBtn.innerHTML = originalText;
                 saveBtn.disabled = false;
             });
+        }
+
+        function getSelectedTemplateId() {
+            const selector = document.getElementById('templateSelector');
+            if (!selector || !selector.value) return null;
+            return String(selector.value);
+        }
+
+        function workflowBadgeStyle(state) {
+            const s = (state || 'draft').toLowerCase();
+            if (s === 'published') return { bg: '#d4edda', color: '#155724', border: '#a7f3d0' };
+            if (s === 'approved') return { bg: '#d1ecf1', color: '#0c5460', border: '#9adbe8' };
+            if (s === 'review') return { bg: '#fff3cd', color: '#856404', border: '#ffe69c' };
+            return { bg: '#f8d7da', color: '#721c24', border: '#f5c2c7' };
+        }
+
+        function renderWorkflowBadge(state) {
+            const badge = document.getElementById('workflowStateBadge');
+            if (!badge) return;
+            const normalized = (state || 'draft').toLowerCase();
+            const style = workflowBadgeStyle(normalized);
+            badge.textContent = normalized;
+            badge.style.background = style.bg;
+            badge.style.color = style.color;
+            badge.style.borderColor = style.border;
+        }
+
+        async function loadTemplateWorkflow() {
+            const templateId = getSelectedTemplateId();
+            if (!templateId) return;
+            try {
+                const response = await fetch(`/admin/template/${templateId}/workflow`);
+                const data = await response.json();
+                if (!response.ok || !data.success) throw new Error(data.message || `HTTP ${response.status}`);
+                const state = (data.state || 'draft').toLowerCase();
+                const select = document.getElementById('workflowStateSelect');
+                if (select) select.value = state;
+                renderWorkflowBadge(state);
+            } catch (err) {
+                console.error('Workflow load failed:', err);
+                showNotification(`Workflow load failed: ${err.message}`, 'warning');
+            }
+        }
+
+        async function applyWorkflowState() {
+            const templateId = getSelectedTemplateId();
+            if (!templateId) {
+                showNotification('Select template first.', 'error');
+                return;
+            }
+            const select = document.getElementById('workflowStateSelect');
+            const noteInput = document.getElementById('workflowNote');
+            const newState = select ? select.value : 'draft';
+            const note = noteInput ? (noteInput.value || '').trim() : '';
+            try {
+                const response = await fetch(`/admin/template/${templateId}/workflow`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCsrfToken()
+                    },
+                    body: JSON.stringify({ state: newState, note })
+                });
+                const data = await response.json();
+                if (!response.ok || !data.success) throw new Error(data.message || `HTTP ${response.status}`);
+                renderWorkflowBadge(data.state || newState);
+                showNotification(`Workflow moved to ${data.state || newState}.`, 'success');
+            } catch (err) {
+                console.error('Workflow update failed:', err);
+                showNotification(`Workflow update failed: ${err.message}`, 'error');
+            }
+        }
+
+        function renderTemplateVersions(versions) {
+            const wrap = document.getElementById('templateVersionsList');
+            if (!wrap) return;
+            if (!Array.isArray(versions) || versions.length === 0) {
+                wrap.innerHTML = '<div class="version-item"><div class="version-meta">No versions yet</div></div>';
+                return;
+            }
+            wrap.innerHTML = versions.map(v => {
+                const by = (v.created_by || 'system');
+                const role = (v.created_role || 'system');
+                const created = (v.created_at || '').replace('T', ' ').slice(0, 19);
+                const source = v.source || 'unknown';
+                return `
+                    <div class="version-item">
+                        <div>
+                            <div><strong>v${v.version_number}</strong> • ${source}</div>
+                            <div class="version-meta">${created} • ${by} (${role})</div>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-delete" onclick="rollbackTemplateVersion(${v.id})">Rollback</button>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        async function loadTemplateVersions() {
+            const templateId = getSelectedTemplateId();
+            if (!templateId) return;
+            try {
+                const response = await fetch(`/admin/template/${templateId}/versions`);
+                const data = await response.json();
+                if (!response.ok || !data.success) throw new Error(data.message || `HTTP ${response.status}`);
+                renderTemplateVersions(data.versions || []);
+            } catch (err) {
+                console.error('Version load failed:', err);
+                showNotification(`Version load failed: ${err.message}`, 'warning');
+            }
+        }
+
+        async function rollbackTemplateVersion(versionId) {
+            const templateId = getSelectedTemplateId();
+            if (!templateId) {
+                showNotification('Select template first.', 'error');
+                return;
+            }
+            if (!confirm('Rollback this template to selected version?')) return;
+            try {
+                const response = await fetch(`/admin/template/${templateId}/rollback/${versionId}`, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': getCsrfToken()
+                    }
+                });
+                const data = await response.json();
+                if (!response.ok || !data.success) throw new Error(data.message || `HTTP ${response.status}`);
+                showNotification('Rollback applied successfully.', 'success');
+                loadTemplateLifecyclePanel();
+                setTimeout(() => {
+                    loadTemplateSettings();
+                    updateAdminPreview();
+                }, 200);
+            } catch (err) {
+                console.error('Rollback failed:', err);
+                showNotification(`Rollback failed: ${err.message}`, 'error');
+            }
+        }
+
+        function renderTemplateAuditEvents(events) {
+            const wrap = document.getElementById('templateAuditList');
+            if (!wrap) return;
+            if (!Array.isArray(events) || events.length === 0) {
+                wrap.innerHTML = '<div class="audit-item">No audit events yet</div>';
+                return;
+            }
+            wrap.innerHTML = events.map(e => {
+                const created = (e.created_at || '').replace('T', ' ').slice(0, 19);
+                const actor = e.actor || 'system';
+                const role = e.actor_role || 'system';
+                const action = e.action || 'event';
+                return `<div class="audit-item"><strong>${action}</strong><br>${created} • ${actor} (${role})</div>`;
+            }).join('');
+        }
+
+        async function loadTemplateAuditEvents() {
+            const templateId = getSelectedTemplateId();
+            if (!templateId) return;
+            try {
+                const response = await fetch(`/admin/audit-events?entity_type=template&entity_id=${encodeURIComponent(templateId)}`);
+                const data = await response.json();
+                if (!response.ok || !data.success) throw new Error(data.message || `HTTP ${response.status}`);
+                renderTemplateAuditEvents(data.events || []);
+            } catch (err) {
+                console.error('Audit events load failed:', err);
+                showNotification(`Audit load failed: ${err.message}`, 'warning');
+            }
+        }
+
+        function renderTemplateQa(qa) {
+            const wrap = document.getElementById('templateQaList');
+            if (!wrap) return;
+            if (!qa) {
+                wrap.innerHTML = '<div class="audit-item">No QA data available.</div>';
+                return;
+            }
+            const issues = Array.isArray(qa.issues) ? qa.issues : [];
+            const head = `<div class="audit-item"><strong>Score:</strong> ${qa.score} • <strong>Status:</strong> ${qa.ok ? 'PASS' : 'FAIL'}</div>`;
+            if (!issues.length) {
+                wrap.innerHTML = head + '<div class="audit-item">No issues found.</div>';
+                return;
+            }
+            wrap.innerHTML = head + issues.map(i => `<div class="audit-item"><strong>[${(i.severity || '').toUpperCase()}]</strong> ${i.type}: ${i.message}</div>`).join('');
+        }
+
+        async function runTemplateDesignQA() {
+            const templateId = getSelectedTemplateId();
+            if (!templateId) {
+                showNotification('Select template first.', 'error');
+                return;
+            }
+            try {
+                const response = await fetch(`/admin/template/${templateId}/design-qa`);
+                const data = await response.json();
+                if (!response.ok || !data.success) throw new Error(data.message || `HTTP ${response.status}`);
+                renderTemplateQa(data.qa);
+                showNotification(`Design QA score: ${data.qa.score}`, data.qa.ok ? 'success' : 'warning');
+            } catch (err) {
+                console.error('Design QA failed:', err);
+                showNotification(`Design QA failed: ${err.message}`, 'error');
+            }
+        }
+
+        async function loadTemplateQaSettings() {
+            const templateId = getSelectedTemplateId();
+            const area = document.getElementById('templateQaSettingsJson');
+            if (!templateId || !area) return;
+            try {
+                const response = await fetch(`/admin/template/${templateId}/qa-settings`);
+                const data = await response.json();
+                if (!response.ok || !data.success) throw new Error(data.message || `HTTP ${response.status}`);
+                area.value = JSON.stringify(data.qa_settings || {}, null, 2);
+            } catch (err) {
+                console.error('QA settings load failed:', err);
+                showNotification(`QA settings load failed: ${err.message}`, 'warning');
+            }
+        }
+
+        async function saveTemplateQaSettings() {
+            const templateId = getSelectedTemplateId();
+            if (!templateId) return showNotification('Select template first.', 'error');
+            try {
+                const qa_settings = safeParsePremiumJson(document.getElementById('templateQaSettingsJson')?.value, 'QA settings');
+                const response = await fetch(`/admin/template/${templateId}/qa-settings`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCsrfToken()
+                    },
+                    body: JSON.stringify({ qa_settings })
+                });
+                const data = await response.json();
+                if (!response.ok || !data.success) throw new Error(data.message || `HTTP ${response.status}`);
+                showNotification('QA settings saved.', 'success');
+                loadTemplateQaSettings();
+            } catch (err) {
+                showNotification(err.message || 'Failed to save QA settings.', 'error');
+            }
+        }
+
+        function safeParsePremiumJson(rawText, fieldName) {
+            const text = String(rawText || '').trim();
+            if (!text) return {};
+            try {
+                return JSON.parse(text);
+            } catch (err) {
+                throw new Error(`${fieldName} must be valid JSON`);
+            }
+        }
+
+        async function loadBatchRules() {
+            const templateId = getSelectedTemplateId();
+            const area = document.getElementById('batchRulesJson');
+            if (!templateId || !area) return;
+            try {
+                const response = await fetch(`/admin/template/${templateId}/batch-rules`);
+                const data = await response.json();
+                if (!response.ok || !data.success) throw new Error(data.message || `HTTP ${response.status}`);
+                area.value = JSON.stringify(data.rules || {}, null, 2);
+            } catch (err) {
+                console.error('Batch rules load failed:', err);
+                showNotification(`Batch rules load failed: ${err.message}`, 'warning');
+            }
+        }
+
+        async function saveBatchRules() {
+            const templateId = getSelectedTemplateId();
+            if (!templateId) return showNotification('Select template first.', 'error');
+            try {
+                const rules = safeParsePremiumJson(document.getElementById('batchRulesJson')?.value, 'Batch rules');
+                const response = await fetch(`/admin/template/${templateId}/batch-rules`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCsrfToken()
+                    },
+                    body: JSON.stringify({ rules })
+                });
+                const data = await response.json();
+                if (!response.ok || !data.success) throw new Error(data.message || `HTTP ${response.status}`);
+                showNotification('Batch rules saved.', 'success');
+                loadBatchRules();
+            } catch (err) {
+                showNotification(err.message || 'Failed to save batch rules.', 'error');
+            }
+        }
+
+        async function loadLocalizationPack() {
+            const templateId = getSelectedTemplateId();
+            if (!templateId) return;
+            const packArea = document.getElementById('localizationPackJson');
+            const locksArea = document.getElementById('languageLockRulesJson');
+            if (!packArea || !locksArea) return;
+            try {
+                const response = await fetch(`/admin/template/${templateId}/localization-pack`);
+                const data = await response.json();
+                if (!response.ok || !data.success) throw new Error(data.message || `HTTP ${response.status}`);
+                packArea.value = JSON.stringify(data.localization_pack || {}, null, 2);
+                locksArea.value = JSON.stringify(data.language_lock_rules || {}, null, 2);
+                applyLanguageLocksInTemplateUi();
+            } catch (err) {
+                console.error('Localization load failed:', err);
+                showNotification(`Localization load failed: ${err.message}`, 'warning');
+            }
+        }
+
+        async function saveLocalizationPack() {
+            const templateId = getSelectedTemplateId();
+            if (!templateId) return showNotification('Select template first.', 'error');
+            try {
+                const localization_pack = safeParsePremiumJson(document.getElementById('localizationPackJson')?.value, 'Localization pack');
+                const language_lock_rules = safeParsePremiumJson(document.getElementById('languageLockRulesJson')?.value, 'Language lock rules');
+                const response = await fetch(`/admin/template/${templateId}/localization-pack`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCsrfToken()
+                    },
+                    body: JSON.stringify({ localization_pack, language_lock_rules })
+                });
+                const data = await response.json();
+                if (!response.ok || !data.success) throw new Error(data.message || `HTTP ${response.status}`);
+                showNotification('Localization pack saved.', 'success');
+                applyLanguageLocksInTemplateUi();
+            } catch (err) {
+                showNotification(err.message || 'Failed to save localization pack.', 'error');
+            }
+        }
+
+        function applyLanguageLocksInTemplateUi() {
+            const side = (document.getElementById('templateSide')?.value || 'front').toLowerCase();
+            const langSelect = document.getElementById('templateLanguage');
+            const dirSelect = document.getElementById('templateDirection');
+            if (!langSelect || !dirSelect) return;
+            let rules = {};
+            try {
+                rules = safeParsePremiumJson(document.getElementById('languageLockRulesJson')?.value, 'Language lock rules');
+            } catch (err) {
+                rules = {};
+            }
+            const lockedLanguage = String((rules && rules[side]) || '').trim().toLowerCase();
+            if (lockedLanguage) {
+                langSelect.value = lockedLanguage;
+                dirSelect.value = (lockedLanguage === 'urdu' || lockedLanguage === 'arabic') ? 'rtl' : 'ltr';
+                langSelect.disabled = true;
+                dirSelect.disabled = true;
+            } else {
+                langSelect.disabled = false;
+                dirSelect.disabled = false;
+            }
+        }
+
+        async function previewLocalizedLabels(side) {
+            const templateId = getSelectedTemplateId();
+            if (!templateId) return showNotification('Select template first.', 'error');
+            const wrap = document.getElementById('localizedLabelsPreview');
+            if (!wrap) return;
+            try {
+                const response = await fetch(`/admin/template/${templateId}/localized-labels?side=${encodeURIComponent(side)}`);
+                const data = await response.json();
+                if (!response.ok || !data.success) throw new Error(data.message || `HTTP ${response.status}`);
+                const labels = data.labels || {};
+                wrap.innerHTML = `
+                    <div class="audit-item"><strong>Side:</strong> ${data.side} • <strong>Language:</strong> ${data.language}</div>
+                    <div class="audit-item">NAME: ${labels.NAME || ''}</div>
+                    <div class="audit-item">F_NAME: ${labels.F_NAME || ''}</div>
+                    <div class="audit-item">CLASS: ${labels.CLASS || ''}</div>
+                    <div class="audit-item">DOB: ${labels.DOB || ''}</div>
+                    <div class="audit-item">MOBILE: ${labels.MOBILE || ''}</div>
+                    <div class="audit-item">ADDRESS: ${labels.ADDRESS || ''}</div>
+                `;
+            } catch (err) {
+                showNotification(`Localized labels preview failed: ${err.message}`, 'error');
+            }
+        }
+
+        async function loadBrandingConfig() {
+            const templateId = getSelectedTemplateId();
+            if (!templateId) return;
+            const brandingArea = document.getElementById('brandingConfigJson');
+            const printArea = document.getElementById('printProfileJson');
+            if (!brandingArea || !printArea) return;
+            try {
+                const response = await fetch(`/admin/template/${templateId}/branding`);
+                const data = await response.json();
+                if (!response.ok || !data.success) throw new Error(data.message || `HTTP ${response.status}`);
+                brandingArea.value = JSON.stringify(data.branding_config || {}, null, 2);
+                printArea.value = JSON.stringify(data.print_profile || {}, null, 2);
+            } catch (err) {
+                console.error('Branding load failed:', err);
+                showNotification(`Branding load failed: ${err.message}`, 'warning');
+            }
+        }
+
+        async function saveBrandingConfig() {
+            const templateId = getSelectedTemplateId();
+            if (!templateId) return showNotification('Select template first.', 'error');
+            try {
+                const branding_config = safeParsePremiumJson(document.getElementById('brandingConfigJson')?.value, 'Branding config');
+                const print_profile = safeParsePremiumJson(document.getElementById('printProfileJson')?.value, 'Print profile');
+                const response = await fetch(`/admin/template/${templateId}/branding`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCsrfToken()
+                    },
+                    body: JSON.stringify({ branding_config, print_profile })
+                });
+                const data = await response.json();
+                if (!response.ok || !data.success) throw new Error(data.message || `HTTP ${response.status}`);
+                showNotification('Branding + print profile saved.', 'success');
+            } catch (err) {
+                showNotification(err.message || 'Failed to save branding config.', 'error');
+            }
+        }
+
+        async function loadImportMappings() {
+            const templateId = getSelectedTemplateId();
+            const resultWrap = document.getElementById('importMappingPreviewResult');
+            if (!templateId || !resultWrap) return;
+            try {
+                const response = await fetch(`/admin/import-mappings/${templateId}`);
+                const data = await response.json();
+                if (!response.ok || !data.success) throw new Error(data.message || `HTTP ${response.status}`);
+                const rows = Array.isArray(data.mappings) ? data.mappings : [];
+                if (!rows.length) {
+                    resultWrap.innerHTML = '<div class="audit-item">No saved mappings for this template yet.</div>';
+                    return;
+                }
+                resultWrap.innerHTML = rows.map((m) => `<div class="audit-item"><strong>${m.name || 'mapping'}</strong><br><small>ID: ${m.id}</small></div>`).join('');
+            } catch (err) {
+                console.error('Import mapping load failed:', err);
+                showNotification(`Import mapping load failed: ${err.message}`, 'warning');
+            }
+        }
+
+        async function saveImportMapping() {
+            const templateId = getSelectedTemplateId();
+            if (!templateId) return showNotification('Select template first.', 'error');
+            try {
+                const mapping_json = safeParsePremiumJson(document.getElementById('importMappingJson')?.value, 'Import mapping JSON');
+                const name = (document.getElementById('importMappingName')?.value || '').trim() || `mapping-${templateId}`;
+                const response = await fetch(`/admin/import-mappings/${templateId}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCsrfToken()
+                    },
+                    body: JSON.stringify({ name, mapping_json })
+                });
+                const data = await response.json();
+                if (!response.ok || !data.success) throw new Error(data.message || `HTTP ${response.status}`);
+                showNotification('Import mapping saved.', 'success');
+                loadImportMappings();
+            } catch (err) {
+                showNotification(err.message || 'Failed to save import mapping.', 'error');
+            }
+        }
+
+        async function previewImportMapping() {
+            try {
+                const mapping_json = safeParsePremiumJson(document.getElementById('importMappingJson')?.value, 'Import mapping JSON');
+                const headersCsv = document.getElementById('importHeadersCsv')?.value || '';
+                const headers = headersCsv.split(',').map(h => h.trim()).filter(Boolean);
+                const response = await fetch('/admin/import-mappings/preview', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCsrfToken()
+                    },
+                    body: JSON.stringify({ headers, mapping_json })
+                });
+                const data = await response.json();
+                if (!response.ok || !data.success) throw new Error(data.message || `HTTP ${response.status}`);
+                const wrap = document.getElementById('importMappingPreviewResult');
+                if (!wrap) return;
+                wrap.innerHTML = data.valid
+                    ? '<div class="audit-item"><strong>VALID</strong> mapping preview passed.</div>'
+                    : `<div class="audit-item"><strong>INVALID</strong> missing required targets: ${(data.missing_required_targets || []).join(', ')}</div>`;
+            } catch (err) {
+                showNotification(err.message || 'Import mapping preview failed.', 'error');
+            }
+        }
+
+        function renderDisasterSnapshots(items) {
+            const select = document.getElementById('drSnapshotSelect');
+            const list = document.getElementById('drSnapshotList');
+            if (!select || !list) return;
+            select.innerHTML = '<option value="">Select snapshot...</option>';
+            const rows = Array.isArray(items) ? items : [];
+            rows.forEach((s) => {
+                const opt = document.createElement('option');
+                opt.value = s.id;
+                opt.textContent = `${s.snapshot_name} (${(s.created_at || '').replace('T', ' ').slice(0, 19)})`;
+                select.appendChild(opt);
+            });
+            if (!rows.length) {
+                list.innerHTML = '<div class="audit-item">No snapshots available.</div>';
+                return;
+            }
+            list.innerHTML = rows.map((s) => `<div class="audit-item"><strong>${s.snapshot_name}</strong><br>${(s.created_at || '').replace('T', ' ').slice(0, 19)}</div>`).join('');
+        }
+
+        async function loadDisasterSnapshots() {
+            try {
+                const response = await fetch('/admin/disaster-recovery/snapshots');
+                const data = await response.json();
+                if (!response.ok || !data.success) throw new Error(data.message || `HTTP ${response.status}`);
+                renderDisasterSnapshots(data.snapshots || []);
+            } catch (err) {
+                console.error('Snapshot load failed:', err);
+                showNotification(`Snapshot load failed: ${err.message}`, 'warning');
+            }
+        }
+
+        async function createDisasterSnapshot() {
+            try {
+                const response = await fetch('/admin/disaster-recovery/snapshot', {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': getCsrfToken()
+                    }
+                });
+                const data = await response.json();
+                if (!response.ok || !data.success) throw new Error(data.message || `HTTP ${response.status}`);
+                showNotification(`Snapshot created: ${data.snapshot_name}`, 'success');
+                loadDisasterSnapshots();
+            } catch (err) {
+                showNotification(err.message || 'Failed to create snapshot.', 'error');
+            }
+        }
+
+        async function restoreSelectedSnapshot() {
+            const snapshotId = document.getElementById('drSnapshotSelect')?.value;
+            if (!snapshotId) return showNotification('Select snapshot first.', 'error');
+            if (!confirm('Restore selected snapshot now? This will overwrite template premium settings.')) return;
+            try {
+                const response = await fetch(`/admin/disaster-recovery/restore/${snapshotId}`, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': getCsrfToken()
+                    }
+                });
+                const data = await response.json();
+                if (!response.ok || !data.success) throw new Error(data.message || `HTTP ${response.status}`);
+                showNotification(`Snapshot restored. Templates updated: ${data.restored_templates}`, 'success');
+                loadTemplateSettings();
+            } catch (err) {
+                showNotification(err.message || 'Failed to restore snapshot.', 'error');
+            }
+        }
+
+        async function restoreToSelectedDateTime() {
+            const dtLocal = document.getElementById('drRestoreTargetAt')?.value;
+            if (!dtLocal) return showNotification('Select restore date/time first.', 'error');
+            if (!confirm('Restore to latest snapshot at/before selected UTC date-time?')) return;
+            try {
+                // datetime-local has no timezone; normalize as UTC for deterministic server restore.
+                const target_at = `${dtLocal}:00+00:00`;
+                const response = await fetch('/admin/disaster-recovery/restore-to-date', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCsrfToken()
+                    },
+                    body: JSON.stringify({ target_at })
+                });
+                const data = await response.json();
+                if (!response.ok || !data.success) throw new Error(data.message || `HTTP ${response.status}`);
+                showNotification(`Restore complete via ${data.snapshot_name}. Templates updated: ${data.restored_templates}`, 'success');
+                loadDisasterSnapshots();
+                loadTemplateSettings();
+            } catch (err) {
+                showNotification(err.message || 'Restore-to-date failed.', 'error');
+            }
+        }
+
+        async function loadAdminAnalytics() {
+            const wrap = document.getElementById('analyticsOverviewBox');
+            if (!wrap) return;
+            try {
+                const response = await fetch('/admin/analytics/overview');
+                const data = await response.json();
+                if (!response.ok || !data.success) throw new Error(data.message || `HTTP ${response.status}`);
+                const rows = Array.isArray(data.by_school) ? data.by_school : [];
+                const lines = rows.map(r => `<div class="audit-item"><strong>${r.school_name || '-'}</strong> • cards: ${r.cards_generated || 0}</div>`).join('');
+                wrap.innerHTML = [
+                    `<div class="audit-item"><strong>Revoked:</strong> ${data.revoked_count || 0}</div>`,
+                    `<div class="audit-item"><strong>Photo quality fail:</strong> ${data.photo_quality_fail_count || 0}</div>`,
+                    `<div class="audit-item"><strong>Records with hash:</strong> ${data.records_with_hash || 0}</div>`,
+                    lines || '<div class="audit-item">No school usage rows.</div>'
+                ].join('');
+            } catch (err) {
+                console.error('Analytics load failed:', err);
+                showNotification(`Analytics load failed: ${err.message}`, 'warning');
+            }
+        }
+
+        function loadTemplateLifecyclePanel() {
+            initializePremiumPaneLayout();
+            loadTemplateWorkflow();
+            loadTemplateVersions();
+            loadTemplateAuditEvents();
+            renderTemplateQa(null);
+            loadTemplateQaSettings();
+            loadBatchRules();
+            loadLocalizationPack();
+            loadBrandingConfig();
+            loadImportMappings();
+            loadDisasterSnapshots();
+            loadAdminAnalytics();
         }
 
         async function validateTemplates() {
@@ -993,9 +1615,15 @@
             if (sideLabel) {
                 sideLabel.textContent = activeSide === 'back' ? 'Back Preview' : 'Front Preview';
             }
-            if (sourceLabel) {
+             if (sourceLabel) {
                 const sourceName = selectedOption.getAttribute(activeSide === 'back' ? 'data-back-source-name' : 'data-source-name') || '';
-                sourceLabel.textContent = sourceName ? `Source: ${sourceName}` : '';
+                let shortName = sourceName;
+                if (sourceName) {
+                    const base = sourceName.split(/[/\\]/).pop();
+                    shortName = base.length > 25 ? base.substring(0, 12) + '...' + base.substring(base.length - 10) : base;
+                }
+                sourceLabel.textContent = sourceName ? `Source: ${shortName}` : '';
+                sourceLabel.title = sourceName || '';
             }
         
             fetch("{{ url_for('admin_preview_card') }}", {
@@ -1387,14 +2015,32 @@
             const generateBtn = document.getElementById('generatePreviewBtn');
             const downloadBtn = document.getElementById('downloadPreviewBtn');
             const corelPreviewBtn = document.getElementById('corelPreviewBtn');
+            const sideBySideBtn = document.getElementById('sideBySideBtn');
+            const photoQualityBtn = document.getElementById('photoQualityBtn');
+            const verifyV2Btn = document.getElementById('verifyV2Btn');
+            const revokeVerifyBtn = document.getElementById('revokeVerifyBtn');
+            const unrevokeVerifyBtn = document.getElementById('unrevokeVerifyBtn');
+            const verifyAuditBtn = document.getElementById('verifyAuditBtn');
             
             if (templateId && studentId) {
                 generateBtn.disabled = false;
                 if (corelPreviewBtn) corelPreviewBtn.disabled = false;
+                if (sideBySideBtn) sideBySideBtn.disabled = false;
+                if (photoQualityBtn) photoQualityBtn.disabled = false;
+                if (verifyV2Btn) verifyV2Btn.disabled = false;
+                if (revokeVerifyBtn) revokeVerifyBtn.disabled = false;
+                if (unrevokeVerifyBtn) unrevokeVerifyBtn.disabled = false;
+                if (verifyAuditBtn) verifyAuditBtn.disabled = false;
             } else {
                 generateBtn.disabled = true;
                 downloadBtn.disabled = true;
                 if (corelPreviewBtn) corelPreviewBtn.disabled = true;
+                if (sideBySideBtn) sideBySideBtn.disabled = true;
+                if (photoQualityBtn) photoQualityBtn.disabled = true;
+                if (verifyV2Btn) verifyV2Btn.disabled = true;
+                if (revokeVerifyBtn) revokeVerifyBtn.disabled = true;
+                if (unrevokeVerifyBtn) unrevokeVerifyBtn.disabled = true;
+                if (verifyAuditBtn) verifyAuditBtn.disabled = true;
             }
         }
 
@@ -1510,6 +2156,145 @@
             } else {
                 showNotification('No students available for this template', 'warning');
             }
+        }
+
+        function loadSideBySideModes() {
+            const studentId = document.getElementById('previewStudent').value;
+            if (!studentId) {
+                showNotification('Select a student first', 'error');
+                return;
+            }
+            fetch(`/admin/preview-modes/${studentId}`)
+                .then(r => r.json())
+                .then(data => {
+                    if (!data.success) throw new Error(data.message || 'Failed to load modes');
+                    const panel = document.getElementById('sideBySideModesPanel');
+                    document.getElementById('modeVisualImg').src = data.visual_url;
+                    document.getElementById('modePrintImg').src = data.print_safe_url;
+                    document.getElementById('modeCorelImg').src = data.corel_url;
+                    panel.style.display = 'block';
+                })
+                .catch(err => {
+                    console.error(err);
+                    showNotification(`Preview modes failed: ${err.message}`, 'error');
+                });
+        }
+
+        function checkSelectedStudentPhotoQuality() {
+            const studentId = document.getElementById('previewStudent').value;
+            if (!studentId) {
+                showNotification('Select a student first', 'error');
+                return;
+            }
+            fetch(`/admin/students/${studentId}/photo-quality`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': getCsrfToken()
+                }
+            })
+                .then(r => r.json())
+                .then(data => {
+                    if (!data.success) throw new Error(data.message || 'Failed to score photo quality');
+                    showNotification(`Photo quality: ${data.score} (${String(data.status || '').toUpperCase()})`, data.status === 'pass' ? 'success' : 'warning');
+                })
+                .catch(err => {
+                    console.error(err);
+                    showNotification(`Photo quality check failed: ${err.message}`, 'error');
+                });
+        }
+
+        function issueSelectedStudentVerifyToken() {
+            const studentId = document.getElementById('previewStudent').value;
+            if (!studentId) {
+                showNotification('Select a student first', 'error');
+                return;
+            }
+            fetch(`/verify/v2/token/${studentId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCsrfToken()
+                },
+                body: JSON.stringify({ ttl_seconds: 3600 })
+            })
+                .then(r => r.json())
+                .then(data => {
+                    if (!data.success) throw new Error(data.message || 'Failed to issue verification token');
+                    const panel = document.getElementById('verifyTokenPanel');
+                    const input = document.getElementById('verifyTokenUrl');
+                    if (panel && input) {
+                        input.value = data.verify_url || '';
+                        panel.style.display = 'block';
+                        input.focus();
+                        input.select();
+                    }
+                    showNotification('Signed verification URL issued.', 'success');
+                })
+                .catch(err => {
+                    console.error(err);
+                    showNotification(`Verification token issue failed: ${err.message}`, 'error');
+                });
+        }
+
+        function setSelectedStudentVerificationStatus(revoked) {
+            const studentId = document.getElementById('previewStudent').value;
+            if (!studentId) {
+                showNotification('Select a student first', 'error');
+                return;
+            }
+            fetch(`/admin/students/${studentId}/verification-status`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCsrfToken()
+                },
+                body: JSON.stringify({ revoked: !!revoked })
+            })
+                .then(r => r.json())
+                .then(data => {
+                    if (!data.success) throw new Error(data.message || 'Failed to update status');
+                    showNotification(
+                        data.verification_revoked ? 'Credential revoked for selected student.' : 'Credential restored for selected student.',
+                        data.verification_revoked ? 'warning' : 'success'
+                    );
+                })
+                .catch(err => {
+                    console.error(err);
+                    showNotification(`Verification status update failed: ${err.message}`, 'error');
+                });
+        }
+
+        function loadSelectedStudentVerificationAudits() {
+            const studentId = document.getElementById('previewStudent').value;
+            if (!studentId) {
+                showNotification('Select a student first', 'error');
+                return;
+            }
+            fetch(`/admin/verification-audits?student_id=${encodeURIComponent(studentId)}&limit=50`)
+                .then(r => r.json())
+                .then(data => {
+                    if (!data.success) throw new Error(data.message || 'Failed to load verification audits');
+                    const panel = document.getElementById('verifyAuditPanel');
+                    const list = document.getElementById('verifyAuditList');
+                    if (!panel || !list) return;
+                    const rows = Array.isArray(data.audits) ? data.audits : [];
+                    if (!rows.length) {
+                        list.innerHTML = '<div style="font-size:0.85rem; opacity:0.75;">No verification attempts found.</div>';
+                    } else {
+                        list.innerHTML = rows.map((r) => `
+                            <div style="padding:8px 0; border-bottom:1px solid rgba(0,0,0,0.08); font-size:0.82rem;">
+                                <strong>${(r.status || '').toUpperCase()}</strong> • ${(r.created_at || '').replace('T', ' ').slice(0, 19)}<br>
+                                IP: ${r.ip_address || '-'} • Token: ${r.token_id || '-'}
+                            </div>
+                        `).join('');
+                    }
+                    panel.style.display = 'block';
+                    showNotification(`Loaded ${rows.length} verification audit entries.`, 'success');
+                })
+                .catch(err => {
+                    console.error(err);
+                    showNotification(`Verification audit load failed: ${err.message}`, 'error');
+                });
         }
 
         // 3D Card Flip and Modal Handlers (Premium Upgrades)
@@ -1780,6 +2565,74 @@
             document.getElementById("resultCount").innerText = "{{ rows|length|default(0) }} results";
         }
 
+        function initializePremiumPaneLayout() {
+            const panel = document.getElementById('templateLifecyclePanel');
+            if (!panel || panel.dataset.panesInitialized === '1') return;
+            const paneIds = [
+                'premium-workflow',
+                'premium-qa',
+                'premium-batch',
+                'premium-localization',
+                'premium-branding',
+                'premium-import',
+                'premium-dr',
+                'premium-analytics'
+            ];
+
+            const anchors = paneIds
+                .map((id) => document.getElementById(id))
+                .filter(Boolean);
+            if (!anchors.length) return;
+
+            // Convert existing sequential blocks into explicit pane containers.
+            for (let i = 0; i < anchors.length; i++) {
+                const current = anchors[i];
+                const next = anchors[i + 1] || null;
+                current.classList.add('premium-pane');
+                current.style.display = 'none';
+
+                let node = current.nextSibling;
+                const nodesToMove = [];
+                while (node && node !== next) {
+                    const nextNode = node.nextSibling;
+                    if (!(node.nodeType === 3 && String(node.textContent || '').trim() === '')) {
+                        nodesToMove.push(node);
+                    }
+                    node = nextNode;
+                }
+                nodesToMove.forEach((n) => current.appendChild(n));
+            }
+
+            panel.dataset.panesInitialized = '1';
+            openPremiumSection('premium-workflow', document.querySelector('.premium-subtab-btn.active'));
+        }
+
+        function openPremiumSection(sectionId, clickedBtn) {
+            document.querySelectorAll('#templateLifecyclePanel .premium-pane').forEach((pane) => {
+                pane.style.display = pane.id === sectionId ? 'block' : 'none';
+            });
+            document.querySelectorAll('.premium-subtab-btn').forEach((btn) => btn.classList.remove('active'));
+            if (clickedBtn) clickedBtn.classList.add('active');
+        }
+
+        function openPreviewSection(sectionId, clickedBtn) {
+            document.querySelectorAll('#preview-tab .preview-pane').forEach((pane) => {
+                pane.style.display = pane.id === sectionId ? 'block' : 'none';
+            });
+            document.querySelectorAll('#preview-tab .premium-subtab-btn').forEach((btn) => btn.classList.remove('active'));
+            if (clickedBtn) clickedBtn.classList.add('active');
+        }
+
+        function openTemplateSettingsSubtab(tabKey, clickedBtn) {
+            const sections = document.querySelectorAll('.template-settings-pane');
+            sections.forEach((section) => {
+                const paneKey = section.getAttribute('data-pane-key');
+                section.style.display = paneKey === tabKey ? 'block' : 'none';
+            });
+            document.querySelectorAll('.premium-subtabs .premium-subtab-btn').forEach((btn) => btn.classList.remove('active'));
+            if (clickedBtn) clickedBtn.classList.add('active');
+        }
+
         // Custom modal notification rendering logic (Fix 13)
         function showNotification(message, type = 'success') {
             const notification = document.getElementById('notification');
@@ -1836,6 +2689,139 @@
             window.location.href = '/edit/' + userId;
         }
 
+        function _bulkJobsStoreKey() {
+            return 'bulk_job_ids_v1';
+        }
+
+        function getTrackedBulkJobIds() {
+            try {
+                const raw = localStorage.getItem(_bulkJobsStoreKey());
+                const parsed = raw ? JSON.parse(raw) : [];
+                return Array.isArray(parsed) ? parsed : [];
+            } catch (e) {
+                return [];
+            }
+        }
+
+        function trackBulkJobId(taskId) {
+            const current = getTrackedBulkJobIds();
+            if (!current.includes(taskId)) current.unshift(taskId);
+            localStorage.setItem(_bulkJobsStoreKey(), JSON.stringify(current.slice(0, 120)));
+        }
+
+        function downloadBulkFailedRows(taskId) {
+            window.open(`/admin/bulk-jobs/${taskId}/failed-rows.csv`, '_blank');
+        }
+
+        function rerunBulkFromFailedRows(taskId, templateId) {
+            try {
+                switchTab('bulk');
+            } catch (e) {}
+            const templateSelect = document.getElementById('bulkTemplateId');
+            if (templateSelect && templateId) {
+                templateSelect.value = String(templateId);
+            }
+            const excelInput = document.getElementById('bulkExcelFile');
+            if (excelInput) {
+                excelInput.focus();
+                excelInput.click();
+            }
+            downloadBulkFailedRows(taskId);
+            showNotification(`Retry prepared. Upload corrected/failed rows file and start generation.`, 'info');
+        }
+
+        function cancelBulkJob(taskId) {
+            fetch(`/admin/bulk-jobs/${taskId}/cancel`, {
+                method: 'POST',
+                headers: { 'X-CSRFToken': getCsrfToken() }
+            })
+            .then(r => r.json().then(data => ({ ok: r.ok, data })))
+            .then(({ ok, data }) => {
+                if (!ok || !data.success) throw new Error(data.message || 'Cancel failed');
+                showNotification(`Cancellation requested for ${taskId}`, 'warning');
+                refreshBulkJobsDashboard();
+            })
+            .catch(err => showNotification(`Cancel failed: ${err.message}`, 'error'));
+        }
+
+        function renderBulkOpsQueue(rows) {
+            const wrap = document.getElementById('bulkOpsQueue');
+            if (!wrap) return;
+            if (!Array.isArray(rows) || !rows.length) {
+                wrap.innerHTML = '<div class="version-item"><div class="version-meta">No bulk jobs yet.</div></div>';
+                return;
+            }
+            wrap.innerHTML = rows.map(job => {
+                const taskId = job.task_id || '-';
+                const state = (job.state || 'UNKNOWN').toUpperCase();
+                const total = Number(job.total || 0);
+                const current = Number(job.current || 0);
+                const pct = total > 0 ? Math.max(0, Math.min(100, Math.floor((current / total) * 100))) : 0;
+                const result = job.result || job.status || '';
+                const templateId = job.template_id || '';
+                const canCancel = !['SUCCESS', 'FAILURE', 'CANCELLED'].includes(state);
+                const canFailedDownload = Number(job.error_count || 0) > 0 || !!job.first_error;
+                return `
+                    <div class="version-item" style="grid-template-columns: 1fr;">
+                        <div style="display:flex; justify-content:space-between; gap:8px; align-items:center; flex-wrap:wrap;">
+                            <div><strong>${taskId}</strong> • ${state}</div>
+                            <div style="font-size:0.78rem; color:#5b6472;">${current}/${total} (${pct}%)</div>
+                        </div>
+                        <div style="height:8px; background:#e9ecef; border-radius:999px; overflow:hidden;">
+                            <div style="height:100%; width:${pct}%; background:${state === 'FAILURE' ? '#dc3545' : (state === 'SUCCESS' ? '#0ea5e9' : '#4caf50')};"></div>
+                        </div>
+                        <div class="version-meta">${result}</div>
+                        <div class="action-buttons" style="margin-top:6px;">
+                            <button type="button" class="btn btn-sm btn-warning" onclick="rerunBulkFromFailedRows('${taskId}','${templateId}')">Re-run Failed Rows</button>
+                            <button type="button" class="btn btn-sm btn-download" onclick="downloadBulkFailedRows('${taskId}')" ${canFailedDownload ? '' : 'disabled'}>Failed Rows</button>
+                            <button type="button" class="btn btn-sm btn-delete" onclick="cancelBulkJob('${taskId}')" ${canCancel ? '' : 'disabled'}>Cancel</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function refreshBulkJobsDashboard() {
+            const tracked = new Set(getTrackedBulkJobIds());
+            fetch('/admin/bulk-jobs?limit=120')
+                .then(r => r.json().then(data => ({ ok: r.ok, data })))
+                .then(({ ok, data }) => {
+                    if (!ok || !data.success) throw new Error(data.message || 'Failed to load bulk jobs');
+                    const jobs = Array.isArray(data.jobs) ? data.jobs : [];
+                    jobs.forEach(j => { if (j && j.task_id) tracked.add(j.task_id); });
+                    localStorage.setItem(_bulkJobsStoreKey(), JSON.stringify(Array.from(tracked).slice(0, 120)));
+                    renderBulkOpsQueue(jobs.filter(j => tracked.has(j.task_id)));
+                })
+                .catch(err => {
+                    console.error('Bulk dashboard load failed', err);
+                    showNotification(`Bulk dashboard load failed: ${err.message}`, 'warning');
+                });
+        }
+
+        function loadBulkImportMappingsForTemplate() {
+            const templateId = document.getElementById('bulkTemplateId')?.value;
+            const select = document.getElementById('bulkImportMappingId');
+            if (!select) return;
+            select.innerHTML = '<option value="">-- No Mapping (use file headers directly) --</option>';
+            if (!templateId) return;
+            fetch(`/admin/import-mappings/${templateId}`)
+                .then(r => r.json())
+                .then(data => {
+                    if (!data.success) throw new Error(data.message || 'Failed to load mappings');
+                    const mappings = Array.isArray(data.mappings) ? data.mappings : [];
+                    mappings.forEach((m) => {
+                        const opt = document.createElement('option');
+                        opt.value = String(m.id);
+                        opt.textContent = `${m.name || 'mapping'} (#${m.id})`;
+                        select.appendChild(opt);
+                    });
+                })
+                .catch(err => {
+                    console.error('Load bulk mappings failed:', err);
+                    showNotification(`Import mappings load failed: ${err.message}`, 'warning');
+                });
+        }
+
         function startBulkGeneration(event) {
             event.preventDefault();
 
@@ -1866,6 +2852,8 @@
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
+                    trackBulkJobId(data.task_id);
+                    refreshBulkJobsDashboard();
                     pollStatus(data.task_id);
                 } else {
                     text.innerText = "Error: " + (data.error || "Unknown error");
@@ -1929,6 +2917,7 @@
                         renderBulkDetails(data, true);
                         btn.disabled = false;
                         window.onbeforeunload = null;
+                        refreshBulkJobsDashboard();
                         return;
                     }
 
@@ -1946,6 +2935,7 @@
                         renderBulkDetails(data, false);
                         btn.disabled = false;
                         window.onbeforeunload = null;
+                        refreshBulkJobsDashboard();
                         
                         setTimeout(() => window.location.reload(), 3000);
                     }
@@ -1973,7 +2963,19 @@
             toggleBarcodeContentFields();
             toggleTemplateModeFields();
             initializePreviewListeners();
+            initializePremiumPaneLayout();
+            const defaultPreviewTabBtn = document.querySelector('#preview-tab .premium-subtab-btn.active');
+            if (defaultPreviewTabBtn) {
+                openPreviewSection('preview-pane-card', defaultPreviewTabBtn);
+            }
+            const defaultTemplateSettingsTabBtn = document.getElementById('templateSettingsAllTabBtn');
+            if (defaultTemplateSettingsTabBtn) {
+                openTemplateSettingsSubtab('layout', defaultTemplateSettingsTabBtn);
+            }
             makeTablesSortable();
+            refreshBulkJobsDashboard();
+            loadBulkImportMappingsForTemplate();
+            setInterval(refreshBulkJobsDashboard, 6000);
 
             const templateForm = document.getElementById('templateForm');
             if (templateForm) {

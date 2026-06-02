@@ -5,307 +5,556 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Visual Editor - {{ template.school_name }}</title>
   <meta name="csrf-token" content="{{ csrf_token() }}">
+  
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  
+  <!-- FontAwesome for Premium Icons -->
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+  
+  <!-- Third-party JS -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
   <script src="https://ajax.googleapis.com/ajax/libs/webfont/1.6.26/webfont.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+  
+  <!-- Bootstrap (Grid utilities mainly, UI will be custom styled) -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  
   <style>
     /* ═══════════════════════════════════════════
-       BASE
-    ═══════════════════════════════════════════ */
+       DESIGN TOKENS & SYSTEM (STYLISH LIGHT THEME)
+       ═══════════════════════════════════════════ */
+    :root {
+      --bg-studio: #f8fafc;
+      --bg-workspace: #f1f5f9;
+      --bg-panel: rgba(255, 255, 255, 0.85);
+      --bg-panel-solid: #ffffff;
+      --bg-surface: rgba(15, 23, 42, 0.03);
+      --bg-surface-hover: rgba(15, 23, 42, 0.05);
+      --bg-surface-active: rgba(15, 23, 42, 0.08);
+      --border-light: rgba(15, 23, 42, 0.08);
+      --border-medium: rgba(15, 23, 42, 0.14);
+      --border-focus: rgba(99, 102, 241, 0.25);
+      
+      --accent-blue: #2563eb;
+      --accent-indigo: #4f46e5;
+      --accent-purple: #9333ea;
+      --accent-gradient: linear-gradient(135deg, #4f46e5 0%, #7c3aed 50%, #9333ea 100%);
+      --accent-gradient-hover: linear-gradient(135deg, #4338ca 0%, #6d28d9 50%, #7e22ce 100%);
+      
+      --text-main: #0f172a;
+      --text-secondary: #334155;
+      --text-muted: #64748b;
+      --font-family-sans: 'Inter', system-ui, sans-serif;
+      --font-family-display: 'Outfit', sans-serif;
+      --font-family-mono: 'JetBrains Mono', monospace;
+      
+      --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.02);
+      --shadow-md: 0 8px 30px rgba(0, 0, 0, 0.06);
+      --shadow-lg: 0 20px 50px rgba(15, 23, 42, 0.06);
+      --shadow-glow: 0 0 12px rgba(99, 102, 241, 0.2);
+      
+      --transition-fast: 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+      --transition-smooth: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    /* ═══════════════════════════════════════════
+       BASE STYLES
+       ═══════════════════════════════════════════ */
     *, *::before, *::after { box-sizing: border-box; }
+    
     body {
       margin: 0;
-      font-family: "Segoe UI", sans-serif;
-      background: radial-gradient(circle at top, #f8fbff 0%, #e2ebf5 42%, #d5dfec 100%);
+      font-family: var(--font-family-sans);
+      background-color: var(--bg-studio);
+      color: var(--text-main);
       overflow: hidden;
-      color: #18324d;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    /* Scrollbars */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(15, 23, 42, 0.15);
+      border-radius: 99px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(15, 23, 42, 0.3);
+    }
+
+    /* Inputs & Form Controls */
+    .form-control, .form-select {
+      background-color: #ffffff;
+      border: 1px solid var(--border-medium);
+      color: var(--text-main) !important;
+      font-size: 13px;
+      font-family: var(--font-family-sans);
+      border-radius: 8px;
+      padding: 7px 12px;
+      transition: var(--transition-fast);
+    }
+    .form-control:focus, .form-select:focus {
+      background-color: #ffffff;
+      border-color: var(--accent-indigo);
+      box-shadow: 0 0 0 3px var(--border-focus);
+      outline: none;
+    }
+    .form-control:disabled, .form-select:disabled {
+      background-color: #f1f5f9;
+      border-color: var(--border-light);
+      color: var(--text-muted) !important;
+      opacity: 0.7;
+    }
+    .form-control-sm, .form-select-sm {
+      padding: 5px 10px;
+      font-size: 12px;
+      border-radius: 6px;
+    }
+    label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-secondary);
+    }
+
+    /* Buttons */
+    .btn {
+      font-family: var(--font-family-sans);
+      font-weight: 600;
+      border-radius: 8px;
+      padding: 6px 14px;
+      font-size: 13px;
+      transition: var(--transition-fast);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+    .btn-primary {
+      background: var(--accent-gradient);
+      border: none;
+      color: #fff;
+      box-shadow: var(--shadow-sm);
+    }
+    .btn-primary:hover:not(:disabled) {
+      background: var(--accent-gradient-hover);
+      transform: translateY(-1px);
+      box-shadow: var(--shadow-glow);
+    }
+    .btn-primary:active:not(:disabled) {
+      transform: translateY(0);
+    }
+    .btn-outline-light {
+      border: 1px solid var(--border-medium);
+      color: var(--text-secondary);
+      background: #ffffff;
+    }
+    .btn-outline-light:hover {
+      background: var(--bg-surface-hover);
+      color: var(--text-main);
+      border-color: var(--text-secondary);
+    }
+
+    /* Glass Panels */
+    .glass-panel {
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      background: var(--bg-panel);
+      border: 1px solid var(--border-light);
     }
 
     /* ═══════════════════════════════════════════
        TOP BAR
-    ═══════════════════════════════════════════ */
+       ═══════════════════════════════════════════ */
     .top {
       height: 60px;
-      background: linear-gradient(135deg, #0f2f58 0%, #1b4f86 58%, #0f6aa8 100%);
-      color: #fff;
+      background: rgba(255, 255, 255, 0.9);
+      backdrop-filter: blur(15px);
+      -webkit-backdrop-filter: blur(15px);
+      border-bottom: 1px solid var(--border-light);
+      color: var(--text-main);
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 0 20px;
-      gap: 12px;
-      box-shadow: 0 4px 20px rgba(9,30,54,0.32);
+      padding: 0 24px;
+      gap: 16px;
       position: relative;
       z-index: 100;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
     }
     .top-title { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
-    .top-title strong { font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .top-title small { opacity: 0.75; font-size: 11px; letter-spacing: 0.05em; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .top-title strong {
+      font-family: var(--font-family-display);
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+    .top-title small {
+      color: var(--text-muted);
+      font-size: 11px;
+      letter-spacing: 0.03em;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
     .top-actions { display: flex; gap: 8px; align-items: center; flex-shrink: 0; }
-    .top-actions .btn { font-size: 13px; }
+    .top-actions .btn { font-size: 12px; height: 32px; border-radius: 6px; }
 
     /* ═══════════════════════════════════════════
-       MAIN LAYOUT  — canvas left, panel right
-    ═══════════════════════════════════════════ */
+       MAIN LAYOUT
+       ═══════════════════════════════════════════ */
     .main {
       display: flex;
       height: calc(100vh - 60px);
       overflow: hidden;
     }
 
-    /* ── Canvas area ── */
+    /* ── LEFT: Workspace & Toolbar ── */
     .left {
       flex: 1 1 0;
       min-width: 0;
       display: flex;
       flex-direction: column;
       overflow: hidden;
-      background: linear-gradient(180deg, rgba(255,255,255,0.30), rgba(226,236,248,0.06));
+      background-color: var(--bg-workspace);
+      position: relative;
     }
 
     /* ── Toolbar ── */
     .toolbar {
       flex-shrink: 0;
       display: flex;
-      gap: 8px;
+      gap: 6px;
       align-items: center;
       flex-wrap: wrap;
       justify-content: center;
-      background: rgba(255,255,255,0.95);
-      border: 1px solid #d7e2ef;
-      border-radius: 0 0 18px 18px;
-      padding: 8px 14px;
-      box-shadow: 0 6px 18px rgba(20,41,68,0.09);
-      backdrop-filter: blur(10px);
-      position: relative;
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border-light);
+      padding: 8px 16px;
       z-index: 20;
     }
-    .tool-group { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+    .tool-group { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
     .tool-sep {
-      width: 1px; height: 26px;
-      background: linear-gradient(180deg, transparent, #d7e2ef 30%, #d7e2ef 70%, transparent);
-      margin: 0 2px;
+      width: 1px;
+      height: 22px;
+      background: var(--border-light);
+      margin: 0 6px;
     }
-    .toolbar .btn {
-      border-radius: 10px;
-      font-weight: 600;
-      border-color: #d4deea;
-      font-size: 12px;
+    .toolbar .btn-soft {
+      background: #ffffff;
+      color: var(--text-secondary);
+      border: 1px solid var(--border-medium);
+      border-radius: 6px;
+      font-size: 11.5px;
       padding: 4px 10px;
-      white-space: nowrap;
+      height: 28px;
     }
-    .toolbar .btn:hover { transform: translateY(-1px); box-shadow: 0 3px 8px rgba(11,63,138,0.15); }
-    .toolbar .btn-soft { background: #f7fbff; color: #1c456f; }
-    .toolbar .btn-soft:hover { background: #eef6ff; }
-    .z { min-width: 48px; text-align: center; font-weight: 700; color: #143a60; font-size: 13px; }
+    .toolbar .btn-soft:hover {
+      background: var(--bg-surface-hover);
+      color: var(--text-main);
+      border-color: var(--text-secondary);
+    }
+    .toolbar .btn-soft.active {
+      background: var(--accent-indigo);
+      color: #fff;
+      border-color: var(--accent-indigo);
+    }
+    .toolbar .rounded-circle {
+      width: 28px;
+      height: 28px;
+      padding: 0;
+      border-radius: 6px !important;
+    }
+    .z {
+      min-width: 50px;
+      text-align: center;
+      font-weight: 700;
+      color: var(--accent-indigo);
+      font-family: var(--font-family-mono);
+      font-size: 12px;
+    }
 
-    /* ── Canvas scroll container ── */
+    /* ── Canvas stage scroll ── */
     .canvas-scroll {
       flex: 1 1 0;
       overflow: auto;
-      padding: 14px;
+      padding: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       -webkit-overflow-scrolling: touch;
+      background-color: var(--bg-workspace);
+      background-image: 
+        radial-gradient(rgba(15, 23, 42, 0.08) 1.5px, transparent 0),
+        radial-gradient(rgba(15, 23, 42, 0.08) 1.5px, transparent 0);
+      background-size: 20px 20px;
+      background-position: 0 0, 10px 10px;
     }
     .canvas-wrap {
       width: max-content;
-      margin: 0 auto;
-      padding: 18px;
-      border-radius: 24px;
-      background: linear-gradient(145deg, rgba(255,255,255,0.92), rgba(227,236,247,0.88));
-      box-shadow: 0 18px 40px rgba(24,50,77,0.16);
+      margin: auto;
+      padding: 16px;
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.6);
+      border: 1px dashed rgba(15, 23, 42, 0.12);
+      box-shadow: var(--shadow-lg);
     }
     #editorCanvas {
-      border: 1px solid #9ab1c9;
-      box-shadow: 0 10px 28px rgba(12,26,43,0.18);
-      border-radius: 12px;
+      border: 1px solid rgba(0, 0, 0, 0.1);
+      box-shadow: var(--shadow-md);
+      border-radius: 8px;
       touch-action: none;
       display: block;
     }
-    .canvas-container,
-    .canvas-container canvas {
-      touch-action: none;
-      -ms-touch-action: none;
+    .canvas-container {
+      border-radius: 8px;
+      overflow: hidden;
     }
 
     /* ═══════════════════════════════════════════
-       RIGHT PANEL  — desktop sidebar
-    ═══════════════════════════════════════════ */
+       RIGHT PANEL (SIDEBAR)
+       ═══════════════════════════════════════════ */
     .right {
-      width: 360px;
+      width: 380px;
       flex-shrink: 0;
-      border-left: 1px solid #d0dcea;
-      background: rgba(255,255,255,0.97);
-      backdrop-filter: blur(14px);
+      border-left: 1px solid var(--border-light);
+      background: var(--bg-panel-solid);
       display: flex;
       flex-direction: column;
-      box-shadow: -10px 0 24px rgba(33,61,96,0.07);
+      box-shadow: var(--shadow-md);
       overflow: hidden;
+      position: relative;
     }
 
     /* panel header */
     .side-head {
       flex-shrink: 0;
-      padding: 14px 16px 12px;
-      border-bottom: 1px solid #e5eef8;
-      background: linear-gradient(180deg, rgba(247,250,255,0.97), rgba(255,255,255,0.92));
+      padding: 16px 20px 12px;
+      border-bottom: 1px solid var(--border-light);
     }
-    .side-head h5 { margin: 0 0 2px; font-size: 14px; font-weight: 700; color: #1a3c60; }
-    .side-head small { font-size: 11px; color: #7a93ab; }
+    .side-head h5 {
+      margin: 0 0 2px;
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text-main);
+      font-family: var(--font-family-display);
+    }
+    .side-head small { font-size: 11px; color: var(--text-muted); }
 
-    /* tab bar — ALWAYS visible, desktop collapses sections via accordion-style, mobile uses tabs */
+    /* tab bar */
     .panel-tabs {
       flex-shrink: 0;
       display: flex;
-      background: #f2f7fd;
-      border-bottom: 1px solid #dce8f5;
-      overflow-x: auto;
-      scrollbar-width: none;
+      background: #f8fafc;
+      border-bottom: 1px solid var(--border-light);
+      padding: 4px;
+      gap: 2px;
     }
-    .panel-tabs::-webkit-scrollbar { display: none; }
     .panel-tab {
-      flex: 1 0 auto;
-      padding: 9px 10px 8px;
+      flex: 1 1 0;
+      padding: 8px 4px;
       font-size: 11px;
       font-weight: 600;
-      color: #6b8197;
+      color: var(--text-muted);
       border: none;
-      background: none;
-      border-bottom: 2px solid transparent;
+      border-radius: 6px;
+      background: transparent;
       cursor: pointer;
       white-space: nowrap;
       text-align: center;
-      transition: color 0.15s, border-color 0.15s, background 0.15s;
+      transition: var(--transition-fast);
     }
-    .panel-tab:hover { color: #0b63d1; background: #e8f0fb; }
-    .panel-tab.active { color: #0b63d1; border-bottom-color: #0b63d1; background: #eef5ff; font-weight: 700; }
+    .panel-tab:hover { color: var(--text-secondary); background: var(--bg-surface-hover); }
+    .panel-tab.active { color: var(--accent-indigo); background: rgba(99, 102, 241, 0.08); font-weight: 700; }
 
     /* scrollable body */
     .side-body {
       flex: 1 1 0;
       overflow-y: auto;
       overflow-x: hidden;
-      padding: 12px;
+      padding: 16px;
       -webkit-overflow-scrolling: touch;
-      scrollbar-width: thin;
-      scrollbar-color: #c8d8ea transparent;
     }
-    .side-body::-webkit-scrollbar { width: 5px; }
-    .side-body::-webkit-scrollbar-thumb { background: #c8d8ea; border-radius: 3px; }
 
-    /* panel sections — all hidden by default, JS shows active */
+    /* sections */
     .panel-section { display: none; }
     .panel-section.active { display: block; }
 
-    /* ── Cards ── */
+    /* ── Cards / Groups ── */
     .cardx {
-      border: 1px solid #dce6f2;
-      border-left: 4px solid #b0c4dc;
-      border-radius: 14px;
-      padding: 11px 12px;
-      margin-bottom: 12px;
-      background: linear-gradient(180deg, #fff 0%, #f7fbff 100%);
-      box-shadow: 0 4px 12px rgba(35,66,102,0.05);
+      border: 1px solid var(--border-light);
+      border-radius: 12px;
+      padding: 14px;
+      margin-bottom: 16px;
+      background: #ffffff;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.015);
     }
-    .cardx h6 { margin: 0 0 9px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.07em; color: #687d95; font-weight: 700; }
-    .cardx.guides { border-left-color: #e2a300; }
-    .cardx.photo  { border-left-color: #d63b62; }
-    .cardx.fields { border-left-color: #0b63d1; }
+    .cardx h6 {
+      margin: 0 0 12px;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      font-weight: 700;
+    }
+    .card-header-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+    .card-header-row h6 { margin: 0; }
 
-    /* ── Form rows ── */
-    .rowx { display: grid; grid-template-columns: 64px 1fr 1fr; gap: 6px; align-items: center; margin-bottom: 7px; }
-    .rowx label { margin: 0; font-size: 12px; color: #4b6179; font-weight: 600; }
-    .grid-field { border: 1px solid #e2ebf5; border-radius: 8px; padding: 9px; margin-bottom: 9px; }
-    .grid-field:last-child { margin-bottom: 0; }
-    .grid-field .ttl { font-size: 12px; font-weight: 700; color: #415a75; margin-bottom: 7px; }
+    /* ── Form layouts ── */
+    .rowx {
+      display: grid;
+      grid-template-columns: 85px 1fr 1fr;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    .rowx label { margin: 0; }
+    
+    .grid-field {
+      border: 1px solid var(--border-light);
+      background: #f8fafc;
+      border-radius: 10px;
+      padding: 12px;
+      margin-bottom: 12px;
+      transition: var(--transition-fast);
+    }
+    .grid-field:hover {
+      border-color: var(--border-medium);
+    }
+    .grid-field .ttl {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text-main);
+      margin-bottom: 10px;
+      font-family: var(--font-family-display);
+    }
     .mini-actions { display: flex; gap: 6px; flex-wrap: wrap; }
-    .toggles { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
-    .grow-block { margin-top: 8px; border-top: 1px dashed #d9e6f5; padding-top: 8px; }
-    .grow-line { display: grid; grid-template-columns: 48px 1fr; gap: 6px; align-items: center; margin-bottom: 6px; }
+    .mini-actions .btn {
+      padding: 4px 8px;
+      font-size: 11px;
+      border-radius: 6px;
+    }
+    .toggles { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .toggles .form-check-label { font-size: 12px; color: var(--text-secondary); cursor: pointer; }
+    
+    .grow-block { margin-top: 10px; border-top: 1px solid var(--border-light); padding-top: 10px; }
+    .grow-line { display: grid; grid-template-columns: 80px 1fr; gap: 6px; align-items: center; margin-bottom: 8px; }
     .grow-line:last-child { margin-bottom: 0; }
-    .grow-line .cap { font-size: 11px; color: #4b6179; font-weight: 600; text-transform: uppercase; }
+    .grow-line .cap { font-size: 10px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
     .grow-options { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-    .grow-options .form-check-label { font-size: 12px; }
-    .layer-list { display: flex; flex-direction: column; gap: 6px; max-height: 180px; overflow-y: auto; }
-    .layer-item { display: flex; align-items: center; justify-content: space-between; gap: 8px; border: 1px solid #d8e4f3; border-radius: 8px; padding: 6px 8px; cursor: pointer; transition: background 0.12s; }
-    .layer-item:hover { background: #f5f9ff; }
-    .layer-item.active { border-color: #0b63d1; background: #eef5ff; }
-    .layer-meta { font-size: 11px; color: #607891; }
-    .metrics-grid { display: grid; grid-template-columns: 28px 1fr 28px 1fr; gap: 6px; align-items: center; }
-    .metrics-grid label { margin: 0; font-size: 12px; color: #4b6179; font-weight: 600; }
-    .inspector-grid { display: grid; grid-template-columns: 50px 1fr 50px 1fr; gap: 6px; align-items: center; margin-top: 8px; }
-    .inspector-grid label { margin: 0; font-size: 12px; color: #4b6179; font-weight: 600; }
+    .grow-options .form-check-label { font-size: 11px; color: var(--text-secondary); cursor: pointer; }
+
+    .layer-list { display: flex; flex-direction: column; gap: 6px; max-height: 250px; overflow-y: auto; }
+    .layer-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      border: 1px solid var(--border-light);
+      border-radius: 8px;
+      padding: 8px 12px;
+      cursor: pointer;
+      background: rgba(255, 255, 255, 0.01);
+      transition: var(--transition-fast);
+    }
+    .layer-item:hover { background: var(--bg-surface-hover); }
+    .layer-item.active { border-color: var(--accent-indigo); background: rgba(99, 102, 241, 0.1); }
+    .layer-meta { font-size: 11px; color: var(--text-muted); font-family: var(--font-family-mono); }
+    
+    .metrics-grid { display: grid; grid-template-columns: 20px 1fr 20px 1fr; gap: 8px; align-items: center; }
+    .metrics-grid label { margin: 0; font-size: 11px; color: var(--text-muted); text-align: center; }
+    
+    .inspector-grid { display: grid; grid-template-columns: 45px 1fr 45px 1fr; gap: 8px; align-items: center; margin-top: 10px; }
+    .inspector-grid label { margin: 0; font-size: 11px; color: var(--text-muted); }
 
     /* ── Footer ── */
     .foot {
       flex-shrink: 0;
-      border-top: 1px solid #e5eef8;
-      padding: 12px 14px;
-      background: linear-gradient(180deg, rgba(255,255,255,0.75), rgba(246,250,255,0.97));
+      border-top: 1px solid var(--border-light);
+      padding: 16px 20px;
+      background: rgba(10, 15, 30, 0.5);
     }
-    .status { font-size: 12px; color: #5f7893; margin-top: 6px; padding: 7px 10px; border-radius: 10px; background: #f4f8fc; border: 1px solid #e1eaf4; min-height: 16px; }
-    .workspace-note { font-size: 11px; color: #7a93ab; margin-top: 4px; line-height: 1.5; }
+    .status {
+      font-size: 11px;
+      margin-top: 8px;
+      padding: 8px 12px;
+      border-radius: 8px;
+      background: rgba(15, 23, 42, 0.04);
+      border: 1px solid var(--border-light);
+      min-height: 32px;
+      display: flex;
+      align-items: center;
+      font-family: var(--font-family-mono);
+    }
+    .workspace-note { font-size: 10px; color: var(--text-muted); margin-top: 8px; line-height: 1.4; }
 
     /* ═══════════════════════════════════════════
-       TABLET  768 – 1100px
-    ═══════════════════════════════════════════ */
+       TABLET LAYOUT (768px - 1100px)
+       ═══════════════════════════════════════════ */
     @media (max-width: 1100px) {
-      .right { width: 310px; }
+      .right { width: 330px; }
       .top-title small { display: none; }
     }
 
     /* ═══════════════════════════════════════════
-       MOBILE  ≤ 767px  — bottom-drawer layout
-    ═══════════════════════════════════════════ */
+       MOBILE LAYOUT (<= 767px) - bottom drawer
+       ═══════════════════════════════════════════ */
     @media (max-width: 767px) {
-      /* top bar */
-      .top { height: 52px; padding: 0 12px; }
-      .top-title strong { font-size: 13px; }
+      .top { height: 52px; padding: 0 16px; }
+      .top-title strong { font-size: 14px; }
       .top-title small { display: none !important; }
-      .top-actions .btn { font-size: 11px; padding: 4px 8px; }
+      .top-actions .btn { font-size: 11px; padding: 4px 10px; }
 
-      /* stack vertically */
       .main { flex-direction: column; height: calc(100vh - 52px); }
-
-      /* canvas section */
       .left { flex: 1 1 0; min-height: 0; }
 
-      /* toolbar — horizontal scroll strip */
       .toolbar {
         border-radius: 0;
         flex-wrap: nowrap;
         overflow-x: auto;
         overflow-y: hidden;
         justify-content: flex-start;
-        padding: 6px 10px;
-        gap: 5px;
+        padding: 6px 12px;
+        gap: 4px;
         scrollbar-width: none;
-        box-shadow: 0 3px 10px rgba(20,41,68,0.08);
       }
       .toolbar::-webkit-scrollbar { display: none; }
       .tool-group { flex-wrap: nowrap; }
       .tool-sep { display: none; }
-      .toolbar .btn { font-size: 11px; padding: 3px 8px; }
+      .toolbar .btn-soft { font-size: 11px; padding: 3px 8px; height: 26px; }
       .z { min-width: 36px; font-size: 11px; }
 
-      .canvas-scroll { padding: 8px; }
+      .canvas-scroll { padding: 12px; }
+      .canvas-wrap { padding: 8px; }
 
-      /* right panel → bottom drawer */
+      /* bottom drawer */
       .right {
         width: 100%;
         height: 42vh;
+        max-height: 42vh;
         flex-shrink: 0;
         border-left: none;
-        border-top: 2px solid #c0d4e8;
-        box-shadow: 0 -6px 20px rgba(33,61,96,0.11);
-        position: relative;
+        border-top: 1px solid var(--border-medium);
+        box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.4);
       }
 
-      /* drag-handle pill on side-head */
+      /* Drag handle indicator */
       .side-head {
-        padding: 5px 14px 9px;
+        padding: 8px 16px 10px;
         cursor: ns-resize;
         user-select: none;
         touch-action: none;
+        background: rgba(0,0,0,0.1);
       }
       .side-head::before {
         content: '';
@@ -342,17 +591,17 @@
   <!-- ════ TOP BAR ════ -->
   <div class="top">
     <div class="top-title">
-      <strong>Visual Editor: {{ template.school_name }} <span style="opacity:.8">[{{ editor_side|capitalize }}]</span></strong>
-      <small>Canvas workspace — layout, objects &amp; output controls</small>
+      <strong><i class="fa-solid fa-wand-magic-sparkles me-2 text-indigo"></i>Visual Editor: {{ template.school_name }} <span class="badge bg-secondary font-monospace" style="font-size: 11px; vertical-align: middle;">{{ editor_side|upper }} SIDE</span></strong>
+      <small>Canvas workspace &mdash; drag and drop elements, customize layouts, manage shapes &amp; layers</small>
     </div>
     <div class="top-actions">
       <a href="{{ url_for('editor.template_editor', template_id=template.id, side='front') }}"
-         class="btn btn-sm {{ 'btn-light' if editor_side == 'front' else 'btn-outline-light' }}">Front</a>
+         class="btn btn-sm {{ 'btn-primary' if editor_side == 'front' else 'btn-outline-light' }}"><i class="fa-solid fa-image me-1"></i> Front</a>
       {% if template.is_double_sided %}
       <a href="{{ url_for('editor.template_editor', template_id=template.id, side='back') }}"
-         class="btn btn-sm {{ 'btn-light' if editor_side == 'back' else 'btn-outline-light' }}">Back</a>
+         class="btn btn-sm {{ 'btn-primary' if editor_side == 'back' else 'btn-outline-light' }}"><i class="fa-solid fa-repeat me-1"></i> Back</a>
       {% endif %}
-      <a href="/admin" class="btn btn-outline-light btn-sm">✕ Close</a>
+      <a href="/admin" class="btn btn-outline-light btn-sm"><i class="fa-solid fa-xmark me-1"></i> Close</a>
     </div>
   </div>
 
@@ -363,45 +612,45 @@
     <div class="left" id="stage">
       <div class="toolbar">
         <div class="tool-group">
-          <button class="btn btn-soft btn-sm rounded-circle" onclick="setZoom(-0.1)">−</button>
+          <button class="btn btn-soft btn-sm rounded-circle" onclick="setZoom(-0.1)" title="Zoom Out"><i class="fa-solid fa-magnifying-glass-minus"></i></button>
           <div class="z" id="zoomLabel">100%</div>
-          <button class="btn btn-soft btn-sm rounded-circle" onclick="setZoom(0.1)">+</button>
-          <button class="btn btn-soft btn-sm" onclick="fitCanvas()">Fit</button>
-          <button class="btn btn-soft btn-sm" onclick="undoHistory()">Undo</button>
-          <button class="btn btn-soft btn-sm" onclick="redoHistory()">Redo</button>
+          <button class="btn btn-soft btn-sm rounded-circle" onclick="setZoom(0.1)" title="Zoom In"><i class="fa-solid fa-magnifying-glass-plus"></i></button>
+          <button class="btn btn-soft btn-sm" onclick="fitCanvas()" title="Fit Canvas"><i class="fa-solid fa-arrows-to-eye"></i> Fit</button>
+          <button class="btn btn-soft btn-sm" onclick="undoHistory()" title="Undo"><i class="fa-solid fa-reply"></i></button>
+          <button class="btn btn-soft btn-sm" onclick="redoHistory()" title="Redo"><i class="fa-solid fa-share"></i></button>
         </div>
         <div class="tool-sep"></div>
         <div class="tool-group">
-          <button class="btn btn-soft btn-sm" onclick="setSnap(1)">Snap 1</button>
-          <button class="btn btn-soft btn-sm" onclick="setSnap(10)">Snap 10</button>
-          <button class="btn btn-soft btn-sm" onclick="toggleGridVisibility()">Grid</button>
-          <button class="btn btn-soft btn-sm" onclick="toggleRulersVisibility()">Rulers</button>
+          <button class="btn btn-soft btn-sm" onclick="setSnap(1)" title="Snap to 1px"><i class="fa-solid fa-border-none"></i> Snap 1</button>
+          <button class="btn btn-soft btn-sm" onclick="setSnap(10)" title="Snap to 10px"><i class="fa-solid fa-grid-2"></i> Snap 10</button>
+          <button class="btn btn-soft btn-sm" onclick="toggleGridVisibility()" title="Toggle Grid"><i class="fa-solid fa-border-all"></i> Grid</button>
+          <button class="btn btn-soft btn-sm" onclick="toggleRulersVisibility()" title="Toggle Rulers"><i class="fa-solid fa-ruler"></i> Rulers</button>
         </div>
         <div class="tool-sep"></div>
         <div class="tool-group">
-          <button class="btn btn-soft btn-sm" onclick="hideSelected()">Hide</button>
-          <button class="btn btn-soft btn-sm" onclick="bringSelectedToFront()">Front</button>
-          <button class="btn btn-soft btn-sm" onclick="sendSelectedToBack()">Back</button>
-          <button class="btn btn-soft btn-sm" onclick="selectAllCustomObjects()">Sel All</button>
-          <button class="btn btn-soft btn-sm" onclick="copySelected()">Copy</button>
-          <button class="btn btn-soft btn-sm" onclick="pasteClipboard()">Paste</button>
+          <button class="btn btn-soft btn-sm" onclick="hideSelected()" title="Hide Selected"><i class="fa-solid fa-eye-slash"></i></button>
+          <button class="btn btn-soft btn-sm" onclick="bringSelectedToFront()" title="Bring to Front"><i class="fa-solid fa-layer-group"></i> Front</button>
+          <button class="btn btn-soft btn-sm" onclick="sendSelectedToBack()" title="Send to Back"><i class="fa-solid fa-layer-group fa-flip-vertical"></i> Back</button>
+          <button class="btn btn-soft btn-sm" onclick="selectAllCustomObjects()" title="Select All"><i class="fa-solid fa-square-check"></i> All</button>
+          <button class="btn btn-soft btn-sm" onclick="copySelected()" title="Copy"><i class="fa-solid fa-copy"></i></button>
+          <button class="btn btn-soft btn-sm" onclick="pasteClipboard()" title="Paste"><i class="fa-solid fa-paste"></i></button>
         </div>
         <div class="tool-sep"></div>
         <div class="tool-group">
-          <button class="btn btn-soft btn-sm" onclick="alignSelected('left')">⬜L</button>
-          <button class="btn btn-soft btn-sm" onclick="alignSelected('hcenter')">H·C</button>
-          <button class="btn btn-soft btn-sm" onclick="alignSelected('right')">R⬜</button>
-          <button class="btn btn-soft btn-sm" onclick="alignSelected('top')">Top</button>
-          <button class="btn btn-soft btn-sm" onclick="alignSelected('vcenter')">V·C</button>
-          <button class="btn btn-soft btn-sm" onclick="alignSelected('bottom')">Bot</button>
-          <button class="btn btn-soft btn-sm" onclick="distributeSelected('horizontal')">Dist H</button>
-          <button class="btn btn-soft btn-sm" onclick="distributeSelected('vertical')">Dist V</button>
-          <button class="btn btn-soft btn-sm" onclick="rotateSelected(-15)">↺−15</button>
-          <button class="btn btn-soft btn-sm" onclick="rotateSelected(15)">↻+15</button>
-          <button class="btn btn-soft btn-sm" onclick="toggleLockSelected(true)">Lock</button>
-          <button class="btn btn-soft btn-sm" onclick="toggleLockSelected(false)">Unlock</button>
-          <button class="btn btn-soft btn-sm" onclick="groupSelected()">Group</button>
-          <button class="btn btn-soft btn-sm" onclick="ungroupSelected()">Ungroup</button>
+          <button class="btn btn-soft btn-sm" onclick="alignSelected('left')" title="Align Left">⬜L</button>
+          <button class="btn btn-soft btn-sm" onclick="alignSelected('hcenter')" title="Align Horizontal Center">H·C</button>
+          <button class="btn btn-soft btn-sm" onclick="alignSelected('right')" title="Align Right">R⬜</button>
+          <button class="btn btn-soft btn-sm" onclick="alignSelected('top')" title="Align Top">Top</button>
+          <button class="btn btn-soft btn-sm" onclick="alignSelected('vcenter')" title="Align Vertical Center">V·C</button>
+          <button class="btn btn-soft btn-sm" onclick="alignSelected('bottom')" title="Align Bottom">Bot</button>
+          <button class="btn btn-soft btn-sm" onclick="distributeSelected('horizontal')" title="Distribute Horizontally"><i class="fa-solid fa-arrows-left-right"></i> Dist H</button>
+          <button class="btn btn-soft btn-sm" onclick="distributeSelected('vertical')" title="Distribute Vertically"><i class="fa-solid fa-arrows-up-down"></i> Dist V</button>
+          <button class="btn btn-soft btn-sm" onclick="rotateSelected(-15)" title="Rotate Left 15°"><i class="fa-solid fa-arrow-rotate-left"></i></button>
+          <button class="btn btn-soft btn-sm" onclick="rotateSelected(15)" title="Rotate Right 15°"><i class="fa-solid fa-arrow-rotate-right"></i></button>
+          <button class="btn btn-soft btn-sm" onclick="toggleLockSelected(true)" title="Lock Selection"><i class="fa-solid fa-lock"></i></button>
+          <button class="btn btn-soft btn-sm" onclick="toggleLockSelected(false)" title="Unlock Selection"><i class="fa-solid fa-lock-open"></i></button>
+          <button class="btn btn-soft btn-sm" onclick="groupSelected()" title="Group Objects"><i class="fa-solid fa-cubes"></i> Group</button>
+          <button class="btn btn-soft btn-sm" onclick="ungroupSelected()" title="Ungroup"><i class="fa-solid fa-cube"></i> Ungroup</button>
         </div>
       </div>
       <div class="canvas-scroll">
@@ -412,17 +661,17 @@
     <!-- ── RIGHT: tabbed panel (sidebar on desktop, bottom drawer on mobile) ── -->
     <div class="right">
       <div class="side-head">
-        <h5>Per-field Editor</h5>
-        <small>Drag labels/values, manage layers, adjust selected objects.</small>
+        <h5><i class="fa-solid fa-sliders me-2"></i>Properties Inspector</h5>
+        <small>Drag fields, align graphics, adjust parameters &amp; layer order</small>
       </div>
 
       <!-- Unified tab bar — always visible, works on both desktop & mobile -->
       <div class="panel-tabs" id="panelTabs">
-        <button class="panel-tab active" data-panel="guides"  onclick="switchTab('guides')">Guides</button>
-        <button class="panel-tab"        data-panel="photo"   onclick="switchTab('photo')">Photo/QR</button>
-        <button class="panel-tab"        data-panel="fields"  onclick="switchTab('fields')">Fields</button>
-        <button class="panel-tab"        data-panel="objects" onclick="switchTab('objects')">Objects</button>
-        <button class="panel-tab"        data-panel="layers"  onclick="switchTab('layers')">Layers</button>
+        <button class="panel-tab active" data-panel="guides"  onclick="switchTab('guides')"><i class="fa-solid fa-compass me-1"></i> Guides</button>
+        <button class="panel-tab"        data-panel="photo"   onclick="switchTab('photo')"><i class="fa-solid fa-qrcode me-1"></i> Media</button>
+        <button class="panel-tab"        data-panel="fields"  onclick="switchTab('fields')"><i class="fa-solid fa-font me-1"></i> Fields</button>
+        <button class="panel-tab"        data-panel="objects" onclick="switchTab('objects')"><i class="fa-solid fa-shapes me-1"></i> Elements</button>
+        <button class="panel-tab"        data-panel="layers"  onclick="switchTab('layers')"><i class="fa-solid fa-layer-group me-1"></i> Layers</button>
       </div>
 
       <div class="side-body">
@@ -622,6 +871,20 @@
                   <option value="Lora">Lora</option>
                 </select>
               </div>
+              <div class="rowx" id="selSpacingRow" style="display:none; margin-top:8px">
+                <label>Spacing</label>
+                <div class="d-flex gap-2">
+                  <input id="selCharSpacing" class="form-control form-control-sm" type="number" placeholder="Letter (e.g. 50)" title="Letter Spacing">
+                  <input id="selLineHeight" class="form-control form-control-sm" type="number" step="0.1" placeholder="Line (e.g. 1.2)" title="Line Height">
+                </div>
+              </div>
+              <div class="rowx" id="selAutoFitRow" style="display:none; margin-top:8px">
+                <label>Auto-Fit</label>
+                <div class="d-flex gap-2 align-items-center">
+                  <div class="form-check form-switch m-0"><input class="form-check-input" type="checkbox" id="selAutoFit"></div>
+                  <input id="selAutoFitWidth" class="form-control form-control-sm" type="number" placeholder="Max Width (px)" style="width: 100px;">
+                </div>
+              </div>
               <div class="inspector-grid">
                 <label>Angle</label><input id="selAngle" class="form-control form-control-sm" type="number" min="-360" max="360" disabled>
                 <label>Opacity</label><input id="selOpacity" class="form-control form-control-sm" type="number" min="0" max="100" disabled>
@@ -667,16 +930,19 @@
         <!-- ── LAYERS ── -->
         <div class="panel-section" id="panel-layers">
           <div class="cardx fields">
-            <h6>Layer Order</h6>
-            <div id="layersList" class="layer-list"></div>
+              <div class="card-header-row">
+                <h6>Layer Order</h6>
+                <button class="btn btn-outline-primary btn-sm" onclick="triggerImageUpload()">⬆ Upload</button>
+              </div>
+              <div id="layersList" class="layer-list"></div>
           </div>
         </div><!-- /#panel-layers -->
 
       </div><!-- /.side-body -->
 
       <div class="foot">
-        <button class="btn btn-primary w-100" id="saveBtn">💾 Save Layout</button>
-        <div class="workspace-note">Shortcuts: Delete=hide/delete · Arrows=nudge · Shift+Arrows=big nudge · Ctrl+0=fit · Ctrl+D=duplicate · Ctrl+C/V=copy/paste · Ctrl+A=select all</div>
+        <button class="btn btn-primary w-100 py-2.5 shadow-sm" id="saveBtn" style="font-weight: 700; font-size: 14px;"><i class="fa-solid fa-floppy-disk me-1"></i> Save Layout Config</button>
+        <div class="workspace-note"><i class="fa-solid fa-circle-info me-1 text-indigo"></i> Shortcuts: Delete=hide · Arrows=nudge · Shift+Arrows=big nudge · Ctrl+0=fit · Ctrl+D=duplicate · Ctrl+C/V=copy/paste · Ctrl+A=select all</div>
         <div class="status" id="status"></div>
       </div>
     </div><!-- /.right -->
@@ -903,6 +1169,17 @@
       if (mode === "center") return anchor - (w / 2);
       return anchor - w;
     }
+    function applyAutoFitToText(obj, textStr, maxWidth, baseFontSize) {
+      if (!obj || !maxWidth) return;
+      obj.set({ fontSize: baseFontSize });
+      obj.setCoords();
+      let currentSize = baseFontSize;
+      while (obj.width > maxWidth && currentSize > 6) {
+        currentSize -= 1;
+        obj.set({ fontSize: currentSize });
+        obj.setCoords();
+      }
+    }
 
     function anchorFromLeft(left, objWidth, direction, grow) {
       const w = Number(objWidth || 0);
@@ -912,6 +1189,22 @@
       if (mode === "center") anchor = l + (w / 2);
       else if (mode === "right") anchor = l + w;
       return direction === "rtl" ? (CARD_W - anchor) : anchor;
+    }
+
+    function getAbsoluteCoords(obj) {
+      if (!obj) return { left: 0, top: 0 };
+      if (obj.group) {
+        const matrix = obj.calcTransformMatrix();
+        const decomposed = fabric.util.qrDecompose(matrix);
+        return {
+          left: decomposed.translationX,
+          top: decomposed.translationY
+        };
+      }
+      return {
+        left: obj.left,
+        top: obj.top
+      };
     }
 
     function hasManualPartY(partConfig) {
@@ -996,7 +1289,11 @@
             font_size: parseInt(l.font_size ?? state.font.label_font_size, 10),
             visible: labelVisible,
             color: _normalizeHex(l.color, DEFAULT_LABEL_FILL),
-            grow: normalizeGrow(l.grow, state.direction)
+            grow: normalizeGrow(l.grow, state.direction),
+            char_spacing: parseInt(l.char_spacing || 0, 10),
+            line_height: parseFloat(l.line_height || 1.16),
+            auto_fit: !!l.auto_fit,
+            max_width: parseInt(l.max_width || 200, 10)
           },
           value: {
             x: parseInt(v.x ?? legacyValueX, 10),
@@ -1004,7 +1301,11 @@
             font_size: parseInt(v.font_size ?? state.font.value_font_size, 10),
             visible: valueVisible,
             color: _normalizeHex(v.color, DEFAULT_VALUE_FILL),
-            grow: normalizeGrow(v.grow, state.direction)
+            grow: normalizeGrow(v.grow, state.direction),
+            char_spacing: parseInt(v.char_spacing || 0, 10),
+            line_height: parseFloat(v.line_height || 1.16),
+            auto_fit: !!v.auto_fit,
+            max_width: parseInt(v.max_width || 200, 10)
           },
           colon: {
             x: parseInt(c.x ?? legacyColonX, 10),
@@ -1100,8 +1401,9 @@
       if (!state.layout.fields[key][obj.part]) state.layout.fields[key][obj.part] = {};
       const forceManualY = !!options.forceManualY;
       const grow = normalizeGrow(obj.growMode, state.direction);
-      const anchorX = Math.round(anchorFromLeft(obj.left, obj.width || 0, state.direction, grow));
-      const topY = Math.round(obj.top);
+      const coords = getAbsoluteCoords(obj);
+      const anchorX = Math.round(anchorFromLeft(coords.left, obj.width || 0, state.direction, grow));
+      const topY = Math.round(coords.top);
       const fontSize = Math.max(8, Math.round(obj.fontSize || 0));
       const defaults = defaultFieldPartLayout(key, obj.part);
       // NOTE: defaultFieldPartLayout() temporarily rewrites state.layout.fields[key][part]
@@ -1184,7 +1486,7 @@
       syncFieldColon(key);
     }
 
-    function status(msg, bad=false){ const el=document.getElementById("status"); el.textContent=msg||""; el.style.color=bad?"#b31543":"#5f7893"; }
+    function status(msg, bad=false){ const el=document.getElementById("status"); el.textContent=msg||""; el.style.color=bad?"#dc2626":"#059669"; }
 
     function recordHistory(reason) {
       if (historyMuted) return;
@@ -1331,43 +1633,60 @@
         const row = document.createElement("div");
         row.className = "grid-field";
         row.innerHTML = `
-          <div class="ttl">${title}</div>
-          <div class="toggles">
-            <div class="form-check"><input class="form-check-input" type="checkbox" id="l_${k}" ${cfg.label.visible ? "checked":""}><label class="form-check-label" for="l_${k}">Show label</label></div>
-            <div class="form-check"><input class="form-check-input" type="checkbox" id="v_${k}" ${cfg.value.visible ? "checked":""}><label class="form-check-label" for="v_${k}">Show value</label></div>
+          <div class="ttl"><i class="fa-solid fa-i-cursor me-1 text-indigo"></i> ${title}</div>
+          <div class="toggles mb-2">
+            <div class="form-check"><input class="form-check-input" type="checkbox" id="l_${k}" ${cfg.label.visible ? "checked":""}><label class="form-check-label" for="l_${k}">Label</label></div>
+            <div class="form-check"><input class="form-check-input" type="checkbox" id="v_${k}" ${cfg.value.visible ? "checked":""}><label class="form-check-label" for="v_${k}">Value</label></div>
           </div>
-          <div class="field-pos-row" style="display:flex;gap:6px;margin:4px 0;align-items:center;flex-wrap:wrap">
-            <span style="font-size:11px;color:#7a9;font-weight:600;min-width:42px">Label X</span>
-            <input type="number" id="lx_${k}" value="${cfg.label.x}" min="0" max="2000" style="width:62px;padding:2px 4px;border:1px solid #2a4a7a;border-radius:4px;background:#0d1a2b;color:#e0eaff;font-size:12px">
-            <span style="font-size:11px;color:#7a9;font-weight:600;min-width:42px">Val X</span>
-            <input type="number" id="vx_${k}" value="${cfg.value.x}" min="0" max="2000" style="width:62px;padding:2px 4px;border:1px solid #2a4a7a;border-radius:4px;background:#0d1a2b;color:#e0eaff;font-size:12px">
+          <div class="field-pos-row d-flex gap-2 align-items-center mb-2">
+            <span style="font-size:11px;color:var(--text-secondary);font-weight:500;width:45px;">Label X</span>
+            <input type="number" id="lx_${k}" value="${cfg.label.x}" min="0" max="2000" class="form-control form-control-sm py-1" style="width:65px;">
+            <span style="font-size:11px;color:var(--text-secondary);font-weight:500;width:45px;text-align:right;">Val X</span>
+            <input type="number" id="vx_${k}" value="${cfg.value.x}" min="0" max="2000" class="form-control form-control-sm py-1" style="width:65px;">
           </div>
-          <div class="field-size-row" style="display:flex;gap:6px;margin:4px 0;align-items:center;flex-wrap:wrap">
-            <span style="font-size:11px;color:#a97;font-weight:600;min-width:42px">L.Size</span>
-            <input type="number" id="lfs_${k}" value="${cfg.label.font_size}" min="8" max="200" style="width:52px;padding:2px 4px;border:1px solid #2a4a7a;border-radius:4px;background:#0d1a2b;color:#e0eaff;font-size:12px">
-            <span style="font-size:11px;color:#a97;font-weight:600;min-width:42px">V.Size</span>
-            <input type="number" id="vfs_${k}" value="${cfg.value.font_size}" min="8" max="200" style="width:52px;padding:2px 4px;border:1px solid #2a4a7a;border-radius:4px;background:#0d1a2b;color:#e0eaff;font-size:12px">
+          <div class="field-size-row d-flex gap-2 align-items-center mb-2">
+            <span style="font-size:11px;color:var(--text-secondary);font-weight:500;width:45px;">L.Size</span>
+            <input type="number" id="lfs_${k}" value="${cfg.label.font_size}" min="8" max="200" class="form-control form-control-sm py-1" style="width:65px;">
+            <span style="font-size:11px;color:var(--text-secondary);font-weight:500;width:45px;text-align:right;">V.Size</span>
+            <input type="number" id="vfs_${k}" value="${cfg.value.font_size}" min="8" max="200" class="form-control form-control-sm py-1" style="width:65px;">
           </div>
-          <div class="field-color-row" style="display:flex;gap:6px;margin:4px 0;align-items:center;flex-wrap:wrap">
-            <span style="font-size:11px;color:#97a;font-weight:600;min-width:55px">Colon Color</span>
-            <input type="color" id="cc_${k}" value="${cfg.colon.color}" style="width:40px;height:24px;padding:0;border:1px solid #2a4a7a;border-radius:4px;background:#0d1a2b;cursor:pointer">
-            <button type="button" class="btn btn-sm btn-outline-danger btn-reset-field" id="reset_${k}" style="font-size:10px;padding:1px 6px;margin-left:auto;border-radius:4px;background:transparent;border:1px solid #dc3545;color:#dc3545;font-weight:600;cursor:pointer">Reset</button>
+          <div class="field-autofit-row d-flex gap-2 align-items-center mb-2">
+            <div class="form-check"><input class="form-check-input" type="checkbox" id="af_${k}" ${cfg.value.auto_fit ? "checked":""}><label class="form-check-label" for="af_${k}">Auto-Fit Val</label></div>
+            <span style="font-size:11px;color:var(--text-secondary);font-weight:500;margin-left:auto;">Max W</span>
+            <input type="number" id="afw_${k}" value="${cfg.value.max_width || 200}" min="10" max="1000" class="form-control form-control-sm py-1" style="width:65px;">
+          </div>
+          <div class="field-spacing-row d-flex gap-2 align-items-center mb-2">
+            <span style="font-size:11px;color:var(--text-secondary);font-weight:500;width:45px;">L.Space</span>
+            <input type="number" id="ls_${k}" value="${cfg.label.char_spacing || 0}" class="form-control form-control-sm py-1" style="width:65px;">
+            <span style="font-size:11px;color:var(--text-secondary);font-weight:500;width:45px;text-align:right;">V.Space</span>
+            <input type="number" id="vs_${k}" value="${cfg.value.char_spacing || 0}" class="form-control form-control-sm py-1" style="width:65px;">
+          </div>
+          <div class="field-lineheight-row d-flex gap-2 align-items-center mb-2">
+            <span style="font-size:11px;color:var(--text-secondary);font-weight:500;width:45px;">L.Line</span>
+            <input type="number" id="llh_${k}" value="${cfg.label.line_height || 1.16}" step="0.1" class="form-control form-control-sm py-1" style="width:65px;">
+            <span style="font-size:11px;color:var(--text-secondary);font-weight:500;width:45px;text-align:right;">V.Line</span>
+            <input type="number" id="vlh_${k}" value="${cfg.value.line_height || 1.16}" step="0.1" class="form-control form-control-sm py-1" style="width:65px;">
+          </div>
+          <div class="field-color-row d-flex gap-2 align-items-center mb-2">
+            <span style="font-size:11px;color:var(--text-secondary);font-weight:500;width:65px;">Colon Color</span>
+            <input type="color" id="cc_${k}" value="${cfg.colon.color}" class="form-control form-control-sm p-0 border-0" style="width:40px;height:24px;cursor:pointer;">
+            <button type="button" class="btn btn-outline-danger btn-reset-field btn-sm ms-auto py-1 px-2" id="reset_${k}" style="font-size:11px;"><i class="fa-solid fa-arrow-rotate-left"></i> Reset</button>
           </div>
           <div class="grow-block">
-            <div class="grow-line">
-              <div class="cap">Label align</div>
+            <div class="grow-line mb-1">
+              <div class="cap">Label Align</div>
               <div class="grow-options">
-                <div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="gl_${k}" id="gl_${k}_left" value="left" ${cfg.label.grow === "left" ? "checked":""}><label class="form-check-label" for="gl_${k}_left">Left</label></div>
-                <div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="gl_${k}" id="gl_${k}_center" value="center" ${cfg.label.grow === "center" ? "checked":""}><label class="form-check-label" for="gl_${k}_center">Center</label></div>
-                <div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="gl_${k}" id="gl_${k}_right" value="right" ${cfg.label.grow === "right" ? "checked":""}><label class="form-check-label" for="gl_${k}_right">Right</label></div>
+                <div class="form-check form-check-inline m-0"><input class="form-check-input" type="radio" name="gl_${k}" id="gl_${k}_left" value="left" ${cfg.label.grow === "left" ? "checked":""}><label class="form-check-label" for="gl_${k}_left">L</label></div>
+                <div class="form-check form-check-inline m-0"><input class="form-check-input" type="radio" name="gl_${k}" id="gl_${k}_center" value="center" ${cfg.label.grow === "center" ? "checked":""}><label class="form-check-label" for="gl_${k}_center">C</label></div>
+                <div class="form-check form-check-inline m-0"><input class="form-check-input" type="radio" name="gl_${k}" id="gl_${k}_right" value="right" ${cfg.label.grow === "right" ? "checked":""}><label class="form-check-label" for="gl_${k}_right">R</label></div>
               </div>
             </div>
             <div class="grow-line">
-              <div class="cap">Value align</div>
+              <div class="cap">Value Align</div>
               <div class="grow-options">
-                <div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="gv_${k}" id="gv_${k}_left" value="left" ${cfg.value.grow === "left" ? "checked":""}><label class="form-check-label" for="gv_${k}_left">Left</label></div>
-                <div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="gv_${k}" id="gv_${k}_center" value="center" ${cfg.value.grow === "center" ? "checked":""}><label class="form-check-label" for="gv_${k}_center">Center</label></div>
-                <div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="gv_${k}" id="gv_${k}_right" value="right" ${cfg.value.grow === "right" ? "checked":""}><label class="form-check-label" for="gv_${k}_right">Right</label></div>
+                <div class="form-check form-check-inline m-0"><input class="form-check-input" type="radio" name="gv_${k}" id="gv_${k}_left" value="left" ${cfg.value.grow === "left" ? "checked":""}><label class="form-check-label" for="gv_${k}_left">L</label></div>
+                <div class="form-check form-check-inline m-0"><input class="form-check-input" type="radio" name="gv_${k}" id="gv_${k}_center" value="center" ${cfg.value.grow === "center" ? "checked":""}><label class="form-check-label" for="gv_${k}_center">C</label></div>
+                <div class="form-check form-check-inline m-0"><input class="form-check-input" type="radio" name="gv_${k}" id="gv_${k}_right" value="right" ${cfg.value.grow === "right" ? "checked":""}><label class="form-check-label" for="gv_${k}_right">R</label></div>
               </div>
             </div>
           </div>
@@ -1379,6 +1698,12 @@
         row.querySelector(`#vx_${k}`).addEventListener("change", (e)=>setFieldX(k,"value",e.target.value));
         row.querySelector(`#lfs_${k}`).addEventListener("change", (e)=>setFieldFontSize(k,"label",e.target.value));
         row.querySelector(`#vfs_${k}`).addEventListener("change", (e)=>setFieldFontSize(k,"value",e.target.value));
+        row.querySelector(`#af_${k}`).addEventListener("change", (e)=>setFieldAutoFit(k, e.target.checked));
+        row.querySelector(`#afw_${k}`).addEventListener("change", (e)=>setFieldAutoFitWidth(k, e.target.value));
+        row.querySelector(`#ls_${k}`).addEventListener("change", (e)=>setFieldCharSpacing(k, "label", e.target.value));
+        row.querySelector(`#vs_${k}`).addEventListener("change", (e)=>setFieldCharSpacing(k, "value", e.target.value));
+        row.querySelector(`#llh_${k}`).addEventListener("change", (e)=>setFieldLineHeight(k, "label", e.target.value));
+        row.querySelector(`#vlh_${k}`).addEventListener("change", (e)=>setFieldLineHeight(k, "value", e.target.value));
         row.querySelector(`#cc_${k}`).addEventListener("change", (e)=>setFieldColonColor(k, e.target.value));
         row.querySelector(`#reset_${k}`).addEventListener("click", (e)=>resetFieldToDefault(k));
         row.querySelectorAll(`input[name="gl_${k}"]`).forEach((el) => {
@@ -1388,6 +1713,47 @@
           el.addEventListener("change", (e) => setGrow(k, "value", e.target.value));
         });
       });
+    }
+
+    function setFieldAutoFit(key, checked) {
+      if (!state.layout.fields[key]) state.layout.fields[key] = {};
+      if (!state.layout.fields[key].value) state.layout.fields[key].value = {};
+      state.layout.fields[key].value.auto_fit = !!checked;
+      refreshFieldFlow(key, "value");
+      recordHistory("field-autofit");
+    }
+
+    function setFieldAutoFitWidth(key, widthVal) {
+      const w = parseInt(widthVal, 10) || 200;
+      if (!state.layout.fields[key]) state.layout.fields[key] = {};
+      if (!state.layout.fields[key].value) state.layout.fields[key].value = {};
+      state.layout.fields[key].value.max_width = w;
+      refreshFieldFlow(key, "value");
+      recordHistory("field-autofit-width");
+    }
+
+    function setFieldCharSpacing(key, part, val) {
+      const sp = parseInt(val, 10) || 0;
+      if (!state.layout.fields[key]) state.layout.fields[key] = {};
+      if (!state.layout.fields[key][part]) state.layout.fields[key][part] = {};
+      state.layout.fields[key][part].char_spacing = sp;
+      if (fieldObjs[key] && fieldObjs[key][part]) {
+        fieldObjs[key][part].set({ charSpacing: sp });
+      }
+      refreshFieldFlow(key, part);
+      recordHistory("field-spacing");
+    }
+
+    function setFieldLineHeight(key, part, val) {
+      const lh = parseFloat(val) || 1.16;
+      if (!state.layout.fields[key]) state.layout.fields[key] = {};
+      if (!state.layout.fields[key][part]) state.layout.fields[key][part] = {};
+      state.layout.fields[key][part].line_height = lh;
+      if (fieldObjs[key] && fieldObjs[key][part]) {
+        fieldObjs[key][part].set({ lineHeight: lh });
+      }
+      refreshFieldFlow(key, part);
+      recordHistory("field-line-height");
     }
 
     function setVisibility(key, part, vis) {
@@ -1474,7 +1840,7 @@
         flipY: !!def.flip_y,
       };
       if (type === "text") {
-        return new fabric.Textbox(def.text ?? "Text", {
+        const textObj = new fabric.Textbox(def.text ?? "Text", {
           ...base,
           width: Math.max(80, parseInt(def.width || 180, 10)),
           fontSize: Math.max(8, parseInt(def.font_size || 24, 10)),
@@ -1487,7 +1853,14 @@
           lineHeight: parseFloat(def.line_height || 1.16),
           fill: def.fill || "#0b3f8a",
           strokeWidth: 0,
+          originalFontSize: Math.max(8, parseInt(def.font_size || 24, 10)),
+          autoFit: !!def.auto_fit,
+          autoFitWidth: parseInt(def.auto_fit_width || 200, 10),
         });
+        if (textObj.autoFit) {
+          applyAutoFitToText(textObj, textObj.text, textObj.autoFitWidth, textObj.originalFontSize);
+        }
+        return textObj;
       }
       if (type === "rect") {
         return new fabric.Rect({
@@ -1597,8 +1970,9 @@
       const next = { ...(state.layout.objects[index] || {}), id: obj.objectId, type: obj.customType, visible: obj.visible !== false };
       next.name = String(obj.objectName || next.name || "").trim();
       next.locked = !!(obj.lockMovementX || obj.lockMovementY || obj.lockScalingX || obj.lockScalingY);
-      next.x = Math.round(obj.left || 0);
-      next.y = Math.round(obj.top || 0);
+      const coords = getAbsoluteCoords(obj);
+      next.x = Math.round(coords.left || 0);
+      next.y = Math.round(coords.top || 0);
       next.angle = Math.round(obj.angle || 0);
       next.opacity = clamp(Math.round((typeof obj.opacity === "number" ? obj.opacity : 1) * 100), 0, 100);
       next.fill = obj.fill || next.fill || "#1f4e8c";
@@ -1632,6 +2006,8 @@
         next.text_align = obj.textAlign || "left";
         next.char_spacing = Math.round(obj.charSpacing || 0);
         next.line_height = parseFloat(obj.lineHeight || 1.16);
+        next.auto_fit = !!obj.autoFit;
+        next.auto_fit_width = parseInt(obj.autoFitWidth || 200, 10);
       } else if (obj.customType === "image") {
         next.width = Math.round(obj.getScaledWidth ? obj.getScaledWidth() : (obj.width || 120));
         next.height = Math.round(obj.getScaledHeight ? obj.getScaledHeight() : (obj.height || 120));
@@ -2383,6 +2759,8 @@
           left: 0,
           top: cfg.label.y,
           fontSize: cfg.label.font_size,
+          charSpacing: cfg.label.char_spacing || 0,
+          lineHeight: cfg.label.line_height || 1.16,
           fontWeight: "700",
           padding: 8,
           cornerSize: 12,
@@ -2400,6 +2778,8 @@
           left: 0,
           top: cfg.value.y,
           fontSize: cfg.value.font_size,
+          charSpacing: cfg.value.char_spacing || 0,
+          lineHeight: cfg.value.line_height || 1.16,
           padding: 8,
           cornerSize: 12,
           transparentCorners: false,
@@ -2412,6 +2792,12 @@
           visible: cfg.value.visible,
           growMode: cfg.value.grow
         });
+        if (cfg.label.auto_fit && cfg.label.max_width) {
+          applyAutoFitToText(l, lText, cfg.label.max_width, cfg.label.font_size);
+        }
+        if (cfg.value.auto_fit && cfg.value.max_width) {
+          applyAutoFitToText(v, valueText, cfg.value.max_width, cfg.value.font_size);
+        }
         let colonObj = null;
         if (alignColon) {
           colonObj = new fabric.Text(":", {
@@ -2561,7 +2947,16 @@
       const strokeWidthInput = document.getElementById("selStrokeWidth");
       const applyBtn = document.getElementById("applyMetricsBtn");
       const fontFamilyRow = document.getElementById("selFontFamilyRow");
+      const spacingRow = document.getElementById("selSpacingRow");
+      const charSpacingInput = document.getElementById("selCharSpacing");
+      const lineHeightInput = document.getElementById("selLineHeight");
+      const autoFitRow = document.getElementById("selAutoFitRow");
+      const autoFitInput = document.getElementById("selAutoFit");
+      const autoFitWidthInput = document.getElementById("selAutoFitWidth");
+
       if (fontFamilyRow) fontFamilyRow.style.display = "none";
+      if (spacingRow) spacingRow.style.display = "none";
+      if (autoFitRow) autoFitRow.style.display = "none";
 
       const cornerRadiusRow = document.getElementById("selCornerRadiusRow");
       const cornerRadiusInput = document.getElementById("selCornerRadius");
@@ -2665,6 +3060,17 @@
           if (fontFamilyRow) {
             fontFamilyRow.style.display = "grid";
             document.getElementById("selFontFamily").value = selected.fontFamily || "Arial";
+          }
+          if (spacingRow) {
+            spacingRow.style.display = "grid";
+            charSpacingInput.value = selected.charSpacing || 0;
+            lineHeightInput.value = selected.lineHeight || 1.16;
+          }
+          if (autoFitRow) {
+            autoFitRow.style.display = "grid";
+            autoFitInput.checked = !!selected.autoFit;
+            autoFitWidthInput.value = selected.autoFitWidth || 200;
+            autoFitWidthInput.disabled = !selected.autoFit;
           }
         }
 
@@ -2798,10 +3204,17 @@
           parts.label.set({
             top: cfg.label.y,
             fontSize: cfg.label.font_size,
+            charSpacing: cfg.label.char_spacing || 0,
+            lineHeight: cfg.label.line_height || 1.16,
             fill: labelColor,
             visible: !!cfg.label.visible,
             growMode: cfg.label.grow,
-            left: leftFromAnchor(cfg.label.x, parts.label.width || 0, state.direction, cfg.label.grow),
+          });
+          if (cfg.label.auto_fit && cfg.label.max_width) {
+            applyAutoFitToText(parts.label, parts.label.text, cfg.label.max_width, cfg.label.font_size);
+          }
+          parts.label.set({
+            left: leftFromAnchor(cfg.label.x, parts.label.width || 0, state.direction, cfg.label.grow)
           });
           parts.label.setCoords();
         }
@@ -2810,10 +3223,17 @@
           parts.value.set({
             top: cfg.value.y,
             fontSize: cfg.value.font_size,
+            charSpacing: cfg.value.char_spacing || 0,
+            lineHeight: cfg.value.line_height || 1.16,
             fill: valueColor,
             visible: !!cfg.value.visible,
             growMode: cfg.value.grow,
-            left: leftFromAnchor(cfg.value.x, parts.value.width || 0, state.direction, cfg.value.grow),
+          });
+          if (cfg.value.auto_fit && cfg.value.max_width) {
+            applyAutoFitToText(parts.value, parts.value.text, cfg.value.max_width, cfg.value.font_size);
+          }
+          parts.value.set({
+            left: leftFromAnchor(cfg.value.x, parts.value.width || 0, state.direction, cfg.value.grow)
           });
           parts.value.setCoords();
         }
@@ -2822,10 +3242,14 @@
           parts.colon.set({
             top: cfg.colon.y,
             fontSize: cfg.colon.font_size,
+            charSpacing: cfg.colon.char_spacing || 0,
+            lineHeight: cfg.colon.line_height || 1.16,
             fill: colonColor,
             visible: !!cfg.colon.visible,
             growMode: cfg.colon.grow,
-            left: leftFromAnchor(cfg.colon.x, parts.colon.width || 0, state.direction, cfg.colon.grow),
+          });
+          parts.colon.set({
+            left: leftFromAnchor(cfg.colon.x, parts.colon.width || 0, state.direction, cfg.colon.grow)
           });
           parts.colon.setCoords();
         }
@@ -2854,21 +3278,24 @@
       } else if (obj.dataType === "custom") {
         persistCustomObject(obj);
       } else if (obj.dataType === "photo") {
-        state.photo.photo_x = Math.round(obj.left);
-        state.photo.photo_y = Math.round(obj.top);
+        const coords = getAbsoluteCoords(obj);
+        state.photo.photo_x = Math.round(coords.left);
+        state.photo.photo_y = Math.round(coords.top);
         state.photo.photo_width = Math.round(obj.width);
         state.photo.photo_height = Math.round(obj.height);
         syncTags();
         syncBlockInputs();
       } else if (obj.dataType === "qr") {
-        state.qr.qr_x = Math.round(obj.left);
-        state.qr.qr_y = Math.round(obj.top);
+        const coords = getAbsoluteCoords(obj);
+        state.qr.qr_x = Math.round(coords.left);
+        state.qr.qr_y = Math.round(coords.top);
         state.qr.qr_size = Math.round(obj.width);
         syncTags();
         syncBlockInputs();
       } else if (obj.dataType === "barcode") {
-        state.barcode.barcode_x = Math.round(obj.left);
-        state.barcode.barcode_y = Math.round(obj.top);
+        const coords = getAbsoluteCoords(obj);
+        state.barcode.barcode_x = Math.round(coords.left);
+        state.barcode.barcode_y = Math.round(coords.top);
         state.barcode.barcode_width = Math.round(obj.width);
         state.barcode.barcode_height = Math.round(obj.height);
         syncTags();
@@ -2962,20 +3389,31 @@
     }
 
     function setZoom(delta) {
-      zoom = clamp(zoom + delta, 0.2, 3);
+      zoom = clamp(zoom + delta, 0.1, 3);
       canvas.setZoom(zoom);
+      canvas.setWidth(CARD_W * zoom);
+      canvas.setHeight(CARD_H * zoom);
       document.getElementById("zoomLabel").textContent = `${Math.round(zoom * 100)}%`;
       canvas.requestRenderAll();
-      // Fix 17: persist zoom to localStorage
       try { localStorage.setItem('ve_zoom_' + TEMPLATE_ID, zoom); } catch(e) {}
     }
     function fitCanvas() {
-      const s = document.getElementById("stage");
-      zoom = clamp(Math.min((s.clientWidth - 60) / CARD_W, (s.clientHeight - 80) / CARD_H), 0.2, 2.4);
+      const scrollEl = document.querySelector(".canvas-scroll");
+      if (!scrollEl) return;
+      
+      const isMobile = window.innerWidth <= 767;
+      const padX = isMobile ? 48 : 80;
+      const padY = isMobile ? 48 : 80;
+      
+      const availW = Math.max(100, scrollEl.clientWidth - padX);
+      const availY = Math.max(100, scrollEl.clientHeight - padY);
+      
+      zoom = clamp(Math.min(availW / CARD_W, availY / CARD_H), 0.15, 2.4);
       canvas.setZoom(zoom);
+      canvas.setWidth(CARD_W * zoom);
+      canvas.setHeight(CARD_H * zoom);
       document.getElementById("zoomLabel").textContent = `${Math.round(zoom * 100)}%`;
       canvas.requestRenderAll();
-      // Fix 17: persist zoom
       try { localStorage.setItem('ve_zoom_' + TEMPLATE_ID, zoom); } catch(e) {}
     }
     function setSnap(v){ snap = Math.max(1, parseInt(v||1,10)); }
@@ -3339,12 +3777,25 @@
         rebuildGrid();
         syncBlockInputs();
         fitCanvas();
-        // Fix 17: restore saved zoom if available
+        // Fix 17: restore saved zoom if available (bound by screen limits on mobile)
         try {
           const savedZoom = parseFloat(localStorage.getItem('ve_zoom_' + TEMPLATE_ID));
           if (savedZoom && savedZoom >= 0.2 && savedZoom <= 3) {
-            zoom = savedZoom;
+            const isMobile = window.innerWidth <= 767;
+            if (isMobile) {
+              const scrollEl = document.querySelector(".canvas-scroll");
+              if (scrollEl) {
+                const fitZoom = Math.min((scrollEl.clientWidth - 48) / CARD_W, (scrollEl.clientHeight - 48) / CARD_H);
+                zoom = Math.min(savedZoom, fitZoom);
+              } else {
+                zoom = savedZoom;
+              }
+            } else {
+              zoom = savedZoom;
+            }
             canvas.setZoom(zoom);
+            canvas.setWidth(CARD_W * zoom);
+            canvas.setHeight(CARD_H * zoom);
             document.getElementById("zoomLabel").textContent = `${Math.round(zoom * 100)}%`;
             canvas.requestRenderAll();
           }
@@ -3500,13 +3951,15 @@
 	                normalizeFieldScale(child);
 		                updateLayoutFromObject(child);
 	              } else if (child.dataType === "photo") {
-	                state.photo.photo_x = Math.round(child.left);
-	                state.photo.photo_y = Math.round(child.top);
+                    const coords = getAbsoluteCoords(child);
+	                state.photo.photo_x = Math.round(coords.left);
+	                state.photo.photo_y = Math.round(coords.top);
 	                state.photo.photo_width = Math.round(child.width);
 	                state.photo.photo_height = Math.round(child.height);
 	              } else if (child.dataType === "qr") {
-	                state.qr.qr_x = Math.round(child.left);
-	                state.qr.qr_y = Math.round(child.top);
+                    const coords = getAbsoluteCoords(child);
+	                state.qr.qr_x = Math.round(coords.left);
+	                state.qr.qr_y = Math.round(coords.top);
 	                state.qr.qr_size = Math.round(child.width);
 	              } else if (child.dataType === "custom") {
 	                persistCustomObject(child);
@@ -3522,9 +3975,18 @@
 		              updateLayoutFromObject(o);
 	              refreshFieldFlow(o.fieldKey, o.part);
 	            }
-	            if (o.dataType === "photo") { state.photo.photo_x=Math.round(o.left); state.photo.photo_y=Math.round(o.top); state.photo.photo_width=Math.round(o.width); state.photo.photo_height=Math.round(o.height); syncTags(); syncBlockInputs(); }
-	            if (o.dataType === "qr") { state.qr.qr_x=Math.round(o.left); state.qr.qr_y=Math.round(o.top); state.qr.qr_size=Math.round(o.width); syncTags(); syncBlockInputs(); }
-	            if (o.dataType === "barcode") { state.barcode.barcode_x=Math.round(o.left); state.barcode.barcode_y=Math.round(o.top); state.barcode.barcode_width=Math.round(o.width); state.barcode.barcode_height=Math.round(o.height); syncTags(); syncBlockInputs(); }
+	            if (o.dataType === "photo") {
+                  const coords = getAbsoluteCoords(o);
+                  state.photo.photo_x=Math.round(coords.left); state.photo.photo_y=Math.round(coords.top); state.photo.photo_width=Math.round(o.width); state.photo.photo_height=Math.round(o.height); syncTags(); syncBlockInputs();
+                }
+	            if (o.dataType === "qr") {
+                  const coords = getAbsoluteCoords(o);
+                  state.qr.qr_x=Math.round(coords.left); state.qr.qr_y=Math.round(coords.top); state.qr.qr_size=Math.round(o.width); syncTags(); syncBlockInputs();
+                }
+	            if (o.dataType === "barcode") {
+                  const coords = getAbsoluteCoords(o);
+                  state.barcode.barcode_x=Math.round(coords.left); state.barcode.barcode_y=Math.round(coords.top); state.barcode.barcode_width=Math.round(o.width); state.barcode.barcode_height=Math.round(o.height); syncTags(); syncBlockInputs();
+                }
 	            if (o.dataType === "custom") persistCustomObject(o);
 	            if (o.dataType === "custom") syncLayerOrderFromCanvas();
 	          }
@@ -3564,6 +4026,46 @@
           persistCustomObject(o);
           canvas.requestRenderAll();
         });
+      });
+      document.getElementById("selCharSpacing").addEventListener("input", (e) => {
+        const o = canvas.getActiveObject();
+        if (!o || o.dataType !== "custom" || o.customType !== "text") return;
+        const sp = parseInt(e.target.value, 10) || 0;
+        o.set({ charSpacing: sp });
+        persistCustomObject(o);
+        canvas.requestRenderAll();
+      });
+      document.getElementById("selLineHeight").addEventListener("input", (e) => {
+        const o = canvas.getActiveObject();
+        if (!o || o.dataType !== "custom" || o.customType !== "text") return;
+        const lh = parseFloat(e.target.value) || 1.16;
+        o.set({ lineHeight: lh });
+        persistCustomObject(o);
+        canvas.requestRenderAll();
+      });
+      document.getElementById("selAutoFit").addEventListener("change", (e) => {
+        const o = canvas.getActiveObject();
+        if (!o || o.dataType !== "custom" || o.customType !== "text") return;
+        o.autoFit = !!e.target.checked;
+        document.getElementById("selAutoFitWidth").disabled = !o.autoFit;
+        if (o.autoFit) {
+          const maxW = parseInt(document.getElementById("selAutoFitWidth").value, 10) || 200;
+          o.autoFitWidth = maxW;
+          applyAutoFitToText(o, o.text, maxW, o.originalFontSize || o.fontSize);
+        }
+        persistCustomObject(o);
+        canvas.requestRenderAll();
+      });
+      document.getElementById("selAutoFitWidth").addEventListener("input", (e) => {
+        const o = canvas.getActiveObject();
+        if (!o || o.dataType !== "custom" || o.customType !== "text") return;
+        const maxW = parseInt(e.target.value, 10) || 200;
+        o.autoFitWidth = maxW;
+        if (o.autoFit) {
+          applyAutoFitToText(o, o.text, maxW, o.originalFontSize || o.fontSize);
+        }
+        persistCustomObject(o);
+        canvas.requestRenderAll();
       });
       document.getElementById("selName").addEventListener("input", (e) => {
         const o = canvas.getActiveObject();

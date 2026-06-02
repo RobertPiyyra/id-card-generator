@@ -1,5 +1,6 @@
 from flask import Blueprint, render_template, request, jsonify, session, redirect, url_for, send_file, make_response, current_app
 from models import db, Template, TemplateField
+from app.services.template_lifecycle_service import create_template_version_snapshot, log_immutable_audit_event, get_session_actor
 from utils import (
     get_template_path,
     load_template_smart,
@@ -428,10 +429,22 @@ def save_field_settings():
                 'qr_data_type', 'qr_base_url', 'qr_custom_text',
                 'qr_color', 'qr_bg_color', 'qr_style',
                 'barcode_data_type', 'barcode_base_url', 'barcode_custom_text',
+                'barcode_color', 'barcode_bg_color',
             ]
             for k in _PASSTHROUGH_KEYS:
                 if k in incoming_qr:
                     current_qr[k] = incoming_qr[k]
+
+            # Map editor/legacy aliases to active QR setting keys
+            if 'qr_color' in incoming_qr:
+                current_qr['qr_fill_color'] = incoming_qr['qr_color']
+            if 'qr_bg_color' in incoming_qr:
+                current_qr['qr_back_color'] = incoming_qr['qr_bg_color']
+            if 'barcode_color' in incoming_qr:
+                current_qr['barcode_fill_color'] = incoming_qr['barcode_color']
+            if 'barcode_bg_color' in incoming_qr:
+                current_qr['barcode_back_color'] = incoming_qr['barcode_bg_color']
+
             if settings_side == "back":
                 template.back_qr_settings = current_qr
             else:
@@ -453,6 +466,17 @@ def save_field_settings():
                     template.font_settings or {},
                 )
 
+        db.session.commit()
+        actor, actor_role = get_session_actor()
+        create_template_version_snapshot(template, source="visual_editor_save", actor=actor, actor_role=actor_role)
+        log_immutable_audit_event(
+            entity_type="template",
+            entity_id=template.id,
+            action="visual_editor_settings_saved",
+            payload={"template_id": template.id, "settings_side": settings_side},
+            actor=actor,
+            actor_role=actor_role,
+        )
         db.session.commit()
         return jsonify(_template_settings_payload(template, settings_side))
     except Exception as e:

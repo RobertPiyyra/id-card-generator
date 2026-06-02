@@ -20,7 +20,7 @@ itsdangerous==2.2.0
 email-validator==2.1.1
 gunicorn==21.2.0
 python-dotenv==1.2.1
-redis>=5.0.0,<6
+redis>=5.0.0,<8.0.0
 rq>=1.16.0,<2
 
 # -------------------------
@@ -37,7 +37,7 @@ Pillow==10.4.0; python_version < "3.13"
 Pillow>=11.0.0; python_version >= "3.13"
 # MediaPipe 0.10.31+ removed the legacy `mediapipe.solutions` API used by this app.
 mediapipe==0.10.21
-requests
+requests==2.34.0
 
 # -------------------------
 # PDF / QR / Excel
@@ -61,7 +61,7 @@ python-bidi>=0.4.2
 # -------------------------
 cryptography==43.0.1
 
-cloudinary>=1.39.0
+cloudinary>=1.39.0,<2.0.0
 psycopg2-binary==2.9.9
 
 # -------------------------

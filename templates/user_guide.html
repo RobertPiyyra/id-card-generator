@@ -407,10 +407,12 @@
                 <ol>
                     <li><a href="#quick-start">Quick Start (10 minutes)</a></li>
                     <li><a href="#tabs-overview">Tabs Overview</a></li>
+                    <li><a href="#premium-navigation">Premium Navigation (Tabs + Subtabs)</a></li>
                     <li><a href="#template-upload">Upload Template</a></li>
                     <li><a href="#template-settings">Template Settings Reference</a></li>
                     <li><a href="#text-language">Text Case, Language and Direction</a></li>
                     <li><a href="#bulk">Bulk Generation Workflow</a></li>
+                    <li><a href="#premium-features">Premium Features</a></li>
                     <li><a href="#dynamic-fields">Dynamic Form Fields</a></li>
                     <li><a href="#data-management">Data Management and Safety</a></li>
                     <li><a href="#preview-verify">Preview and Verification</a></li>
@@ -444,31 +446,77 @@
                             <tbody>
                                 <tr>
                                     <td>Settings</td>
-                                    <td>Template upload, template configuration, bulk generation, font upload</td>
-                                    <td>Upload template, save settings, run bulk generate, configure duplicate controls</td>
+                                    <td>Template upload and base setup</td>
+                                    <td>Upload templates, set sides/language defaults, start core setup flow</td>
                                 </tr>
                                 <tr>
-                                    <td>Data Management</td>
-                                    <td>Manage existing student cards and files</td>
-                                    <td>Edit student, delete entries, cleanup files, export records, delete by school</td>
+                                    <td>Premium</td>
+                                    <td>Lifecycle, QA, rules engine, localization, branding, recovery, analytics</td>
+                                    <td>Workflow states, rollback, QA gates, batch rules, localization lock rules, import mappings, snapshots, analytics</td>
+                                </tr>
+                                <tr>
+                                    <td>Bulk Ops</td>
+                                    <td>Bulk generation and queue controls</td>
+                                    <td>Start jobs, cancel jobs, download failed rows, rerun with corrections, mapping preset selection</td>
                                 </tr>
                                 <tr>
                                     <td>Preview</td>
-                                    <td>Preview student cards from admin side</td>
-                                    <td>Load preview, regenerate latest preview, download student PDF</td>
+                                    <td>Visual preview, parity checks, verification + quality</td>
+                                    <td>3D preview, Corel parity, photo quality check, signed verify links, revoke/unrevoke, audit trail</td>
                                 </tr>
                                 <tr>
                                     <td>Form Fields</td>
                                     <td>Per-template dynamic inputs</td>
                                     <td>Add/edit/delete custom fields, set type, required flag, display order</td>
                                 </tr>
+                                <tr>
+                                    <td>Data Management</td>
+                                    <td>Manage existing student cards and files</td>
+                                    <td>Edit student, delete entries, cleanup files, export records, delete by school</td>
+                                </tr>
                             </tbody>
                         </table>
                     </div>
                 </article>
 
+                <article id="premium-navigation" class="card">
+                    <h2>3. Premium Navigation (Tabs + Subtabs)</h2>
+                    <h3>Top-level tab split</h3>
+                    <ul>
+                        <li><strong>Settings:</strong> Template upload and base onboarding actions.</li>
+                        <li><strong>Premium:</strong> All advanced controls grouped in one place.</li>
+                        <li><strong>Bulk Ops:</strong> Bulk jobs and queue monitoring.</li>
+                        <li><strong>Preview:</strong> Render preview + parity + verification controls.</li>
+                    </ul>
+
+                    <h3>Premium tab subtabs</h3>
+                    <ul>
+                        <li><strong>Workflow:</strong> Draft/Review/Approved/Published + version history + rollback + audit events.</li>
+                        <li><strong>Design QA:</strong> Run checks + enforce QA gates before bulk/export.</li>
+                        <li><strong>Batch Rules:</strong> Auto-hide-empty, color/profile/layout rule hints.</li>
+                        <li><strong>Localization:</strong> Dictionary and per-side language lock rules.</li>
+                        <li><strong>White Label:</strong> Branding JSON and print profile JSON.</li>
+                        <li><strong>Import Mapping:</strong> Save mapping presets + validation preview.</li>
+                        <li><strong>Recovery:</strong> Snapshot create/list, restore by snapshot, restore-to-date.</li>
+                        <li><strong>Analytics:</strong> School-level counts and quality/revocation metrics.</li>
+                    </ul>
+
+                    <h3>Preview tab subtabs</h3>
+                    <ul>
+                        <li><strong>Card Preview:</strong> 3D front/back preview, flip, generate/download.</li>
+                        <li><strong>Parity Modes:</strong> Corel preview and side-by-side visual/print/parity checks.</li>
+                        <li><strong>Verification & Quality:</strong> Photo scoring, signed token issue, revoke/unrevoke, audit trail lookup.</li>
+                    </ul>
+
+                    <h3>Template Settings subtab</h3>
+                    <ul>
+                        <li><strong>All Settings:</strong> Full template settings form.</li>
+                        <li><strong>Fonts:</strong> Focused font-only editing view.</li>
+                    </ul>
+                </article>
+
                 <article id="template-upload" class="card">
-                    <h2>3. Upload Template</h2>
+                    <h2>4. Upload Template</h2>
                     <h3>Required inputs</h3>
                     <ul>
                         <li><strong>School Name:</strong> identifies template group.</li>
@@ -481,7 +529,7 @@
                 </article>
 
                 <article id="template-settings" class="card">
-                    <h2>4. Template Settings Reference</h2>
+                    <h2>5. Template Settings Reference</h2>
                     <p class="muted">All settings are stored per selected template.</p>
 
                     <div class="table-wrapper">
@@ -530,7 +578,7 @@
                 </article>
 
                 <article id="text-language" class="card">
-                    <h2>5. Text Case, Language and Direction</h2>
+                    <h2>6. Text Case, Language and Direction</h2>
                     <h3>Text case behavior</h3>
                     <ul>
                         <li><strong>Text Case</strong> applies to both label text and value text during rendering.</li>
@@ -549,7 +597,7 @@
                 </article>
 
                 <article id="bulk" class="card">
-                    <h2>6. Bulk Generation Workflow</h2>
+                    <h2>7. Bulk Generation Workflow</h2>
                     <ol>
                         <li>Prepare CSV/XLSX with required columns first.</li>
                         <li>Run a small test batch (2-5 rows) before full upload.</li>
@@ -560,8 +608,75 @@
                     <div class="note"><strong>Performance tip:</strong> Large batches are safer after template coordinates are finalized.</div>
                 </article>
 
+                <article id="premium-features" class="card">
+                    <h2>8. Premium Features</h2>
+                    <h3>Template Versioning + Rollback</h3>
+                    <ul>
+                        <li>Every template save/update creates a snapshot version.</li>
+                        <li>You can rollback to a selected version from Premium → Workflow.</li>
+                    </ul>
+
+                    <h3>Approval Workflow</h3>
+                    <ul>
+                        <li>States: <code>draft</code> → <code>review</code> → <code>approved</code> → <code>published</code>.</li>
+                        <li>State changes are logged in immutable audit events.</li>
+                    </ul>
+
+                    <h3>Design QA Layer</h3>
+                    <ul>
+                        <li>Checks overlap, out-of-bounds, hidden mandatory fields, missing photos, low contrast signals.</li>
+                        <li>QA settings can enforce blocking before bulk generate and before compiled PDF export.</li>
+                    </ul>
+
+                    <h3>Advanced Batch Rules Engine</h3>
+                    <ul>
+                        <li>Supports rule configuration JSON for empty-value handling and layout/QR hints.</li>
+                        <li>Rules are applied during bulk generation pipeline.</li>
+                    </ul>
+
+                    <h3>Parent/Student Verification Portal 2.0</h3>
+                    <ul>
+                        <li>Issue signed, expiring verification links.</li>
+                        <li>Revoke/unrevoke credential per student.</li>
+                        <li>Verification audit trail includes status/IP/token metadata.</li>
+                    </ul>
+
+                    <h3>Photo Intelligence Upgrade</h3>
+                    <ul>
+                        <li>On-demand quality score and pass/fail status per student photo.</li>
+                    </ul>
+
+                    <h3>Localization Pack Manager</h3>
+                    <ul>
+                        <li>Central localization dictionary JSON per template.</li>
+                        <li>Per-side language lock rules enforce front/back language consistency.</li>
+                        <li>Localized labels preview is available for front and back.</li>
+                    </ul>
+
+                    <h3>Import Mapping Studio</h3>
+                    <ul>
+                        <li>Save column mappings by template and validate against sample headers.</li>
+                        <li>Bulk Ops supports selecting a mapping preset before generation.</li>
+                    </ul>
+
+                    <h3>Multi-tenant White Label (Template-level)</h3>
+                    <ul>
+                        <li>Branding config and print profile JSON storage in Premium → White Label.</li>
+                    </ul>
+
+                    <h3>Disaster Recovery Toolkit</h3>
+                    <ul>
+                        <li>Create/list snapshots, restore selected snapshot, or restore to a date/time point.</li>
+                    </ul>
+
+                    <h3>School Admin Analytics</h3>
+                    <ul>
+                        <li>Overview metrics for generation counts, revoked credentials, and photo quality fail counts.</li>
+                    </ul>
+                </article>
+
                 <article id="dynamic-fields" class="card">
-                    <h2>7. Dynamic Form Fields</h2>
+                    <h2>9. Dynamic Form Fields</h2>
                     <ul>
                         <li>Each template can have custom fields like Blood Group, Roll Number, House, Session, etc.</li>
                         <li>Field Name is internal key (avoid spaces; use underscore style).</li>
@@ -573,7 +688,7 @@
                 </article>
 
                 <article id="data-management" class="card">
-                    <h2>8. Data Management and Safety</h2>
+                    <h2>10. Data Management and Safety</h2>
                     <h3>Available operations</h3>
                     <ul>
                         <li>Edit individual cards.</li>
@@ -586,7 +701,7 @@
                 </article>
 
                 <article id="preview-verify" class="card">
-                    <h2>9. Preview and Verification</h2>
+                    <h2>11. Preview and Verification</h2>
                     <ul>
                         <li>Use Preview tab to load any student card from admin side.</li>
                         <li>Use regenerate preview when settings changed recently.</li>
@@ -597,7 +712,7 @@
                 </article>
 
                 <article id="advanced-features" class="card">
-                    <h2>10. Advanced Features & Custom Styling</h2>
+                    <h2>12. Advanced Features & Custom Styling</h2>
                     
                     <h3>Submission Deadline & Portal Locking</h3>
                     <ul>
@@ -638,7 +753,7 @@
                 </article>
 
                 <article id="troubleshooting" class="card">
-                    <h2>11. Troubleshooting</h2>
+                    <h2>13. Troubleshooting</h2>
                     <div class="table-wrapper">
                         <table>
                             <thead>

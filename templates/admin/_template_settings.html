@@ -52,6 +52,94 @@
             box-shadow: var(--shadow-md);
             text-align: center;
         }
+        .lifecycle-panel {
+            margin-top: 14px;
+            border: 1px solid rgba(0, 82, 204, 0.18);
+            border-radius: var(--border-radius-sm);
+            background: var(--section-bg);
+            padding: 14px;
+        }
+        .lifecycle-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        .lifecycle-state-badge {
+            font-size: 0.78rem;
+            font-weight: 700;
+            border-radius: 999px;
+            padding: 3px 10px;
+            border: 1px solid rgba(0,0,0,0.1);
+        }
+        .lifecycle-row {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 8px;
+            align-items: end;
+        }
+        .versions-list {
+            margin-top: 10px;
+            max-height: 220px;
+            overflow: auto;
+            border: 1px solid rgba(0,0,0,0.08);
+            border-radius: 8px;
+        }
+        .version-item {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 8px;
+            align-items: center;
+            padding: 8px 10px;
+            border-bottom: 1px solid rgba(0,0,0,0.06);
+            background: var(--section-bg);
+        }
+        .version-item:last-child {
+            border-bottom: none;
+        }
+        .version-meta {
+            font-size: 0.78rem;
+            color: #5b6472;
+            line-height: 1.3;
+        }
+        .audit-list {
+            margin-top: 10px;
+            max-height: 220px;
+            overflow: auto;
+            border: 1px solid rgba(0,0,0,0.08);
+            border-radius: 8px;
+        }
+        .audit-item {
+            padding: 8px 10px;
+            border-bottom: 1px solid rgba(0,0,0,0.06);
+            background: var(--section-bg);
+            font-size: 0.82rem;
+            line-height: 1.35;
+        }
+        .audit-item:last-child {
+            border-bottom: none;
+        }
+        .premium-subtabs {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin: 8px 0 12px 0;
+        }
+        .premium-subtab-btn {
+            border: 1px solid rgba(0,82,204,0.2);
+            background: rgba(0,82,204,0.06);
+            color: var(--primary-color);
+            border-radius: 999px;
+            padding: 6px 10px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            cursor: pointer;
+        }
+        .premium-subtab-btn.active {
+            background: var(--primary-color);
+            color: #fff;
+        }
     </style>
 
     <div class="settings-grid-wrapper">
@@ -119,9 +207,149 @@
                     </select>
                     <small style="color:#666">Switch between front and back template settings.</small>
                 </div>
+
+                <div class="lifecycle-panel" id="templateLifecyclePanel">
+                    <div class="lifecycle-head">
+                        <label style="margin:0;"><i class="fas fa-code-branch"></i> Workflow + Versions</label>
+                        <span id="workflowStateBadge" class="lifecycle-state-badge">draft</span>
+                    </div>
+                    <div class="premium-subtabs">
+                        <button type="button" class="premium-subtab-btn active" onclick="openPremiumSection('premium-workflow', this)">Workflow</button>
+                        <button type="button" class="premium-subtab-btn" onclick="openPremiumSection('premium-qa', this)">Design QA</button>
+                        <button type="button" class="premium-subtab-btn" onclick="openPremiumSection('premium-batch', this)">Batch Rules</button>
+                        <button type="button" class="premium-subtab-btn" onclick="openPremiumSection('premium-localization', this)">Localization</button>
+                        <button type="button" class="premium-subtab-btn" onclick="openPremiumSection('premium-branding', this)">White Label</button>
+                        <button type="button" class="premium-subtab-btn" onclick="openPremiumSection('premium-import', this)">Import Mapping</button>
+                        <button type="button" class="premium-subtab-btn" onclick="openPremiumSection('premium-dr', this)">Recovery</button>
+                        <button type="button" class="premium-subtab-btn" onclick="openPremiumSection('premium-analytics', this)">Analytics</button>
+                    </div>
+                    <div id="premium-workflow"></div>
+                    <div class="lifecycle-row">
+                        <div>
+                            <label><i class="fas fa-tasks"></i> Change Workflow State</label>
+                            <select id="workflowStateSelect">
+                                <option value="draft">Draft</option>
+                                <option value="review">Review</option>
+                                <option value="approved">Approved</option>
+                                <option value="published">Published</option>
+                            </select>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-primary" onclick="applyWorkflowState()">Apply</button>
+                    </div>
+                    <div class="form-group" style="margin-top:8px; margin-bottom:4px;">
+                        <input type="text" id="workflowNote" placeholder="Optional workflow note">
+                    </div>
+                    <div class="lifecycle-head" style="margin-top:12px;">
+                        <label style="margin:0;"><i class="fas fa-history"></i> Recent Versions</label>
+                        <button type="button" class="btn btn-sm btn-download" onclick="loadTemplateVersions()">Refresh</button>
+                    </div>
+                    <div id="templateVersionsList" class="versions-list">
+                        <div class="version-item"><div class="version-meta">Select template to load version history</div></div>
+                    </div>
+                    <div class="lifecycle-head" style="margin-top:12px;">
+                        <label style="margin:0;"><i class="fas fa-fingerprint"></i> Recent Audit Events</label>
+                        <button type="button" class="btn btn-sm btn-download" onclick="loadTemplateAuditEvents()">Refresh</button>
+                    </div>
+                    <div id="templateAuditList" class="audit-list">
+                        <div class="audit-item">Select template to load audit events</div>
+                    </div>
+                    <div class="lifecycle-head" style="margin-top:12px;">
+                        <label style="margin:0;"><i class="fas fa-check-double"></i> Design QA</label>
+                        <button type="button" class="btn btn-sm btn-primary" onclick="runTemplateDesignQA()">Run QA</button>
+                    </div>
+                    <div id="premium-qa"></div>
+                    <div id="templateQaList" class="audit-list">
+                        <div class="audit-item">Run QA to check overlaps, bounds, contrast, and missing photos.</div>
+                    </div>
+                    <label style="font-size:0.78rem; margin-top:8px;">QA Enforcement Settings JSON</label>
+                    <textarea id="templateQaSettingsJson" rows="4" style="width:100%; font-family:monospace; font-size:0.78rem;" placeholder='{"enforce_before_bulk_generate": true, "enforce_before_pdf_export": true}'></textarea>
+                    <button type="button" class="btn btn-sm btn-primary" style="margin-top:6px;" onclick="saveTemplateQaSettings()">Save QA Settings</button>
+                    <div class="lifecycle-head" style="margin-top:12px;">
+                        <label style="margin:0;"><i class="fas fa-magic"></i> Batch Rules Engine</label>
+                        <button type="button" class="btn btn-sm btn-primary" onclick="saveBatchRules()">Save</button>
+                    </div>
+                    <div id="premium-batch"></div>
+                    <textarea id="batchRulesJson" rows="6" style="width:100%; font-family:monospace; font-size:0.78rem;" placeholder='{"auto_hide_empty": true, "color_by_class": {"10A":"#aa0000"}}'></textarea>
+                    <div class="lifecycle-head" style="margin-top:12px;">
+                        <label style="margin:0;"><i class="fas fa-language"></i> Localization Pack + Side Locks</label>
+                        <button type="button" class="btn btn-sm btn-primary" onclick="saveLocalizationPack()">Save</button>
+                    </div>
+                    <div id="premium-localization"></div>
+                    <label style="font-size:0.78rem; margin-top:4px;">Localization Dictionary JSON</label>
+                    <textarea id="localizationPackJson" rows="5" style="width:100%; font-family:monospace; font-size:0.78rem;" placeholder='{"en":{"name":"Name"},"hi":{"name":"नाम"}}'></textarea>
+                    <label style="font-size:0.78rem; margin-top:6px;">Language Lock Rules JSON</label>
+                    <textarea id="languageLockRulesJson" rows="4" style="width:100%; font-family:monospace; font-size:0.78rem;" placeholder='{"front":"english","back":"hindi"}'></textarea>
+                    <div style="display:flex; gap:8px; margin-top:6px; flex-wrap:wrap;">
+                        <button type="button" class="btn btn-sm btn-download" onclick="previewLocalizedLabels('front')">Preview Front Labels</button>
+                        <button type="button" class="btn btn-sm btn-download" onclick="previewLocalizedLabels('back')">Preview Back Labels</button>
+                    </div>
+                    <div id="localizedLabelsPreview" class="audit-list" style="margin-top:6px;">
+                        <div class="audit-item">Localized labels preview will appear here.</div>
+                    </div>
+                    <div class="lifecycle-head" style="margin-top:12px;">
+                        <label style="margin:0;"><i class="fas fa-paint-brush"></i> White Label Branding + Print Profile</label>
+                        <button type="button" class="btn btn-sm btn-primary" onclick="saveBrandingConfig()">Save</button>
+                    </div>
+                    <div id="premium-branding"></div>
+                    <label style="font-size:0.78rem; margin-top:4px;">Branding Config JSON</label>
+                    <textarea id="brandingConfigJson" rows="5" style="width:100%; font-family:monospace; font-size:0.78rem;" placeholder='{"logo_url":"","palette":{"primary":"#0052cc"},"legal_footer_text":""}'></textarea>
+                    <label style="font-size:0.78rem; margin-top:6px;">Print Profile JSON</label>
+                    <textarea id="printProfileJson" rows="4" style="width:100%; font-family:monospace; font-size:0.78rem;" placeholder='{"dpi":300,"color_profile":"CMYK","bleed_mm":3}'></textarea>
+                    <div class="lifecycle-head" style="margin-top:12px;">
+                        <label style="margin:0;"><i class="fas fa-file-import"></i> Import Mapping Studio</label>
+                        <button type="button" class="btn btn-sm btn-primary" onclick="saveImportMapping()">Save Mapping</button>
+                    </div>
+                    <div id="premium-import"></div>
+                    <input id="importMappingName" type="text" placeholder="Mapping name" style="width:100%; margin-bottom:6px;">
+                    <textarea id="importMappingJson" rows="5" style="width:100%; font-family:monospace; font-size:0.78rem;" placeholder='{"name":"Student Name","father_name":"Father Name","class_name":"Class"}'></textarea>
+                    <input id="importHeadersCsv" type="text" placeholder="CSV headers (comma separated) for validation preview" style="width:100%; margin-top:6px;">
+                    <button type="button" class="btn btn-sm btn-download" style="margin-top:6px;" onclick="previewImportMapping()">Validate Mapping Preview</button>
+                    <div id="importMappingPreviewResult" class="audit-list" style="margin-top:6px;">
+                        <div class="audit-item">Preview result will appear here.</div>
+                    </div>
+                    <div class="lifecycle-head" style="margin-top:12px;">
+                        <label style="margin:0;"><i class="fas fa-shield-alt"></i> Disaster Recovery Toolkit</label>
+                        <button type="button" class="btn btn-sm btn-primary" onclick="createDisasterSnapshot()">Create Snapshot</button>
+                    </div>
+                    <div id="premium-dr"></div>
+                    <div class="form-row" style="margin-top:6px;">
+                        <div class="form-group">
+                            <select id="drSnapshotSelect">
+                                <option value="">Select snapshot...</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <button type="button" class="btn btn-sm btn-danger" onclick="restoreSelectedSnapshot()">Restore Selected Snapshot</button>
+                        </div>
+                    </div>
+                    <div class="form-row" style="margin-top:6px;">
+                        <div class="form-group">
+                            <label style="font-size:0.78rem;"><i class="fas fa-clock"></i> Restore to Date/Time (UTC)</label>
+                            <input type="datetime-local" id="drRestoreTargetAt">
+                        </div>
+                        <div class="form-group">
+                            <button type="button" class="btn btn-sm btn-danger" onclick="restoreToSelectedDateTime()">Restore To Date</button>
+                        </div>
+                    </div>
+                    <div id="drSnapshotList" class="audit-list">
+                        <div class="audit-item">No snapshots loaded.</div>
+                    </div>
+                    <div class="lifecycle-head" style="margin-top:12px;">
+                        <label style="margin:0;"><i class="fas fa-chart-line"></i> School Admin Analytics</label>
+                        <button type="button" class="btn btn-sm btn-download" onclick="loadAdminAnalytics()">Refresh</button>
+                    </div>
+                    <div id="premium-analytics"></div>
+                    <div id="analyticsOverviewBox" class="audit-list">
+                        <div class="audit-item">Analytics not loaded.</div>
+                    </div>
+                </div>
             </div>
             
             <form id="templateSettingsForm" class="enhanced-form">
+         <div class="premium-subtabs" style="margin: 4px 0 14px 0;">
+            <button type="button" class="premium-subtab-btn active" id="templateSettingsAllTabBtn" onclick="openTemplateSettingsSubtab('layout', this)">Layout &amp; Media</button>
+            <button type="button" class="premium-subtab-btn" id="templateSettingsFontsTabBtn" onclick="openTemplateSettingsSubtab('fonts', this)">Fonts &amp; Positions</button>
+        </div>
         <!-- Side Indicator Header Tab (Fix 20) -->
         <div id="sideIndicatorTab" style="display: none; padding: 12px; margin-bottom: 15px; border-radius: var(--border-radius); font-weight: bold; font-size: 0.95rem; align-items: center; justify-content: space-between; box-shadow: var(--shadow);">
             <span id="sideIndicatorLabel"><i class="fas fa-cog"></i> FRONT SIDE CONFIGURATION</span>
@@ -130,7 +358,7 @@
         <input type="hidden" name="csrf_token" id="templateSettingsCsrf" value="{{ csrf_token() }}"/>
         <input type="hidden" name="template_id" id="templateId" value="">
 
-        <div class="settings-section">
+        <div class="settings-section template-settings-pane" data-pane-key="layout">
             <h4><i class="fas fa-ruler-combined"></i> Dimensions & Paper Size</h4>
             
             <div class="form-row">
@@ -172,7 +400,7 @@
             </div>
         </div>
         
-        <div class="settings-section">
+        <div class="settings-section template-settings-pane" id="fontSettingsSection" data-pane-key="fonts">
             <h4><i class="fas fa-font"></i> Font Settings</h4>
             <div class="form-row">
                 <div class="form-group">
@@ -326,7 +554,7 @@
             </div>
         </div>
 
-        <div class="settings-section">
+        <div class="settings-section template-settings-pane" data-pane-key="fonts">
             <h4><i class="fas fa-arrows-alt"></i> Text Position Settings</h4>
             <div class="form-row">
                 <div class="form-group">
@@ -372,7 +600,7 @@
             </div>
         </div>
 
-        <div class="settings-section">
+        <div class="settings-section template-settings-pane" data-pane-key="layout">
             <h4><i class="fas fa-image"></i> Photo Settings</h4>
             
             <div class="form-row">
@@ -453,7 +681,7 @@
             </div>
         </div>
 
-        <div class="settings-section">
+        <div class="settings-section template-settings-pane" data-pane-key="layout">
             <h4><i class="fas fa-qrcode"></i> QR Code Settings</h4>
             
             <div class="form-group">
@@ -612,7 +840,7 @@
             </div>
         </div>
 
-        <div class="settings-section">
+        <div class="settings-section template-settings-pane" data-pane-key="layout">
             <h4><i class="fas fa-barcode"></i> Barcode Settings</h4>
             <div class="form-group">
                 <div class="checkbox-container">
@@ -731,7 +959,7 @@
         <div class="settings-preview-sidebar">
             <div class="sticky-preview-container">
                 <div id="adminPreviewSideLabel" style="font-weight: 700; color: var(--primary-color); margin-bottom: 10px;">Front Preview</div>
-                <div id="adminPreviewSourceLabel" style="font-size: 0.85rem; color: #5b6472; margin-bottom: 10px;"></div>
+                <div id="adminPreviewSourceLabel" style="font-size: 0.72rem; color: #64748b; margin-bottom: 10px; cursor: help; font-weight: 500;" title=""></div>
                 <img id="adminPreviewImage" src="{{ url_for('static', filename='photo_placeholder.png') }}" alt="Template Preview" style="max-width: 100%; height: auto; border: 3px solid var(--primary-color); border-radius: var(--border-radius); box-shadow: var(--shadow);">
                 <div id="adminPreviewLoading" style="display: none; margin-top: 10px;"><span class="loading"></span> Generating preview...</div>
             </div>
@@ -777,7 +1005,7 @@
 </div>
 {% endif %}
 
-<div class="section full-width">
+<div class="section full-width template-settings-pane" data-pane-key="fonts">
     <h3><i class="fas fa-font"></i> Upload Font</h3>
     <form action="{{ url_for('upload_font') }}" method="post" enctype="multipart/form-data" id="fontForm" class="enhanced-form">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>

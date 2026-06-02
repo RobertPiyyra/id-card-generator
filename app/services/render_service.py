@@ -405,6 +405,168 @@ def draw_text_gradient(draw, position, text, font, top_color, bottom_color, enab
         draw.text(position, text, font=font, fill=top_color, **kwargs)
 
 
+def draw_text_with_spacing_pil(draw, position, text, font, fill, char_spacing=0, direction="ltr", target_image=None, enable_gradient=False, bottom_color=None, **kwargs):
+    if not text:
+        return
+    if not char_spacing:
+        draw_text_gradient(draw, position, text, font, fill, bottom_color, enable_gradient, lang=kwargs.get("lang", "english"), target_image=target_image, **kwargs)
+        return
+    
+    is_rtl = (direction == "rtl" or any(ord(c) >= 0x0600 and ord(c) <= 0x06ff for c in text))
+    if is_rtl:
+        # Draw LTR/Arabic as single unit to preserve shaping
+        draw_text_gradient(draw, position, text, font, fill, bottom_color, enable_gradient, lang=kwargs.get("lang", "english"), target_image=target_image, **kwargs)
+        return
+
+    x, y = position
+    for char in text:
+        draw_text_gradient(draw, (x, y), char, font, fill, bottom_color, enable_gradient, lang=kwargs.get("lang", "english"), target_image=target_image, **kwargs)
+        char_w = draw.textlength(char, font=font, **kwargs)
+        x += char_w + char_spacing
+
+
+def measure_text_width_with_spacing_local(text, font, char_spacing=0, draw=None, **kwargs):
+    if not text:
+        return 0.0
+    if not char_spacing:
+        if draw is not None and hasattr(draw, "textlength"):
+            return float(draw.textlength(text, font=font, **kwargs))
+        return float(font.getlength(text))
+    
+    total_w = 0.0
+    for char in text:
+        if draw is not None and hasattr(draw, "textlength"):
+            total_w += float(draw.textlength(char, font=font, **kwargs))
+        else:
+            total_w += float(font.getlength(char))
+    total_w += char_spacing * (len(text) - 1)
+    return total_w
+
+
+def flip_x_for_text_direction_local(x, text_w, image_width, text_direction, grow_mode=None):
+    direction = (text_direction or "ltr").strip().lower()
+    from utils import _normalize_grow_mode
+    mode = _normalize_grow_mode(grow_mode, direction)
+    try:
+        x_f = float(x)
+        img_w = float(image_width)
+        anchor = (img_w - x_f) if direction == "rtl" else x_f
+
+        if mode == "left":
+            return anchor
+        if mode == "center":
+            return anchor - (float(text_w) / 2.0)
+        return anchor - float(text_w)
+    except Exception:
+        return x
+
+
+def _normalize_wrap_text_pil(text):
+    if not text:
+        return ""
+    import re
+    text = str(text).replace("\r", " ").replace("\n", " ").replace("\t", " ")
+    text = re.sub(r"\s+", " ", text)
+    return text.strip()
+
+
+def wrap_text_by_width_pil(text, max_width_px, font, char_spacing, draw=None, lang='english'):
+    text = _normalize_wrap_text_pil(text)
+    if not text:
+        return [""]
+    if max_width_px <= 1:
+        return [text]
+
+    def measure_fn(s):
+        s_display = process_text_for_drawing(s, lang)
+        return measure_text_width_with_spacing_local(s_display, font, char_spacing, draw=draw, **get_draw_text_kwargs(s_display, lang))
+
+    words = text.split(" ")
+    lines = []
+    current = ""
+
+    def flush_current():
+        nonlocal current
+        if current:
+            lines.append(current)
+            current = ""
+
+    for word in words:
+        if not word:
+            continue
+        candidate = f"{current} {word}".strip() if current else word
+        if measure_fn(candidate) <= max_width_px:
+            current = candidate
+            continue
+
+        if current:
+            flush_current()
+
+        if measure_fn(word) <= max_width_px:
+            current = word
+            continue
+
+        # Hard-break a single overlong token.
+        chunk = ""
+        for ch in word:
+            test_chunk = chunk + ch
+            if chunk and measure_fn(test_chunk) > max_width_px:
+                lines.append(chunk)
+                chunk = ch
+            else:
+                chunk = test_chunk
+        if chunk:
+            current = chunk
+
+    flush_current()
+    return lines or [""]
+
+
+def fit_wrapped_text_pil(
+    text,
+    font_loader,
+    start_size_px,
+    min_size_px,
+    max_width_px,
+    max_lines,
+    char_spacing,
+    draw=None,
+    lang='english'
+):
+    text = _normalize_wrap_text_pil(text)
+    if not text:
+        return start_size_px, [""]
+
+    curr_size = start_size_px
+    best_size = min_size_px
+    best_lines = [text]
+
+    while curr_size >= min_size_px:
+        temp_font = font_loader(curr_size)
+        lines = wrap_text_by_width_pil(text, max_width_px, temp_font, char_spacing, draw=draw, lang=lang)
+
+        fits_width = all(measure_text_width_with_spacing_local(process_text_for_drawing(line, lang), temp_font, char_spacing, draw=draw, **get_draw_text_kwargs(process_text_for_drawing(line, lang), lang)) <= max_width_px for line in lines)
+        fits_height = len(lines) <= max_lines
+
+        if fits_width and fits_height:
+            best_size = curr_size
+            best_lines = lines
+            break
+
+        curr_size -= 1
+
+    if curr_size < min_size_px:
+        temp_font = font_loader(min_size_px)
+        best_lines = wrap_text_by_width_pil(text, max_width_px, temp_font, char_spacing, draw=draw, lang=lang)
+        best_size = min_size_px
+        # Limit lines to max_lines even at minimum size
+        if len(best_lines) > max_lines:
+            best_lines = best_lines[:max_lines]
+            best_lines[-1] = best_lines[-1].rstrip() + "..." if best_lines[-1].strip() else best_lines[-1]
+
+    return best_size, best_lines
+
+
 def _render_student_fields(template_img, template_obj, student_like, font_settings, photo_settings, side, lang, direction):
     template_id = template_obj.id
     card_width = template_img.width
@@ -499,22 +661,37 @@ def _render_student_fields(template_img, template_obj, student_like, font_settin
         if advances_flow:
             current_y = max(int(current_y), int(label_y_eff), int(value_y_eff))
 
+        label_char_spacing = layout_item.get("label_char_spacing", 0)
+        label_line_height = layout_item.get("label_line_height") or line_height
+        
+        # Apply Auto-Fit to Label if enabled
+        if layout_item.get("label_auto_fit") and layout_item.get("label_max_width"):
+            max_w_lbl = float(layout_item["label_max_width"])
+            while label_font_size_eff > 6:
+                temp_lbl_font = load_font_dynamic(font_bold_path, label_text_final, 10**9, label_font_size_eff, language=lang)
+                w = measure_text_width_with_spacing_local(label_text_final, temp_lbl_font, label_char_spacing, draw=draw, **get_draw_text_kwargs(label_text_final, lang))
+                if w <= max_w_lbl:
+                    break
+                label_font_size_eff -= 1
+
         label_font = load_font_dynamic(font_bold_path, label_text_final, 10**9, label_font_size_eff, language=lang)
         colon_font = load_font_dynamic(font_bold_path, colon_text_final or ':', 10**9, colon_font_size_eff, language=lang)
         if layout_item['label_visible']:
-            label_draw_x = flip_x_for_text_direction(
-                label_x_eff, label_text_final, label_font, card_width, direction, draw=draw, grow_mode=layout_item['label_grow']
+            lbl_w = measure_text_width_with_spacing_local(label_text_final, label_font, label_char_spacing, draw=draw, **get_draw_text_kwargs(label_text_final, lang))
+            label_draw_x = flip_x_for_text_direction_local(
+                label_x_eff, lbl_w, card_width, direction, grow_mode=layout_item['label_grow']
             )
-            draw_text_gradient(
+            draw_text_with_spacing_pil(
                 draw,
                 (label_draw_x, label_y_eff),
                 label_text_final,
                 font=label_font,
-                top_color=label_fill,
-                bottom_color=label_fill_bottom,
-                enable_gradient=enable_label_gradient,
-                lang=lang,
+                fill=label_fill,
+                char_spacing=label_char_spacing,
+                direction=direction,
                 target_image=template_img,
+                enable_gradient=enable_label_gradient,
+                bottom_color=label_fill_bottom,
                 **get_draw_text_kwargs(label_text_final, lang)
             )
             draw_aligned_colon_pil(
@@ -551,77 +728,86 @@ def _render_student_fields(template_img, template_obj, student_like, font_settin
             min_width=20,
         ))
 
+        value_char_spacing = layout_item.get("value_char_spacing", 0)
+        value_line_height = layout_item.get("value_line_height") or line_height
+
         if field_key == 'ADDRESS':
-            curr_size = value_font_size_eff
-            min_size = 10
-            wrapped_addr = []
-            while curr_size >= min_size:
-                addr_font = load_font_dynamic(font_reg_path, 'X', 10**9, curr_size, language=lang)
-                avg_char_w = curr_size * 0.50
-                chars_limit = max(5, int(max_w / max(avg_char_w, 1)))
-                wrapped_addr = textwrap.wrap(raw_val, width=chars_limit, break_long_words=True)
-                fits_horizontally = len(wrapped_addr) <= address_max_lines
-                if fits_horizontally:
-                    for line in wrapped_addr:
-                        measure_text = process_text_for_drawing(line, lang)
-                        if draw.textlength(measure_text, font=addr_font, **get_draw_text_kwargs(measure_text, lang)) > max_w:
-                            fits_horizontally = False
-                            break
-                if fits_horizontally:
-                    break
-                curr_size -= 2
-            if curr_size < min_size:
-                addr_font = load_font_dynamic(font_reg_path, 'X', 10**9, min_size, language=lang)
+            # Pixel-accurate address wrap: use fit_wrapped_text_pil which measures
+            # real pixel widths rather than estimating chars-per-line from font size.
+            def _addr_font_loader(size):
+                return load_font_dynamic(font_reg_path, 'X', 10**9, size, language=lang)
+
+            curr_size, wrapped_addr = fit_wrapped_text_pil(
+                raw_val,
+                font_loader=_addr_font_loader,
+                start_size_px=value_font_size_eff,
+                min_size_px=10,
+                max_width_px=max_w,
+                max_lines=address_max_lines,
+                char_spacing=value_char_spacing,
+                draw=draw,
+                lang=lang,
+            )
+            addr_font = _addr_font_loader(curr_size)
+
             for line in wrapped_addr[:address_max_lines]:
                 line_display = process_text_for_drawing(line, lang)
                 if layout_item['value_visible']:
-                    value_draw_x = flip_x_for_text_direction(
-                        value_x_eff, line_display, addr_font, card_width, direction, draw=draw, grow_mode=layout_item['value_grow']
+                    line_w = measure_text_width_with_spacing_local(line_display, addr_font, value_char_spacing, draw=draw, **get_draw_text_kwargs(line_display, lang))
+                    value_draw_x = flip_x_for_text_direction_local(
+                        value_x_eff, line_w, card_width, direction, grow_mode=layout_item['value_grow']
                     )
-                    draw_text_gradient(
+                    draw_text_with_spacing_pil(
                         draw,
                         (value_draw_x, value_y_eff),
                         line_display,
                         font=addr_font,
-                        top_color=value_fill,
-                        bottom_color=value_fill_bottom,
-                        enable_gradient=enable_value_gradient,
-                        lang=lang,
+                        fill=value_fill,
+                        char_spacing=value_char_spacing,
+                        direction=direction,
                         target_image=template_img,
+                        enable_gradient=enable_value_gradient,
+                        bottom_color=value_fill_bottom,
                         **get_draw_text_kwargs(line_display, lang)
                     )
-                spacing = line_height if curr_size > 20 else curr_size + 5
+                spacing = value_line_height if curr_size > 20 else curr_size + 5
                 value_y_eff += spacing
                 if advances_flow:
                     current_y += spacing
             continue
 
-        value_font, _ = fit_dynamic_font_to_single_line(
-            draw,
-            font_reg_path,
-            display_val,
-            max_w,
-            value_font_size_eff,
-            language=lang,
-        )
+        # Standard field value drawing
+        # Apply Auto-Fit if enabled
+        if layout_item.get("value_auto_fit") and layout_item.get("value_max_width"):
+            max_w_val = float(layout_item["value_max_width"])
+            while value_font_size_eff > 6:
+                temp_val_font = load_font_dynamic(font_reg_path, display_val, 10**9, value_font_size_eff, language=lang)
+                w = measure_text_width_with_spacing_local(display_val, temp_val_font, value_char_spacing, draw=draw, **get_draw_text_kwargs(display_val, lang))
+                if w <= max_w_val:
+                    break
+                value_font_size_eff -= 1
+
+        value_font = load_font_dynamic(font_reg_path, display_val, 10**9, value_font_size_eff, language=lang)
         if layout_item['value_visible']:
-            value_draw_x = flip_x_for_text_direction(
-                value_x_eff, display_val, value_font, card_width, direction, draw=draw, grow_mode=layout_item['value_grow']
+            val_w = measure_text_width_with_spacing_local(display_val, value_font, value_char_spacing, draw=draw, **get_draw_text_kwargs(display_val, lang))
+            value_draw_x = flip_x_for_text_direction_local(
+                value_x_eff, val_w, card_width, direction, grow_mode=layout_item['value_grow']
             )
-            draw_text_gradient(
+            draw_text_with_spacing_pil(
                 draw,
                 (value_draw_x, value_y_eff),
                 display_val,
                 font=value_font,
-                top_color=value_fill,
-                bottom_color=value_fill_bottom,
-                enable_gradient=enable_value_gradient,
-                lang=lang,
+                fill=value_fill,
+                char_spacing=value_char_spacing,
+                direction=direction,
                 target_image=template_img,
+                enable_gradient=enable_value_gradient,
+                bottom_color=value_fill_bottom,
                 **get_draw_text_kwargs(display_val, lang)
             )
         if advances_flow:
-            current_y += line_height
+            current_y += value_line_height
 
 
 def render_student_card_side_background(
@@ -835,6 +1021,15 @@ def build_student_card_text_runs(template_obj, student_like, side="front"):
         value_fill_default = (0, 0, 0)
         colon_fill_default = label_fill_default
 
+    enable_label_gradient = bool(font_settings.get('enable_label_gradient', False))
+    label_fill_bottom = tuple(font_settings.get('label_font_color_bottom', [51, 51, 51]))
+    
+    enable_value_gradient = bool(font_settings.get('enable_value_gradient', False))
+    value_fill_bottom = tuple(font_settings.get('value_font_color_bottom', [51, 51, 51]))
+    
+    enable_colon_gradient = bool(font_settings.get('enable_colon_gradient', False))
+    colon_fill_bottom = tuple(font_settings.get('colon_font_color_bottom', [51, 51, 51]))
+
     lang, direction = get_template_language_direction_from_obj(template_obj, side=side)
     font_bold_path = os.path.join(FONTS_FOLDER, font_settings["font_bold"])
     font_reg_path = os.path.join(FONTS_FOLDER, font_settings["font_regular"])
@@ -955,6 +1150,8 @@ def build_student_card_text_runs(template_obj, student_like, side="front"):
                 "color": tuple(label_fill),
                 "language": lang,
                 "direction": direction,
+                "enable_gradient": enable_label_gradient,
+                "gradient_color_bottom": label_fill_bottom,
             })
             if colon_text_final:
                 if colon_x_eff is None:
@@ -975,6 +1172,8 @@ def build_student_card_text_runs(template_obj, student_like, side="front"):
                     "color": tuple(colon_fill),
                     "language": lang,
                     "direction": direction,
+                    "enable_gradient": enable_colon_gradient,
+                    "gradient_color_bottom": colon_fill_bottom,
                 })
 
         max_w = int(get_anchor_max_text_width(
@@ -1030,6 +1229,8 @@ def build_student_card_text_runs(template_obj, student_like, side="front"):
                         "color": tuple(value_fill),
                         "language": lang,
                         "direction": direction,
+                        "enable_gradient": enable_value_gradient,
+                        "gradient_color_bottom": value_fill_bottom,
                     })
                 spacing = line_height if curr_size > 20 else curr_size + 5
                 value_y_eff += spacing
@@ -1059,6 +1260,8 @@ def build_student_card_text_runs(template_obj, student_like, side="front"):
                 "color": tuple(value_fill),
                 "language": lang,
                 "direction": direction,
+                "enable_gradient": enable_value_gradient,
+                "gradient_color_bottom": value_fill_bottom,
             })
         if advances_flow:
             current_y += line_height

@@ -17,6 +17,25 @@ from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.colors import Color
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
+import reportlab.pdfbase.pdfdoc as reportlab_pdfdoc
+
+# Monkeypatch PDFPage check_format and Canvas _setShadingUsed to support /Pattern dictionaries
+orig_check_format = reportlab_pdfdoc.PDFPage.check_format
+
+def _my_check_format(self, document):
+    orig_check_format(self, document)
+    if hasattr(self, "_patternsUsed") and self._patternsUsed:
+        for name, ref in self._patternsUsed.items():
+            self.Resources.Pattern[name] = ref
+
+reportlab_pdfdoc.PDFPage.check_format = _my_check_format
+
+orig_setShadingUsed = canvas.Canvas._setShadingUsed
+def _my_setShadingUsed(self, page):
+    orig_setShadingUsed(self, page)
+    page._patternsUsed = getattr(self, "_patternsUsed", {})
+canvas.Canvas._setShadingUsed = _my_setShadingUsed
+
 from reportlab.lib.utils import ImageReader
 from reportlab.graphics import renderPDF
 from reportlab.graphics.barcode import createBarcodeDrawing, qr as rl_qr
@@ -52,7 +71,7 @@ from utils import (
     split_label_and_colon, colon_anchor_for_value,
     load_font_dynamic, get_field_layout_item, PIL_RAQM_AVAILABLE, _font_covers_text,
     get_cloudinary_face_crop_url, round_photo, parse_layout_config, get_anchor_max_text_width,
-    get_layout_flow_start_y,
+    get_layout_flow_start_y, get_localized_standard_labels,
 )
 from utils import load_template_smart
 corel_bp = Blueprint('corel', __name__)
@@ -95,6 +114,18 @@ def _corel_safe_pdf_bytes(doc, *, garbage=4, clean=False):
         pretty=False,
         use_objstms=0,
     )
+
+
+def _is_valid_pdf_bytes(pdf_bytes: bytes) -> bool:
+    if not pdf_bytes:
+        return False
+    try:
+        doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+        valid = len(doc) > 0
+        doc.close()
+        return valid
+    except Exception:
+        return False
 
 
 def _strip_marked_content_operators(content_bytes: bytes, *, ext_gstate_names: list[bytes] | None = None) -> bytes:
@@ -390,16 +421,30 @@ def _make_corel_friendly(pdf_bytes: bytes, mode: str = "editable") -> bytes:
 
     if mode == "editable":
         try:
+            previous = current
             current = _aggressive_corel_flatten(current, mode=mode)
-            logger.info("Corel clean step=aggressive_flatten size=%s", len(current))
+            if not _is_valid_pdf_bytes(current):
+                logger.warning("Corel clean aggressive_flatten produced invalid PDF; reverting to previous state")
+                current = previous
+            else:
+                logger.info("Corel clean step=aggressive_flatten size=%s", len(current))
         except Exception as exc:
             logger.warning("Corel clean aggressive_flatten failed: %s", exc)
 
         try:
+            previous = current
             current = _normalize_pdf_for_corel(current)
-            logger.info("Corel clean step=final_normalize size=%s", len(current))
+            if not _is_valid_pdf_bytes(current):
+                logger.warning("Corel clean final_normalize produced invalid PDF; reverting to previous state")
+                current = previous
+            else:
+                logger.info("Corel clean step=final_normalize size=%s", len(current))
         except Exception as exc:
             logger.warning("Corel clean final_normalize failed: %s", exc)
+
+    if not _is_valid_pdf_bytes(current):
+        logger.warning("Corel clean final bytes invalid; returning original unclean PDF bytes")
+        return bytes(pdf_bytes or b"")
 
     logger.info("Corel clean end mode=%s size=%s", mode, len(current))
     return current
@@ -622,19 +667,30 @@ def _draw_raster_text_run_on_canvas(
     font_path = run.get("font_path") or ""
     color = tuple(int(max(0, min(255, value))) for value in (run.get("color") or (0, 0, 0)))
 
+    enable_gradient = bool(run.get("enable_gradient", False))
+    gradient_color_bottom = tuple(int(max(0, min(255, value))) for value in (run.get("gradient_color_bottom") or (51, 51, 51)))
+
     pil_font = _get_pil_font(font_path, font_size_px, language)
     bbox, _w, _h, _baseline_y_px, _width_px = _measure_raster_text_metrics(text, pil_font, language)
     pad_x = max(1, int(math.ceil(max(1, getattr(pil_font, "size", 0)) * 0.08)))
     pad_y = max(1, int(math.ceil(max(1, getattr(pil_font, "size", 0)) * 0.14)))
     anchor_offset_x = pad_x - bbox[0]
     anchor_offset_y = pad_y - bbox[1]
-    img, _baseline_y_px, _width_px = _build_text_image(text, pil_font, (*color, 255), language)
+    
+    img, _baseline_y_px, _width_px = _build_text_image(
+        text,
+        pil_font,
+        (*color, 255),
+        language,
+        enable_gradient=enable_gradient,
+        gradient_color_bottom=gradient_color_bottom
+    )
 
     x_pt = float(card_x) + ((float(run.get("x", 0)) - float(anchor_offset_x)) * scale)
     y_top_px = float(run.get("y", 0)) - float(anchor_offset_y)
     y_pt = float(card_bottom_y) + (float(card_h_pt) - ((y_top_px + img.size[1]) * scale))
     c.drawImage(
-        ImageReader(img),
+        _pil_image_reader(img, preserve_alpha=True),
         x_pt,
         y_pt,
         width=img.size[0] * scale,
@@ -656,6 +712,63 @@ def _draw_text_runs_on_canvas(
     for run in runs or []:
         text = str(run.get("text") or "")
         if not text:
+            continue
+        enable_gradient = bool(run.get("enable_gradient", False))
+        if enable_gradient:
+            font_name = _safe_canvas_font_name(
+                run.get("font_path"),
+                run.get("language") or "english",
+                "bold" if run.get("part") in {"label", "colon"} else "regular",
+            )
+            font_size_pt = max(1.0, float(run.get("font_size") or 1) * float(scale))
+            color_top_rgb = tuple(int(max(0, min(255, v))) for v in (run.get("color") or (0, 0, 0)))
+            color_bot_rgb = tuple(int(max(0, min(255, v))) for v in (run.get("gradient_color_bottom") or (51, 51, 51)))
+
+            try:
+                x_pt = float(card_x) + (float(run.get("x", 0)) * scale)
+                y_pt = float(card_bottom_y) + (float(card_h_pt) - (_run_baseline_px(run) * scale))
+
+                r0, g0, b0 = color_top_rgb[0]/255.0, color_top_rgb[1]/255.0, color_top_rgb[2]/255.0
+                r1, g1, b1 = color_bot_rgb[0]/255.0, color_bot_rgb[1]/255.0, color_bot_rgb[2]/255.0
+
+                # Top-to-Bottom coordinates
+                grad_x0 = x_pt
+                grad_y0 = y_pt + font_size_pt
+                grad_x1 = x_pt
+                grad_y1 = y_pt
+
+                # 1. Draw the vector gradient using high-level text clipping
+                c.saveState()
+                t = c.beginText(x_pt, y_pt)
+                t.setFont(font_name, font_size_pt)
+                t.setTextRenderMode(7)  # 7 = Add text to path for clipping
+                t.textOut(text)
+                c.drawText(t)       # Text becomes clipping path
+
+                if hasattr(c, 'linearGradient'):
+                    c.linearGradient(
+                        grad_x0, grad_y0, grad_x1, grad_y1,
+                        (Color(r0, g0, b0), Color(r1, g1, b1))
+                    )
+                c.restoreState()
+
+                continue
+            except Exception as exc:
+                logger.warning("High-level gradient setup failed: %s", exc)
+
+            # Gradient fallback
+            try:
+                c.setFillColor(Color(
+                    color_top_rgb[0]/255.0,
+                    color_top_rgb[1]/255.0,
+                    color_top_rgb[2]/255.0,
+                ))
+                c.setFont(font_name, font_size_pt)
+                x_f = float(card_x) + (float(run.get("x", 0)) * scale)
+                y_f = float(card_bottom_y) + (float(card_h_pt) - (_run_baseline_px(run) * scale))
+                c.drawString(x_f, y_f, text)
+            except Exception as fe:
+                logger.warning("Flat-color gradient fallback failed: %s", fe)
             continue
 
         font_name = _safe_canvas_font_name(
@@ -1612,7 +1725,7 @@ def _field_wrap_policy(field_key: str | None, address_max_lines: int | None = No
     policy.update(per_field.get(key, {}))
     if key == "ADDRESS" and address_max_lines is not None:
         try:
-            policy["max_lines"] = max(1, min(3, int(address_max_lines)))
+            policy["max_lines"] = max(1, int(address_max_lines))
         except Exception:
             pass
     return policy
@@ -1992,7 +2105,16 @@ def _measure_raster_text_metrics(
     return measured
 
 
-def _build_text_image(text: str, pil_font: ImageFont.ImageFont, fill_rgba: tuple[int, int, int, int], language: str) -> tuple[Image.Image, float, float]:
+def _build_text_image(
+    text: str,
+    pil_font: ImageFont.ImageFont,
+    fill_rgba: tuple[int, int, int, int],
+    language: str,
+    enable_gradient: bool = False,
+    gradient_color_bottom: tuple[int, int, int] = (51, 51, 51),
+    char_spacing: int = 0,
+    direction: str = "ltr"
+) -> tuple[Image.Image, float, float]:
     """
     Render text into a transparent RGBA image.
 
@@ -2008,6 +2130,21 @@ def _build_text_image(text: str, pil_font: ImageFont.ImageFont, fill_rgba: tuple
     text = "" if text is None else str(text)
     draw_kwargs = get_draw_text_kwargs(text, language)
     bbox, w, h, baseline_y_px, width_px = _measure_raster_text_metrics(text, pil_font, language)
+    
+    char_spacing_px = 0.0
+    if char_spacing and direction != "rtl" and language not in ("urdu", "arabic") and not any(ord(c) >= 0x0600 and ord(c) <= 0x06FF for c in text):
+        font_size = float(getattr(pil_font, "size", 24) or 24)
+        char_spacing_px = font_size * (char_spacing / 1000.0)
+        # Recompute width_px to include spacing
+        spaced_width = 0.0
+        dummy = Image.new("RGBA", (1, 1), (0, 0, 0, 0))
+        dummy_draw = ImageDraw.Draw(dummy)
+        for char in text:
+            spaced_width += float(dummy_draw.textlength(char, font=pil_font, **draw_kwargs))
+        spaced_width += char_spacing_px * (len(text) - 1)
+        width_px = spaced_width
+        w = int(math.ceil(width_px))
+
     pad_x = max(1, int(math.ceil(max(1, getattr(pil_font, "size", 0)) * 0.08)))
     pad_y = max(1, int(math.ceil(max(1, getattr(pil_font, "size", 0)) * 0.14)))
     img_w = max(1, w + (pad_x * 2))
@@ -2017,7 +2154,45 @@ def _build_text_image(text: str, pil_font: ImageFont.ImageFont, fill_rgba: tuple
     # Render
     img = Image.new("RGBA", (img_w, img_h), (0, 0, 0, 0))
     dr = ImageDraw.Draw(img)
-    dr.text((pad_x - bbox[0], pad_y - bbox[1]), text, font=pil_font, fill=fill_rgba, **draw_kwargs)
+    
+    if char_spacing_px > 0:
+        cursor_x = pad_x - bbox[0]
+        for char in text:
+            if enable_gradient:
+                from app.services.render_service import draw_text_gradient
+                draw_text_gradient(
+                    dr,
+                    (cursor_x, pad_y - bbox[1]),
+                    char,
+                    font=pil_font,
+                    top_color=fill_rgba[:3],
+                    bottom_color=gradient_color_bottom,
+                    enable_gradient=True,
+                    lang=language,
+                    target_image=img,
+                    **draw_kwargs
+                )
+            else:
+                dr.text((cursor_x, pad_y - bbox[1]), char, font=pil_font, fill=fill_rgba, **draw_kwargs)
+            cursor_x += dr.textlength(char, font=pil_font, **draw_kwargs) + char_spacing_px
+    else:
+        if enable_gradient:
+            from app.services.render_service import draw_text_gradient
+            draw_text_gradient(
+                dr,
+                (pad_x - bbox[0], pad_y - bbox[1]),
+                text,
+                font=pil_font,
+                top_color=fill_rgba[:3],
+                bottom_color=gradient_color_bottom,
+                enable_gradient=True,
+                lang=language,
+                target_image=img,
+                **draw_kwargs
+            )
+        else:
+            dr.text((pad_x - bbox[0], pad_y - bbox[1]), text, font=pil_font, fill=fill_rgba, **draw_kwargs)
+            
     return img, baseline_y_px, float(max(width_px + (pad_x * 2), img_w))
 
 def draw_custom_rounded_rect(c, x, y, w, h, radii):
@@ -2341,6 +2516,10 @@ def _fit_wrapped_text(
     best_measure = measure_builder(best_size)
     best_lines = _wrap_text_by_width(text, max_width_pt, best_measure)
     best_allowed_lines = _effective_max_lines(best_size)
+    # Enforce max_lines limit even when binary search succeeds
+    if len(best_lines) > best_allowed_lines:
+        best_lines = best_lines[:best_allowed_lines]
+        best_lines[-1] = _ellipsize_to_width(best_lines[-1], max_width_pt, best_measure)
     if len(best_lines) <= best_allowed_lines and all(best_measure(line) <= max_width_pt for line in best_lines):
         return best_size, best_lines
 
@@ -2641,12 +2820,14 @@ def _generate_direct_editable_pdf_template_export(
             direction: str,
             align: str,
             prefer_native_text: bool = False,
+            enable_gradient: bool = False,
+            gradient_color_bottom: tuple[int, int, int] = (51, 51, 51),
         ):
             if not text or rect.width < 1 or rect.height < 1:
                 return
             font_basename = os.path.basename(font_file or "") if font_file else ""
 
-            if prefer_native_text and font_file and os.path.exists(font_file):
+            if prefer_native_text and not enable_gradient and font_file and os.path.exists(font_file):
                 try:
                     native_font_name = f"fitz_native_{abs(hash(font_basename or font_file))}"
                     align_mode = str(align or "left").strip().lower()
@@ -2681,7 +2862,14 @@ def _generate_direct_editable_pdf_template_export(
                     int(color_rgb[2]),
                     255,
                 )
-                img, _baseline_y_px, _width_px = _build_text_image(text, pil_font, fill, language_hint)
+                img, _baseline_y_px, _width_px = _build_text_image(
+                    text,
+                    pil_font,
+                    fill,
+                    language_hint,
+                    enable_gradient=enable_gradient,
+                    gradient_color_bottom=gradient_color_bottom,
+                )
                 scale_ratio = min(float(rect.width) / max(1, img.width), float(rect.height) / max(1, img.height))
                 scale_ratio = max(0.01, min(1.0, scale_ratio))
                 draw_w = max(1.0, img.width * scale_ratio)
@@ -3006,6 +3194,13 @@ def _generate_direct_editable_pdf_template_export(
             config_address_max_lines = int(font_settings.get("address_max_lines", 2) or 2)
             label_colon_gap = int(font_settings.get("label_colon_gap", 8) or 8)
 
+            enable_label_gradient = bool(font_settings.get("enable_label_gradient", False))
+            label_fill_bottom = tuple(font_settings.get("label_font_color_bottom", [51, 51, 51]))
+            enable_value_gradient = bool(font_settings.get("enable_value_gradient", False))
+            value_fill_bottom = tuple(font_settings.get("value_font_color_bottom", [51, 51, 51]))
+            enable_colon_gradient = bool(font_settings.get("enable_colon_gradient", False))
+            colon_fill_bottom = tuple(font_settings.get("colon_font_color_bottom", [51, 51, 51]))
+
             try:
                 px_px = photo_settings.get("photo_x", 0)
                 py_px = photo_settings.get("photo_y", 0)
@@ -3260,7 +3455,7 @@ def _generate_direct_editable_pdf_template_export(
                     )
                     baseline_y_pt = (label_y_eff * y_scale) + lbl_size_pt_eff
                     if label_text:
-                        if lang == "hindi":
+                        if lang == "hindi" or (enable_label_gradient and mode != "editable"):
                             label_rect = _text_rect(
                                 card_x,
                                 card_w_pt,
@@ -3281,7 +3476,9 @@ def _generate_direct_editable_pdf_template_export(
                                 color_rgb=label_rgb,
                                 direction=direction,
                                 align="center" if label_grow == "center" else ("right" if direction == "rtl" else "left"),
-                                prefer_native_text=True,
+                                prefer_native_text=not enable_label_gradient,
+                                enable_gradient=enable_label_gradient,
+                                gradient_color_bottom=label_fill_bottom,
                             )
                         else:
                             label_x = _x_for_direction(
@@ -3306,7 +3503,7 @@ def _generate_direct_editable_pdf_template_export(
                             )
                     if colon_text:
                         colon_anchor_px, colon_grow = colon_anchor_for_value(value_x_eff, direction, gap_px=label_colon_gap)
-                        if lang == "hindi":
+                        if lang == "hindi" or (enable_colon_gradient and mode != "editable"):
                             colon_rect = _text_rect(
                                 card_x,
                                 card_w_pt,
@@ -3327,7 +3524,9 @@ def _generate_direct_editable_pdf_template_export(
                                 color_rgb=colon_rgb,
                                 direction=direction,
                                 align="center" if colon_grow == "center" else ("right" if direction == "rtl" else "left"),
-                                prefer_native_text=True,
+                                prefer_native_text=not enable_colon_gradient,
+                                enable_gradient=enable_colon_gradient,
+                                gradient_color_bottom=colon_fill_bottom,
                             )
                         else:
                             colon_x = _x_for_direction(
@@ -3396,54 +3595,56 @@ def _generate_direct_editable_pdf_template_export(
                 )
                 line_spacing = curr_font_size * line_height_factor
 
-                for i, line in enumerate(lines):
+                for i, line in enumerate(lines[:field_max_lines]):
                     if not value_visible:
                         continue
                     baseline_y_pt = (value_y_eff * y_scale) + curr_font_size + (i * line_spacing)
-                    if lang == "hindi":
-                        line_rect = _text_rect(
-                            card_x,
-                            card_w_pt,
-                            slot_top,
-                            value_x_eff,
-                            value_y_eff + ((i * line_spacing) / max(y_scale, 0.001)),
-                            max_width_pt,
-                            curr_font_size * line_height_factor * 1.25,
-                            direction,
-                            grow_mode=value_grow,
-                        )
-                        _insert_complex_text_box(
-                            page,
-                            line_rect,
-                            line,
-                            font_file=reg_font_path or bold_font_path,
-                            font_size_pt=curr_font_size,
-                            color_rgb=value_rgb,
-                            direction=direction,
-                            align="center" if value_grow == "center" else ("right" if direction == "rtl" else "left"),
-                            prefer_native_text=True,
-                        )
+                    if lang == "hindi" or (enable_value_gradient and mode != "editable"):
+                         line_rect = _text_rect(
+                             card_x,
+                             card_w_pt,
+                             slot_top,
+                             value_x_eff,
+                             value_y_eff + ((i * line_spacing) / max(y_scale, 0.001)),
+                             max_width_pt,
+                             curr_font_size * line_height_factor * 1.25,
+                             direction,
+                             grow_mode=value_grow,
+                         )
+                         _insert_complex_text_box(
+                             page,
+                             line_rect,
+                             line,
+                             font_file=reg_font_path or bold_font_path,
+                             font_size_pt=curr_font_size,
+                             color_rgb=value_rgb,
+                             direction=direction,
+                             align="center" if value_grow == "center" else ("right" if direction == "rtl" else "left"),
+                             prefer_native_text=not enable_value_gradient,
+                             enable_gradient=enable_value_gradient,
+                             gradient_color_bottom=value_fill_bottom,
+                         )
                     else:
-                        vx = _x_for_direction(
-                            float(card_x),
-                            float(card_w_pt),
-                            value_x_eff,
-                            line,
-                            measure_reg_font_name,
-                            curr_font_size,
-                            x_scale,
-                            direction,
-                            grow_mode=value_grow,
-                        )
-                        page.insert_text(
-                            fitz.Point(vx, slot_top + baseline_y_pt),
-                            line,
-                            fontsize=curr_font_size,
-                            fontname=page_reg_font,
-                            fontfile=None if safe_editable_builtin_text else reg_font_path,
-                            color=_fitz_rgb(value_rgb),
-                            overlay=True,
-                        )
+                         vx = _x_for_direction(
+                             float(card_x),
+                             float(card_w_pt),
+                             value_x_eff,
+                             line,
+                             measure_reg_font_name,
+                             curr_font_size,
+                             x_scale,
+                             direction,
+                             grow_mode=value_grow,
+                         )
+                         page.insert_text(
+                             fitz.Point(vx, slot_top + baseline_y_pt),
+                             line,
+                             fontsize=curr_font_size,
+                             fontname=page_reg_font,
+                             fontfile=None if safe_editable_builtin_text else reg_font_path,
+                             color=_fitz_rgb(value_rgb),
+                             overlay=True,
+                         )
 
                 if advances_flow and len(lines) > 1:
                     extra_h_px = ((len(lines) - 1) * line_spacing) / max(y_scale, 0.001)
@@ -3734,6 +3935,19 @@ def download_compiled_vector_pdf(template_id):
         template = db.session.get(Template, template_id)
         if not template:
             return "No data found", 404
+        try:
+            from app.services.premium_service import run_design_qa
+            qa_settings = (getattr(template, "qa_settings", None) or {})
+            if bool(qa_settings.get("enforce_before_pdf_export")):
+                qa_result = run_design_qa(template)
+                if not bool(qa_result.get("ok")):
+                    return jsonify({
+                        "success": False,
+                        "message": "Design QA failed. Resolve issues before PDF export.",
+                        "qa": qa_result
+                    }), 400
+        except Exception as qa_exc:
+            logger.warning("PDF export QA gate skipped due to error: %s", qa_exc)
 
         # 2. Settings
         font_settings, photo_settings, qr_settings, orientation = get_template_settings(template_id, side="front")
@@ -3876,6 +4090,16 @@ def download_compiled_vector_pdf(template_id):
         direction = (getattr(template, "text_direction", "ltr") or "ltr").strip().lower()
         back_lang = _normalize_language(getattr(template, "back_language", None) or getattr(template, "language", "english"))
         back_direction = (getattr(template, "back_text_direction", None) or getattr(template, "text_direction", "ltr") or "ltr").strip().lower()
+        lock_rules = getattr(template, "language_lock_rules", None) or {}
+        if isinstance(lock_rules, dict):
+            locked_front = _normalize_language(lock_rules.get("front") or "")
+            locked_back = _normalize_language(lock_rules.get("back") or "")
+            if locked_front:
+                lang = locked_front
+                direction = "rtl" if locked_front in {"urdu", "arabic"} else "ltr"
+            if locked_back:
+                back_lang = locked_back
+                back_direction = "rtl" if locked_back in {"urdu", "arabic"} else "ltr"
         use_harfbuzz_overlay = False
         font_reg_file = (font_settings.get("font_regular") or "").strip()
         font_bold_file = (font_settings.get("font_bold") or "").strip()
@@ -4155,14 +4379,9 @@ def download_compiled_vector_pdf(template_id):
         lbl_size_pt = font_settings.get('label_font_size', 40) * scale
         val_size_pt = font_settings.get('value_font_size', 36) * scale
 
-        std_labels = {
-            'english': {'NAME': 'NAME', 'F_NAME': 'F.NAME', 'CLASS': 'CLASS', 'DOB': 'D.O.B.', 'MOBILE': 'MOBILE', 'ADDRESS': 'ADDRESS'},
-            'urdu':    {'NAME': 'نام', 'F_NAME': 'ولدیت', 'CLASS': 'جماعت', 'DOB': 'تاریخ پیدائش', 'MOBILE': 'موبائل', 'ADDRESS': 'پتہ'},
-            'hindi':   {'NAME': 'नाम', 'F_NAME': 'पिता का नाम', 'CLASS': 'कक्षा', 'DOB': 'जन्म तिथि', 'MOBILE': 'मोबाइल', 'ADDRESS': 'पता'},
-            'arabic':  {'NAME': 'الاسم', 'F_NAME': 'اسم الأب', 'CLASS': 'الصف', 'DOB': 'تاريخ الميلاد', 'MOBILE': 'رقم الهاتف', 'ADDRESS': 'العنوان'}
-        }
-        labels_map = std_labels.get(lang, std_labels['english'])
-        back_labels_map = std_labels.get(back_lang, std_labels['english'])
+        localization_pack = getattr(template, "localization_pack", None) or {}
+        labels_map = get_localized_standard_labels(lang, localization_pack)
+        back_labels_map = get_localized_standard_labels(back_lang, localization_pack)
 
         # For editable PDF-template exports, build complete card pages first, then impose
         # those finished pages onto the template's configured sheet layout. This keeps
@@ -4706,7 +4925,7 @@ def download_compiled_vector_pdf(template_id):
                                 grow_mode=label_grow,
                             )
                             c.drawImage(
-                                ImageReader(img),
+                                _pil_image_reader(img, preserve_alpha=True),
                                 label_x,
                                 label_pdf_y - (baseline_y_px * text_raster_scale),
                                 width=img.size[0] * text_raster_scale,
@@ -4728,7 +4947,7 @@ def download_compiled_vector_pdf(template_id):
                                 grow_mode=colon_grow,
                             )
                             c.drawImage(
-                                ImageReader(colon_img),
+                                _pil_image_reader(colon_img, preserve_alpha=True),
                                 colon_x,
                                 label_pdf_y - (colon_baseline_y_px * text_raster_scale),
                                 width=colon_img.size[0] * text_raster_scale,
@@ -4963,7 +5182,7 @@ def download_compiled_vector_pdf(template_id):
                                 grow_mode=value_grow,
                             )
                             c.drawImage(
-                                ImageReader(img),
+                                _pil_image_reader(img, preserve_alpha=True),
                                 vx,
                                 draw_y - (baseline_y_px * text_raster_scale),
                                 width=img.size[0] * text_raster_scale,
@@ -5016,7 +5235,7 @@ def download_compiled_vector_pdf(template_id):
                     line_spacing = curr_font_size * line_height_factor
                     value_base_y = _baseline_y(value_y_eff, curr_font_size)
 
-                    for i, line in enumerate(lines):
+                    for i, line in enumerate(lines[:standard_max_lines]):
                         draw_y = value_base_y - (i * line_spacing)
                         if not value_visible:
                             continue
@@ -5040,7 +5259,7 @@ def download_compiled_vector_pdf(template_id):
                                 grow_mode=value_grow,
                             )
                             c.drawImage(
-                                ImageReader(img),
+                                _pil_image_reader(img, preserve_alpha=True),
                                 vx,
                                 draw_y - (baseline_y_px * text_raster_scale),
                                 width=img.size[0] * text_raster_scale,
@@ -5235,7 +5454,12 @@ def download_compiled_vector_pdf(template_id):
                     buffer.seek(0)
 
         if mode == "editable":
-            buffer = io.BytesIO(_make_corel_friendly(buffer.getvalue(), mode=mode))
+            cleaned_bytes = _make_corel_friendly(buffer.getvalue(), mode=mode)
+            if _is_valid_pdf_bytes(cleaned_bytes):
+                buffer = io.BytesIO(cleaned_bytes)
+            else:
+                logger.warning("Final editable Corel cleanup returned invalid PDF; returning original bytes")
+                buffer = io.BytesIO(buffer.getvalue())
             buffer.seek(0)
 
         prefix = "COREL_EDITABLE" if mode == "editable" else "COREL_PRINT_600DPI"

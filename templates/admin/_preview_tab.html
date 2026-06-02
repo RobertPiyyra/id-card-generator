@@ -30,7 +30,13 @@
                 </select>
             </div>
         </div>
+        <div class="premium-subtabs" style="margin-top:10px;">
+            <button type="button" class="premium-subtab-btn active" onclick="openPreviewSection('preview-pane-card', this)">Card Preview</button>
+            <button type="button" class="premium-subtab-btn" onclick="openPreviewSection('preview-pane-parity', this)">Parity Modes</button>
+            <button type="button" class="premium-subtab-btn" onclick="openPreviewSection('preview-pane-verify', this)">Verification & Quality</button>
+        </div>
 
+        <div id="preview-pane-card" class="preview-pane">
         <div class="preview-stage">
             <div id="previewLoading" style="display: none;">
                 <div class="loading" style="margin: 20px auto;"></div>
@@ -84,7 +90,9 @@
                 </button>
             </div>
         </div>
+        </div>
         
+        <div id="preview-pane-parity" class="preview-pane" style="display:none;">
         <div class="form-row" style="margin-top: 10px;">
             <div class="form-group" style="width: 100%;">
                 <label><i class="fas fa-file-pdf"></i> Vector Layout Preview</label>
@@ -92,6 +100,66 @@
                     <i class="fas fa-file-pdf"></i> Corel PDF Preview
                 </button>
             </div>
+        </div>
+        <div class="form-row" style="margin-top: 10px;">
+            <div class="form-group" style="width: 100%;">
+                <label><i class="fas fa-columns"></i> Side-by-Side Modes</label>
+                <button class="btn btn-primary" style="width:100%;" onclick="loadSideBySideModes()" id="sideBySideBtn" disabled>
+                    <i class="fas fa-columns"></i> Show Visual vs Print-safe vs Corel
+                </button>
+            </div>
+        </div>
+        <div id="sideBySideModesPanel" style="display:none; margin-top:14px;">
+            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap:12px;">
+                <div class="card"><div class="card-title">Visual Preview</div><img id="modeVisualImg" src="" alt="Visual preview"></div>
+                <div class="card"><div class="card-title">Print-safe Preview</div><img id="modePrintImg" src="" alt="Print-safe preview"></div>
+                <div class="card"><div class="card-title">Corel/PDF Parity</div><img id="modeCorelImg" src="" alt="Corel preview"></div>
+            </div>
+        </div>
+        </div>
+        <div id="preview-pane-verify" class="preview-pane" style="display:none;">
+        <div class="form-row" style="margin-top: 10px;">
+            <div class="form-group" style="width: 100%;">
+                <label><i class="fas fa-camera-retro"></i> Photo Intelligence</label>
+                <button class="btn btn-secondary" style="width:100%;" onclick="checkSelectedStudentPhotoQuality()" id="photoQualityBtn" disabled>
+                    <i class="fas fa-check-circle"></i> Run Photo Quality Check
+                </button>
+            </div>
+        </div>
+        <div class="form-row" style="margin-top: 10px;">
+            <div class="form-group" style="width: 100%;">
+                <label><i class="fas fa-qrcode"></i> Verification Portal 2.0</label>
+                <button class="btn btn-download" style="width:100%;" onclick="issueSelectedStudentVerifyToken()" id="verifyV2Btn" disabled>
+                    <i class="fas fa-shield-alt"></i> Issue Signed Verification Link
+                </button>
+            </div>
+        </div>
+        <div id="verifyTokenPanel" class="card" style="margin-top: 10px; display:none;">
+            <div class="card-title">Signed Verification URL (Expiring)</div>
+            <input type="text" id="verifyTokenUrl" readonly style="width:100%;">
+        </div>
+        <div class="form-row" style="margin-top: 10px;">
+            <div class="form-group" style="width: 100%;">
+                <label><i class="fas fa-user-shield"></i> Verification Status</label>
+                <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                    <button class="btn btn-danger" style="flex:1; min-width:180px;" onclick="setSelectedStudentVerificationStatus(true)" id="revokeVerifyBtn" disabled>
+                        <i class="fas fa-ban"></i> Revoke Credential
+                    </button>
+                    <button class="btn btn-primary" style="flex:1; min-width:180px;" onclick="setSelectedStudentVerificationStatus(false)" id="unrevokeVerifyBtn" disabled>
+                        <i class="fas fa-check"></i> Unrevoke Credential
+                    </button>
+                    <button class="btn btn-secondary" style="flex:1; min-width:180px;" onclick="loadSelectedStudentVerificationAudits()" id="verifyAuditBtn" disabled>
+                        <i class="fas fa-history"></i> Load Verify Audit
+                    </button>
+                </div>
+            </div>
+        </div>
+        <div id="verifyAuditPanel" class="card" style="margin-top: 10px; display:none;">
+            <div class="card-title">Verification Audit Trail</div>
+            <div id="verifyAuditList" style="max-height: 220px; overflow:auto;">
+                <div style="font-size:0.85rem; opacity:0.75;">No audits loaded yet.</div>
+            </div>
+        </div>
         </div>
 
         <div class="card quick-preview-card" style="margin-top: 20px;">

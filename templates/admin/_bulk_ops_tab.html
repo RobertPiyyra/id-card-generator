@@ -1,0 +1,61 @@
+<div id="bulk-tab" class="tab-content">
+    <div class="grid-container">
+        <div class="section">
+            <h3><i class="fas fa-cogs"></i> Bulk Generate Cards</h3>
+            <form id="bulkForm" onsubmit="startBulkGeneration(event)">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                <div class="mb-3">
+                    <label class="form-label">Select Template</label>
+                    <select name="template_id" id="bulkTemplateId" class="form-control" required onchange="loadBulkImportMappingsForTemplate()">
+                        <option value="">-- Select Template --</option>
+                        {% for t in templates %}
+                        <option value="{{ t.id }}">{{ t.school_name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Import Mapping Preset (Optional)</label>
+                    <select name="import_mapping_id" id="bulkImportMappingId" class="form-control">
+                        <option value="">-- No Mapping (use file headers directly) --</option>
+                    </select>
+                    <small style="color:#666;">If selected, file columns are remapped to template fields before bulk generation.</small>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Upload Student Data (.xlsx or .csv)</label>
+                    <input type="file" name="excel_file" id="bulkExcelFile" class="form-control" accept=".csv, .xlsx" required>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Upload Photos (Optional)</label>
+                    <input type="file" name="bulk_photos" class="form-control" multiple accept="image/*">
+                </div>
+
+                <div id="bulkProgressContainer" style="display:none; margin-top: 15px;">
+                    <div style="height: 25px; background: #e9ecef; border-radius: 5px; overflow: hidden;">
+                        <div id="bulkProgressBar" style="width: 0%; height: 100%; background: #4caf50; transition: width 0.5s;"></div>
+                    </div>
+                    <p id="bulkStatusText" style="text-align: center; margin-top: 5px; color: #666;">Initializing...</p>
+                    <div id="bulkErrorDetails" style="display:none; margin-top:10px; padding:12px; border-radius:8px; background:#fff3cd; color:#7a4b00; white-space:pre-line; font-size:0.92rem;"></div>
+                </div>
+
+                <button type="submit" class="btn btn-success w-100" id="bulkSubmitBtn">
+                    <i class="fas fa-cogs"></i> Start Bulk Generation
+                </button>
+            </form>
+        </div>
+
+        <div class="section">
+            <h3><i class="fas fa-stream"></i> Bulk Ops Dashboard</h3>
+            <div class="lifecycle-panel">
+                <div class="lifecycle-head">
+                    <label style="margin:0;"><i class="fas fa-list"></i> Queue / History</label>
+                    <button type="button" class="btn btn-sm btn-download" onclick="refreshBulkJobsDashboard()">Refresh</button>
+                </div>
+                <div id="bulkOpsQueue" class="versions-list">
+                    <div class="version-item"><div class="version-meta">No bulk jobs yet.</div></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
