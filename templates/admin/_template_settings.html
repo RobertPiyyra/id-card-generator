@@ -241,7 +241,10 @@
                     </div>
                     <div class="lifecycle-head" style="margin-top:12px;">
                         <label style="margin:0;"><i class="fas fa-history"></i> Recent Versions</label>
-                        <button type="button" class="btn btn-sm btn-download" onclick="loadTemplateVersions()">Refresh</button>
+                        <div style="display:flex; gap:6px; align-items:center;">
+                            <button type="button" class="btn btn-sm btn-info" id="compareVersionsBtn" onclick="compareSelectedVersions()" disabled style="font-size:0.72rem; padding:4px 8px; font-weight:600;"><i class="fas fa-columns"></i> Compare Selected</button>
+                            <button type="button" class="btn btn-sm btn-download" onclick="loadTemplateVersions()">Refresh</button>
+                        </div>
                     </div>
                     <div id="templateVersionsList" class="versions-list">
                         <div class="version-item"><div class="version-meta">Select template to load version history</div></div>

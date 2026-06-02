@@ -1,3 +1,4 @@
+from app.legacy_app import login_required
 from flask import Blueprint, render_template, request, jsonify, session, redirect, url_for, send_file, make_response, current_app
 from models import db, Template, TemplateField
 from app.services.template_lifecycle_service import create_template_version_snapshot, log_immutable_audit_event, get_session_actor
@@ -173,8 +174,8 @@ def _template_settings_payload(template, side):
 # 1. Main Editor Page Route
 # =========================================================
 @editor_bp.route("/admin/template_editor/<int:template_id>")
+@login_required
 def template_editor(template_id):
-    if not session.get("admin"): return redirect(url_for('auth.login'))
     
     template = db.session.get(Template, template_id)
     if not template: return "Template not found", 404
@@ -230,6 +231,7 @@ def template_editor(template_id):
 # 2. Helper: Serve Template as Flat Image (JPG)
 # =========================================================
 @editor_bp.route("/editor/get_template_image/<int:template_id>")
+@login_required
 def get_template_image(template_id):
     """
     Serves the template file (PDF or Image) as a high-quality JPEG 
@@ -277,7 +279,6 @@ def get_editor_fields(template_id):
     """
     Returns JSON of the template's layout_config.
     """
-    if not session.get("admin"): return jsonify({"error": "Unauthorized"}), 403
 
     template = db.session.get(Template, template_id)
     if not template: return jsonify({"error": "Template not found"}), 404
@@ -293,12 +294,12 @@ def get_editor_fields(template_id):
 
 
 @editor_bp.route('/admin/template_settings/<int:template_id>')
+@login_required
 def get_template_settings_api(template_id):
     """
     Returns the current side-specific template settings used by both editors.
     Admin Settings uses this to avoid stale data when returning from Visual Editor.
     """
-    if not session.get("admin"): return jsonify({"error": "Unauthorized"}), 403
 
     template = db.session.get(Template, template_id)
     if not template: return jsonify({"success": False, "error": "Template not found"}), 404
@@ -310,12 +311,12 @@ def get_template_settings_api(template_id):
 # 4. API: Save All Settings (Global + Fields)
 # =========================================================
 @editor_bp.route("/admin/save_field_settings", methods=["POST"])
+@login_required
 def save_field_settings():
     """
     Saves BOTH the global template settings (Photo/QR position) 
     AND the individual text field positions.
     """
-    if not session.get("admin"): return jsonify({"error": "Unauthorized"}), 403
     
     data = request.json
     template_id = data.get('template_id')

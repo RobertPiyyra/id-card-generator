@@ -470,19 +470,78 @@ def _normalize_wrap_text_pil(text):
     return text.strip()
 
 
-def wrap_text_by_width_pil(text, max_width_px, font, char_spacing, draw=None, lang='english'):
+def _split_wrap_units_pil(text: str) -> list[str]:
+    text = str(text or "")
+    if not text:
+        return []
+    import re
+    parts = re.findall(r"\S+|\s+", text)
+    units: list[str] = []
+    break_after = {"/", "\\", "|", ",", ";", ":", "-", "_", ")"}
+    break_before = {"(", "[", "{", "#"}
+
+    for part in parts:
+        if not part:
+            continue
+        if part.isspace():
+            continue
+
+        token = ""
+        for ch in part:
+            if ch in break_before and token:
+                units.append(token)
+                token = ch
+                continue
+
+            token += ch
+            if ch in break_after:
+                units.append(token)
+                token = ""
+
+        if token:
+            units.append(token)
+
+    return units
+
+
+def _rebalance_wrapped_lines_pil(lines: list[str], max_width_px: float, measure_fn) -> list[str]:
+    if len(lines) < 2:
+        return lines
+
+    updated = list(lines)
+    prev_line = updated[-2].strip()
+    last_line = updated[-1].strip()
+    if not prev_line or not last_line:
+        return updated
+
+    prev_parts = prev_line.split()
+    last_parts = last_line.split()
+    if len(prev_parts) < 2 or len(last_parts) != 1:
+        return updated
+
+    moved = prev_parts[-1]
+    new_prev = " ".join(prev_parts[:-1]).strip()
+    new_last = f"{moved} {last_line}".strip()
+    if not new_prev:
+        return updated
+    if measure_fn(new_prev) > max_width_px or measure_fn(new_last) > max_width_px:
+        return updated
+
+    updated[-2] = new_prev
+    updated[-1] = new_last
+    return updated
+
+
+def _wrap_text_by_width_single_pil(text: str, max_width_px: float, measure_fn) -> list[str]:
     text = _normalize_wrap_text_pil(text)
     if not text:
         return [""]
+
     if max_width_px <= 1:
         return [text]
 
-    def measure_fn(s):
-        s_display = process_text_for_drawing(s, lang)
-        return measure_text_width_with_spacing_local(s_display, font, char_spacing, draw=draw, **get_draw_text_kwargs(s_display, lang))
-
-    words = text.split(" ")
-    lines = []
+    words = _split_wrap_units_pil(text)
+    lines: list[str] = []
     current = ""
 
     def flush_current():
@@ -519,7 +578,57 @@ def wrap_text_by_width_pil(text, max_width_px, font, char_spacing, draw=None, la
             current = chunk
 
     flush_current()
-    return lines or [""]
+    return _rebalance_wrapped_lines_pil(lines or [text], max_width_px, measure_fn)
+
+
+def wrap_text_by_width_pil(text: str, max_width_px: float, font, char_spacing, draw=None, lang='english') -> list[str]:
+    raw_text = str(text or "")
+    paragraphs = [segment for segment in raw_text.replace("\r\n", "\n").replace("\r", "\n").split("\n") if segment.strip()]
+    if not paragraphs:
+        paragraphs = [_normalize_wrap_text_pil(raw_text)]
+    
+    def measure_fn(s):
+        s_display = process_text_for_drawing(s, lang)
+        return measure_text_width_with_spacing_local(s_display, font, char_spacing, draw=draw, **get_draw_text_kwargs(s_display, lang))
+
+    wrapped_lines: list[str] = []
+    for paragraph in paragraphs:
+        lines = _wrap_text_by_width_single_pil(_normalize_wrap_text_pil(paragraph), max_width_px, measure_fn)
+        wrapped_lines.extend(lines)
+
+    return wrapped_lines or [""]
+
+
+def _ellipsize_to_width_pil(text: str, max_width_px: float, measure_fn) -> str:
+    value = str(text or "").strip()
+    if not value:
+        return ""
+    ellipsis = "..."
+    if measure_fn(value) <= max_width_px:
+        return value
+    if measure_fn(ellipsis) > max_width_px:
+        return ""
+    words = value.split()
+    if len(words) > 1:
+        for count in range(len(words), 0, -1):
+            candidate = " ".join(words[:count]).rstrip()
+            if not candidate:
+                continue
+            candidate = candidate + ellipsis
+            if measure_fn(candidate) <= max_width_px:
+                return candidate
+
+    low, high = 0, len(value)
+    best = ellipsis
+    while low <= high:
+        mid = (low + high) // 2
+        candidate = value[:mid].rstrip() + ellipsis
+        if measure_fn(candidate) <= max_width_px:
+            best = candidate
+            low = mid + 1
+        else:
+            high = mid - 1
+    return best
 
 
 def fit_wrapped_text_pil(
@@ -537,34 +646,82 @@ def fit_wrapped_text_pil(
     if not text:
         return start_size_px, [""]
 
-    curr_size = start_size_px
-    best_size = min_size_px
+    max_lines = max(1, int(max_lines or 1))
+    min_size_px = float(min_size_px)
+    start_size_px = max(min_size_px, float(start_size_px))
+
+    def _fits(size_px: float) -> tuple[bool, list[str]]:
+        temp_font = font_loader(int(size_px))
+        
+        def measure_fn(s):
+            s_display = process_text_for_drawing(s, lang)
+            return measure_text_width_with_spacing_local(
+                s_display, temp_font, char_spacing, draw=draw, **get_draw_text_kwargs(s_display, lang)
+            )
+            
+        lines = _wrap_text_by_width_single_pil(text, max_width_px, measure_fn)
+        fits_width = all(measure_fn(line) <= max_width_px for line in lines)
+        fits_height = len(lines) <= max_lines
+        return fits_width and fits_height, lines
+
+    # Binary search over font sizes
+    step = 0.5
+    sizes: list[float] = []
+    curr_size = min_size_px
+    while curr_size <= start_size_px + 0.0001:
+        sizes.append(round(curr_size, 4))
+        curr_size += step
+
+    low = 0
+    high = len(sizes) - 1
+    best_index = 0
     best_lines = [text]
 
-    while curr_size >= min_size_px:
-        temp_font = font_loader(curr_size)
-        lines = wrap_text_by_width_pil(text, max_width_px, temp_font, char_spacing, draw=draw, lang=lang)
-
-        fits_width = all(measure_text_width_with_spacing_local(process_text_for_drawing(line, lang), temp_font, char_spacing, draw=draw, **get_draw_text_kwargs(process_text_for_drawing(line, lang), lang)) <= max_width_px for line in lines)
-        fits_height = len(lines) <= max_lines
-
-        if fits_width and fits_height:
-            best_size = curr_size
+    while low <= high:
+        mid = (low + high) // 2
+        size_px = sizes[mid]
+        fits, lines = _fits(size_px)
+        if fits:
+            best_index = mid
             best_lines = lines
-            break
+            low = mid + 1
+        else:
+            high = mid - 1
 
-        curr_size -= 1
+    best_size = sizes[best_index]
+    temp_font = font_loader(int(best_size))
+    def best_measure(s):
+        s_display = process_text_for_drawing(s, lang)
+        return measure_text_width_with_spacing_local(
+            s_display, temp_font, char_spacing, draw=draw, **get_draw_text_kwargs(s_display, lang)
+        )
+        
+    best_lines = _wrap_text_by_width_single_pil(text, max_width_px, best_measure)
+    
+    if len(best_lines) > max_lines:
+        best_lines = best_lines[:max_lines]
+        best_lines[-1] = _ellipsize_to_width_pil(best_lines[-1], max_width_px, best_measure)
+    if len(best_lines) <= max_lines and all(best_measure(line) <= max_width_px for line in best_lines):
+        return int(best_size), best_lines
 
-    if curr_size < min_size_px:
-        temp_font = font_loader(min_size_px)
-        best_lines = wrap_text_by_width_pil(text, max_width_px, temp_font, char_spacing, draw=draw, lang=lang)
-        best_size = min_size_px
-        # Limit lines to max_lines even at minimum size
-        if len(best_lines) > max_lines:
-            best_lines = best_lines[:max_lines]
-            best_lines[-1] = best_lines[-1].rstrip() + "..." if best_lines[-1].strip() else best_lines[-1]
-
-    return best_size, best_lines
+    # Fallback to minimum size
+    temp_font = font_loader(int(min_size_px))
+    def final_measure(s):
+        s_display = process_text_for_drawing(s, lang)
+        return measure_text_width_with_spacing_local(
+            s_display, temp_font, char_spacing, draw=draw, **get_draw_text_kwargs(s_display, lang)
+        )
+        
+    final_lines = _wrap_text_by_width_single_pil(text, max_width_px, final_measure)
+    if len(final_lines) > max_lines:
+        final_lines = final_lines[:max_lines]
+        final_lines[-1] = _ellipsize_to_width_pil(final_lines[-1], max_width_px, final_measure)
+    else:
+        final_lines = [
+            _ellipsize_to_width_pil(line, max_width_px, final_measure) if final_measure(line) > max_width_px else line
+            for line in final_lines
+        ]
+    return int(min_size_px), final_lines
 
 
 def _render_student_fields(template_img, template_obj, student_like, font_settings, photo_settings, side, lang, direction):
@@ -770,7 +927,11 @@ def _render_student_fields(template_img, template_obj, student_like, font_settin
                         bottom_color=value_fill_bottom,
                         **get_draw_text_kwargs(line_display, lang)
                     )
-                spacing = value_line_height if curr_size > 20 else curr_size + 5
+                try:
+                    val_lh = float(value_line_height)
+                except (ValueError, TypeError):
+                    val_lh = 1.2
+                spacing = val_lh if val_lh > 10 else curr_size * (val_lh if val_lh > 0 else 1.2)
                 value_y_eff += spacing
                 if advances_flow:
                     current_y += spacing
@@ -1232,7 +1393,12 @@ def build_student_card_text_runs(template_obj, student_like, side="front"):
                         "enable_gradient": enable_value_gradient,
                         "gradient_color_bottom": value_fill_bottom,
                     })
-                spacing = line_height if curr_size > 20 else curr_size + 5
+                val_line_height = layout_item.get("value_line_height") or line_height
+                try:
+                    val_lh = float(val_line_height)
+                except (ValueError, TypeError):
+                    val_lh = 1.2
+                spacing = val_lh if val_lh > 10 else curr_size * (val_lh if val_lh > 0 else 1.2)
                 value_y_eff += spacing
                 if advances_flow:
                     current_y += spacing

@@ -1,3 +1,4 @@
+from app.legacy_app import login_required
 import os
 import io
 import json
@@ -3827,9 +3828,8 @@ def _apply_hb_text_overlay(pdf_bytes: bytes, runs: list[dict], page_height_pt: f
 
 
 @corel_bp.route("/corel/preview/<int:template_id>")
+@login_required
 def corel_preview(template_id):
-    if not session.get("admin"):
-        return "Unauthorized", 403
 
     template = db.session.get(Template, template_id)
     if not template:
@@ -3918,9 +3918,8 @@ def corel_preview(template_id):
 
 
 @corel_bp.route("/download_compiled_vector_pdf/<int:template_id>")
+@login_required
 def download_compiled_vector_pdf(template_id):
-    if not session.get("admin"):
-        return redirect(url_for('auth.login'))
 
     try:
         mode = parse_pdf_export_mode(request.args.get("mode") or request.form.get("mode"))

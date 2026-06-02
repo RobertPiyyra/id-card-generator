@@ -1,3 +1,4 @@
+from app.legacy_app import login_required
 import os
 import random
 import string
@@ -267,6 +268,7 @@ def logout():
 
 
 @auth_bp.route("/school_admin_login", methods=["GET", "POST"])
+@login_required
 def school_admin_login():
     """Login page for school admins"""
     if request.method == "POST":
@@ -292,19 +294,15 @@ def school_admin_login():
 @auth_bp.route("/admin/school_admins", methods=["GET"])
 def list_school_admins():
     """List all school admins - only for super admin"""
-    if not session.get("admin") or session.get("admin_role") == "school_admin":
-        flash('Access denied. Super admin only.', 'error')
-        return redirect(url_for('dashboard.admin'))
     
     school_admins = AdminUser.query.filter_by(role='school_admin').order_by(AdminUser.created_at.desc()).all()
     return render_template("school_admins.html", school_admins=school_admins)
 
 
 @auth_bp.route("/admin/register_school_admin", methods=["POST"])
+@login_required
 def register_school_admin():
     """Register a new school admin - only for super admin"""
-    if not session.get("admin") or session.get("admin_role") == "school_admin":
-        return jsonify({'success': False, 'error': 'Access denied'}), 403
     
     username = request.form.get('username', '').strip()
     password = request.form.get('password', '')
@@ -341,10 +339,9 @@ def register_school_admin():
 
 
 @auth_bp.route("/admin/delete_school_admin/<int:admin_id>", methods=["POST"])
+@login_required
 def delete_school_admin(admin_id):
     """Delete a school admin - only for super admin"""
-    if not session.get("admin") or session.get("admin_role") == "school_admin":
-        return jsonify({'success': False, 'error': 'Access denied'}), 403
     
     try:
         admin_user = db.session.get(AdminUser, admin_id)
@@ -381,9 +378,8 @@ def require_login():
 __all__ = ["auth_bp"]
 
 @auth_bp.route("/admin_student_credentials")
+@login_required
 def admin_student_credentials():
-    if not session.get("admin"):
-        return redirect(url_for("auth.login"))
   
     try:
         students = Student.query.filter(
@@ -401,9 +397,8 @@ def admin_student_credentials():
         return redirect(url_for("dashboard.admin"))
 
 @auth_bp.route("/admin_add_student_credential", methods=["POST"])
+@login_required
 def admin_add_student_credential():
-    if not session.get("admin"):
-        return redirect(url_for("auth.login"))
   
     try:
         name = request.form.get("name", "").strip()
@@ -452,9 +447,8 @@ def admin_add_student_credential():
         return redirect(url_for("auth.admin_student_credentials"))
 
 @auth_bp.route("/admin_update_student_credential/<int:student_id>", methods=["POST"])
+@login_required
 def admin_update_student_credential(student_id):
-    if not session.get("admin"):
-        return redirect(url_for("auth.login"))
   
     try:
         name = request.form.get("name", "").strip()
@@ -508,9 +502,8 @@ def admin_update_student_credential(student_id):
         return redirect(url_for("auth.admin_student_credentials"))
 
 @auth_bp.route("/admin_delete_student_credential/<int:student_id>", methods=["POST"])
+@login_required
 def admin_delete_student_credential(student_id):
-    if not session.get("admin"):
-        return redirect(url_for("auth.login"))
   
     try:
         student = db.session.get(Student, student_id)
@@ -536,9 +529,8 @@ def admin_delete_student_credential(student_id):
         return redirect(url_for("auth.admin_student_credentials"))
 
 @auth_bp.route("/admin_reset_student_password/<int:student_id>", methods=["POST"])
+@login_required
 def admin_reset_student_password(student_id):
-    if not session.get("admin"):
-        return redirect(url_for("auth.login"))
   
     try:
         student = db.session.get(Student, student_id)

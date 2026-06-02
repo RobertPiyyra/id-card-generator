@@ -277,49 +277,7 @@ def manage_single_field(field_id):
         return jsonify({"success": False, "message": f"Server Error: {str(e)}"}), 500
 
 
-# ================== Versatile Verification Route ==================
-@api_bp.route("/verify/<student_identifier>")
-def verify_student(student_identifier):
-    """
-    Public route to verify student details via QR code scan.
-    Prioritizes Cloudinary URLs over local files.
-    """
-    try:
-        # Clean the input
-        identifier = str(student_identifier).strip()
-        
-        # Search by ID OR by Hash
-        student = Student.query.filter(
-            (db.cast(Student.id, db.String) == identifier) |
-            (db.func.substr(Student.data_hash, 1, 10) == identifier)
-        ).first()
-        
-        if not student:
-            return render_template("verify.html", error="Student record not found.", valid=False)
-        
-        final_photo_url = None
-        photo_url, local_photo_path = resolve_student_photo_reference(student)
-        if photo_url:
-            final_photo_url = photo_url
-        elif local_photo_path:
-            final_photo_url = url_for('static', filename=f"Uploads/{os.path.basename(local_photo_path)}")
-        else:
-            final_photo_url = url_for('static', filename=os.path.basename(PLACEHOLDER_PATH))
-
-        student_data = {
-            "name": student.name,
-            "father_name": student.father_name,
-            "school_name": student.school_name,
-            "photo_url": final_photo_url,
-            "class_name": student.class_name,
-            "status": "Verified"
-        }
-        
-        return render_template("verify.html", student=student_data, valid=True)
-        
-    except Exception as e:
-        logger.error(f"Database error during verification: {e}")
-        return render_template("verify.html", error="System error.", valid=False), 500
+# Verification routes relocated to verify_routes.py
 
 
 # ================== Health Check Route ==================
@@ -366,6 +324,145 @@ def template_versions(template_id):
             ],
         }
     )
+
+
+def compare_template_snapshots(s1, s2):
+    import json
+    diffs = {}
+    
+    # 1. Compare core properties
+    core_keys = [
+        "card_orientation", "language", "text_direction", "is_double_sided",
+        "duplex_flip_mode", "card_width", "card_height", "sheet_width",
+        "sheet_height", "grid_rows", "grid_cols"
+    ]
+    core_diffs = {}
+    for k in core_keys:
+        v1 = s1.get(k)
+        v2 = s2.get(k)
+        if v1 != v2:
+            core_diffs[k] = {"from": v1, "to": v2}
+    if core_diffs:
+        diffs["core"] = core_diffs
+
+    # 2. Compare nested dicts (font_settings, photo_settings, qr_settings)
+    for section in ["font_settings", "photo_settings", "qr_settings",
+                    "back_font_settings", "back_photo_settings", "back_qr_settings"]:
+        d1 = s1.get(section) or {}
+        d2 = s2.get(section) or {}
+        sec_diffs = {}
+        all_keys = set(d1.keys()) | set(d2.keys())
+        for k in all_keys:
+            v1 = d1.get(k)
+            v2 = d2.get(k)
+            if v1 != v2:
+                sec_diffs[k] = {"from": v1, "to": v2}
+        if sec_diffs:
+            diffs[section] = sec_diffs
+
+    # 3. Compare layout_config and back_layout_config
+    for layout in ["layout_config", "back_layout_config"]:
+        l1 = s1.get(layout) or {}
+        l2 = s2.get(layout) or {}
+        if isinstance(l1, str):
+            try: l1 = json.loads(l1)
+            except: l1 = {}
+        if isinstance(l2, str):
+            try: l2 = json.loads(l2)
+            except: l2 = {}
+            
+        layout_diffs = {}
+        
+        # Compare fields
+        f1 = l1.get("fields") or {}
+        f2 = l2.get("fields") or {}
+        field_diffs = {}
+        all_fields = set(f1.keys()) | set(f2.keys())
+        for f in all_fields:
+            props1 = f1.get(f) or {}
+            props2 = f2.get(f) or {}
+            prop_diffs = {}
+            all_props = set(props1.keys()) | set(props2.keys())
+            for p in all_props:
+                val1 = props1.get(p)
+                val2 = props2.get(p)
+                if val1 != val2:
+                    prop_diffs[p] = {"from": val1, "to": val2}
+            if prop_diffs:
+                field_diffs[f] = prop_diffs
+        if field_diffs:
+            layout_diffs["fields"] = field_diffs
+            
+        # Compare custom objects
+        obj1 = {o.get("id"): o for o in (l1.get("objects") or []) if o.get("id")}
+        obj2 = {o.get("id"): o for o in (l2.get("objects") or []) if o.get("id")}
+        obj_diffs = {"added": [], "deleted": [], "modified": []}
+        for oid, o in obj2.items():
+            if oid not in obj1:
+                obj_diffs["added"].append(o)
+            else:
+                o1 = obj1[oid]
+                o2 = o
+                prop_diffs = {}
+                for pk, pv in o2.items():
+                    if o1.get(pk) != pv:
+                        prop_diffs[pk] = {"from": o1.get(pk), "to": pv}
+                if prop_diffs:
+                    obj_diffs["modified"].append({
+                        "id": oid,
+                        "name": o2.get("name") or o2.get("text") or "Custom Object",
+                        "type": o2.get("type"),
+                        "changes": prop_diffs
+                    })
+        for oid, o in obj1.items():
+            if oid not in obj2:
+                obj_diffs["deleted"].append(o)
+        
+        if obj_diffs["added"] or obj_diffs["deleted"] or obj_diffs["modified"]:
+            layout_diffs["objects"] = obj_diffs
+            
+        if layout_diffs:
+            diffs[layout] = layout_diffs
+
+    return diffs
+
+
+@api_bp.route("/admin/template/<int:template_id>/version-diff/<int:v1_id>/<int:v2_id>", methods=["GET"])
+def template_version_diff(template_id, v1_id, v2_id):
+    if not session.get("admin"):
+        return jsonify({"success": False, "message": "Unauthorized"}), 403
+    
+    v1 = TemplateVersion.query.filter_by(id=v1_id, template_id=template_id).first()
+    v2 = TemplateVersion.query.filter_by(id=v2_id, template_id=template_id).first()
+    
+    if not v1 or not v2:
+        return jsonify({"success": False, "message": "One or both versions not found"}), 404
+        
+    s1 = v1.snapshot_json or {}
+    s2 = v2.snapshot_json or {}
+    
+    if v1.version_number > v2.version_number:
+        s1, s2 = s2, s1
+        v1_num, v2_num = v2.version_number, v1.version_number
+        v1_date, v2_date = v2.created_at, v1.created_at
+        v1_by, v2_by = v2.created_by, v1.created_by
+    else:
+        v1_num, v2_num = v1.version_number, v2.version_number
+        v1_date, v2_date = v1.created_at, v2.created_at
+        v1_by, v2_by = v1.created_by, v2.created_by
+
+    diffs = compare_template_snapshots(s1, s2)
+    
+    return jsonify({
+        "success": True,
+        "v1_number": v1_num,
+        "v2_number": v2_num,
+        "v1_created_at": v1_date.isoformat() if v1_date else None,
+        "v2_created_at": v2_date.isoformat() if v2_date else None,
+        "v1_created_by": v1_by,
+        "v2_created_by": v2_by,
+        "diffs": diffs
+    })
 
 
 @api_bp.route("/admin/template/<int:template_id>/rollback/<int:version_id>", methods=["POST"])
@@ -552,37 +649,7 @@ def issue_verify_token_v2(student_id):
     )
     return jsonify({"success": True, "token": token, "expires_in": ttl, "verify_url": url_for("api.verify_v2", token=token, _external=True)})
 
-
-@api_bp.route("/verify/v2/<token>", methods=["GET"])
-def verify_v2(token):
-    payload, status = parse_signed_verify_token(os.getenv("SECRET_KEY", "dev-key"), token, max_age_seconds=86400)
-    audit = VerificationAudit(
-        status=status,
-        token_id=(payload.get("jti") if payload else None),
-        student_id=(payload.get("sid") if payload else None),
-        template_id=(payload.get("tid") if payload else None),
-        ip_address=request.remote_addr,
-        user_agent=(request.headers.get("User-Agent") or "")[:512],
-        details_json={"token_status": status},
-    )
-    db.session.add(audit)
-    db.session.commit()
-    if status != "ok" or not payload:
-        return render_template("verify.html", error=f"Verification {status}.", valid=False)
-    student = db.session.get(Student, int(payload.get("sid")))
-    if not student:
-        return render_template("verify.html", error="Student not found.", valid=False)
-    if bool(getattr(student, "verification_revoked", False)):
-        return render_template("verify.html", error="Credential revoked.", valid=False)
-    student_data = {
-        "name": student.name,
-        "father_name": student.father_name,
-        "school_name": student.school_name,
-        "photo_url": student.photo_url or url_for('static', filename=os.path.basename(PLACEHOLDER_PATH)),
-        "class_name": student.class_name,
-        "status": "Verified",
-    }
-    return render_template("verify.html", student=student_data, valid=True)
+# verification_v2 handler relocated to verify_routes.py
 
 
 @api_bp.route("/admin/analytics/overview", methods=["GET"])

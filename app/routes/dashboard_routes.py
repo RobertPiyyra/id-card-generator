@@ -1,3 +1,4 @@
+from app.legacy_app import login_required
 import os
 import time
 import uuid
@@ -221,6 +222,7 @@ def draw_aligned_colon_pil_helper(draw, img_width, direction, value_x, y, colon_
 
 # ================== Landing Page Routes ==================
 @dashboard_bp.route("/")
+@login_required
 def landing():
     """Landing page route"""
     return render_template("landing_page.html")
@@ -241,12 +243,11 @@ def documentation():
 @dashboard_bp.route("/user_guide")
 def user_guide():
     """Admin user guide page"""
-    if not session.get("admin") and not session.get("student_email"):
-        return redirect(url_for("auth.login"))
-    return render_template("admin_user_guide.html")
+    return render_template("user_guide.html")
 
 
 @dashboard_bp.route("/about")
+@login_required
 def about():
     """About page"""
     return render_template("about.html")
@@ -371,9 +372,8 @@ def admin():
 
 # ================== Compile School Sheets Route ==================
 @dashboard_bp.route("/admin/download_compiled_school_pdf/<int:template_id>")
+@login_required
 def download_compiled_school_pdf(template_id):
-    if not session.get("admin"):
-        return redirect(url_for("auth.login"))
     mode = (request.args.get("mode") or "").strip().lower() or "print"
     if mode not in {"print", "editable"}:
         mode = "print"
@@ -384,8 +384,6 @@ def download_compiled_school_pdf(template_id):
 @dashboard_bp.route("/admin/student_preview/<int:student_id>")
 def admin_student_preview(student_id):
     """Get student preview data"""
-    if not session.get("admin") and not session.get("student_email"):
-        return jsonify({"success": False, "error": "Unauthorized"}), 403
   
     try:
         student = db.session.get(Student, student_id)
@@ -411,10 +409,9 @@ def admin_student_preview(student_id):
 
 
 @dashboard_bp.route("/admin/generate_preview/<int:student_id>")
+@login_required
 def generate_student_preview(student_id):
     """Generate a fresh preview for a student with Safe Font Fallback"""
-    if not session.get("admin") and not session.get("student_email"):
-        return jsonify({"success": False, "error": "Unauthorized"}), 403
 
     try:
         student = db.session.get(Student, student_id)
@@ -649,11 +646,11 @@ def generate_student_preview(student_id):
                         bottom_color=colon_fill_bottom,
                     )
                 if value_visible:
-                    # Special handling for ADDRESS field: wrap to max_lines
                     if field_key == "ADDRESS":
                         from app.services.render_service import fit_wrapped_text_pil
                         
                         address_max_lines = int(font_settings.get("address_max_lines", 2))
+                        value_char_spacing = layout_item.get("value_char_spacing", 0)
                         
                         # Get font loader
                         def font_loader(size_px):
@@ -661,13 +658,14 @@ def generate_student_preview(student_id):
                         
                         # Fit wrapped text for address
                         best_size, wrapped_lines = fit_wrapped_text_pil(
-                            display_value,
+                            value,
                             font_loader,
                             start_size_px=value_font_size_eff,
-                            min_size_px=12,
+                            min_size_px=10,
                             max_width_px=max_value_width,
                             max_lines=address_max_lines,
-                            char_spacing=0,
+                            char_spacing=value_char_spacing,
+                            draw=draw,
                             lang=lang,
                         )
                         
@@ -676,30 +674,40 @@ def generate_student_preview(student_id):
                         
                         # Draw each line
                         val_line_height = layout_item.get("value_line_height") or line_height
-                        line_spacing = val_line_height if best_size > 20 else best_size + 5
-                        for line_idx, line in enumerate(wrapped_lines[:address_max_lines]):
-                            line_y = value_y_eff + (line_idx * line_spacing)
-                            line_draw_x = flip_x_for_text_direction(
-                                value_x_eff,
-                                line,
-                                best_font,
-                                template_img.width,
-                                direction,
-                                draw=draw,
-                                grow_mode=layout_item["value_grow"],
-                            )
-                            draw_text_gradient(
-                                draw,
-                                (line_draw_x, line_y),
-                                line,
-                                font=best_font,
-                                top_color=value_fill,
-                                bottom_color=value_fill_bottom,
-                                enable_gradient=enable_value_gradient,
-                                lang=lang,
-                                target_image=template_img,
-                                **get_draw_text_kwargs(line, lang),
-                            )
+                        try:
+                            val_lh = float(val_line_height)
+                        except (ValueError, TypeError):
+                            val_lh = 1.2
+                        spacing = val_lh if val_lh > 10 else best_size * (val_lh if val_lh > 0 else 1.2)
+                        
+                        for line in wrapped_lines[:address_max_lines]:
+                            line_display = process_text_for_drawing(line, lang)
+                            if layout_item["value_visible"]:
+                                line_draw_x = flip_x_for_text_direction(
+                                    value_x_eff,
+                                    line_display,
+                                    best_font,
+                                    template_img.width,
+                                    direction,
+                                    draw=draw,
+                                    grow_mode=layout_item["value_grow"],
+                                )
+                                draw_text_gradient(
+                                    draw,
+                                    (line_draw_x, value_y_eff),
+                                    line_display,
+                                    font=best_font,
+                                    top_color=value_fill,
+                                    bottom_color=value_fill_bottom,
+                                    enable_gradient=enable_value_gradient,
+                                    lang=lang,
+                                    target_image=template_img,
+                                    **get_draw_text_kwargs(line_display, lang),
+                                )
+                            value_y_eff += spacing
+                            if advances_flow:
+                                current_y += spacing
+                        continue
                     else:
                         # For non-ADDRESS fields, draw normally
                         draw_text_gradient(
@@ -885,6 +893,7 @@ def generate_student_preview(student_id):
 
 
 @dashboard_bp.route("/test_preview")
+@login_required
 def test_preview():
     """Test route to verify preview generation works"""
     try:
@@ -921,8 +930,6 @@ def test_preview():
 @dashboard_bp.route("/admin/download_student_pdf/<int:student_id>")
 def download_student_pdf(student_id):
     """Download student PDF"""
-    if not session.get("admin") and not session.get("student_email"):
-        return jsonify({"success": False, "error": "Unauthorized"}), 403
   
     try:
         student = db.session.get(Student, student_id)
@@ -964,10 +971,8 @@ def download_student_pdf(student_id):
 
 # ================== Excel Export ==================
 @dashboard_bp.route('/download_school_excel/<int:template_id>')
+@login_required
 def download_school_excel(template_id):
-    if not session.get("admin"):
-        flash('Please log in as admin to download data.', 'error')
-        return redirect(url_for('auth.login'))
 
     try:
         template = db.session.get(Template, template_id)
@@ -1030,9 +1035,8 @@ def download_school_excel(template_id):
 
 # ================== Delete School Sheets ==================
 @dashboard_bp.route("/admin/delete_school_sheets/<int:template_id>", methods=["POST"])
+@login_required
 def delete_school_sheets(template_id):
-    if not session.get("admin"):
-        return redirect(url_for("auth.login"))
 
     try:
         template = db.session.get(Template, template_id)
@@ -1081,9 +1085,8 @@ def delete_school_sheets(template_id):
 
 # ================== Cleanup Old Files ==================
 @dashboard_bp.route("/admin/run_cleanup", methods=["POST"])
+@login_required
 def run_cleanup():
-    if not session.get("admin"):
-        return redirect(url_for("auth.login"))
         
     try:
         days = 30
@@ -1096,9 +1099,8 @@ def run_cleanup():
 
 # ================== Delete Students by Template ==================
 @dashboard_bp.route("/delete_all_students_by_template/<int:template_id>", methods=["POST"])
+@login_required
 def delete_all_students_by_template(template_id):
-    if not session.get("admin"):
-        return redirect(url_for("auth.login"))
 
     try:
         template = db.session.get(Template, template_id)
@@ -1675,55 +1677,41 @@ def index():
                     min_width=20,
                 ))
 
-                # --- SPECIAL LOGIC FOR ADDRESS: FIT IN X LINES (DYNAMIC) ---
                 if field_key == 'ADDRESS':
-                    # Start shrinking logic
-                    curr_size = value_font_size_eff
-                    min_size = 10 
-                    wrapped_addr = []
+                    from app.services.render_service import fit_wrapped_text_pil
                     
-                    # We need the path to reload font for accurate measurement
-                    addr_font_path = FONT_REG 
-
-                    while curr_size >= min_size:
-                        # 1. Load font at this specific size to measure
-                        temp_font = load_font_dynamic(addr_font_path, "X", 10**9, curr_size, language=lang) # type: ignore
-
-                        # 2. Heuristic wrapping
-                        avg_char_w = curr_size * 0.50
-                        chars_limit = int(max_w / avg_char_w) if avg_char_w > 0 else 20
-                        if chars_limit < 5: chars_limit = 5 
-
-                        wrapped_addr = textwrap.wrap(raw_val, width=chars_limit, break_long_words=True)
-                        
-                        # 3. Check pixel width of every line
-                        fits_horizontally = True
-                        if len(wrapped_addr) <= address_max_lines:
-                            for line in wrapped_addr:
-                                # Shape text for accurate length measurement (Urdu/Arabic support)
-                                measure_text = process_text_for_drawing(line, lang)
-                                if draw.textlength(measure_text, font=temp_font, **get_draw_text_kwargs(measure_text, lang)) > max_w:
-                                    fits_horizontally = False
-                                    break
-                            
-                            if fits_horizontally:
-                                # It fits! Use this font
-                                addr_font = temp_font
-                                break
-                        
-                        # Decrease size and try again
-                        curr_size -= 2
+                    value_char_spacing = layout_item.get("value_char_spacing", 0)
                     
-                    # Fallback if loop finishes without finding a fit
-                    if 'addr_font' not in locals():
-                        addr_font = load_font_dynamic(addr_font_path, "X", 10**9, min_size, language=lang) # type: ignore
-
-                    # Draw address lines
-                    for line in wrapped_addr[:address_max_lines]:
+                    # Get font loader
+                    def font_loader(size_px):
+                        return load_font_dynamic(FONT_REG, "X", card_width, size_px, language=lang)
+                    
+                    # Fit wrapped text for address
+                    best_size, wrapped_lines = fit_wrapped_text_pil(
+                        raw_val,
+                        font_loader,
+                        start_size_px=value_font_size_eff,
+                        min_size_px=10,
+                        max_width_px=max_w,
+                        max_lines=address_max_lines,
+                        char_spacing=value_char_spacing,
+                        draw=draw,
+                        lang=lang,
+                    )
+                    
+                    # Load font at best size
+                    addr_font = load_font_dynamic(FONT_REG, "X", card_width, best_size, language=lang)
+                    
+                    # Draw each line
+                    val_line_height = layout_item.get("value_line_height") or line_height
+                    try:
+                        val_lh = float(val_line_height)
+                    except (ValueError, TypeError):
+                        val_lh = 1.2
+                    spacing = val_lh if val_lh > 10 else best_size * (val_lh if val_lh > 0 else 1.2)
+                    
+                    for line in wrapped_lines[:address_max_lines]:
                         line_display = process_text_for_drawing(line, lang)
-                        # Use slightly tighter spacing if we shrunk the font significantly
-                        val_line_height = layout_item.get("value_line_height") or line_height
-                        spacing = val_line_height if curr_size > 20 else curr_size + 5
                         if layout_item["value_visible"]:
                             value_draw_x = flip_x_for_text_direction(
                                 value_x_eff,
@@ -2685,52 +2673,44 @@ def edit_student(student_id):
                             bottom_color=colon_fill_bottom,
                         )
                 
-                    curr_size = value_font_size_eff
-                    min_size = 12
-                    wrapped_addr = []
-
-                    while curr_size >= min_size:
-                        # Load font at this size
-                        addr_font = load_font_dynamic(FONT_REGULAR_PATH, "X", 10**9, curr_size, language=lang)
-
-                        # Pixel-based wrapping
-                        words = val.split()
-                        lines = []
-                        current_line = ""
-                
-                        for word in words:
-                            test_line = current_line + (" " if current_line else "") + word
-                            measure_line = process_text_for_drawing(test_line, lang)
-                            if draw.textlength(measure_line, font=addr_font, **get_draw_text_kwargs(measure_line, lang)) <= max_w:
-                                current_line = test_line
-                            else:
-                                if current_line:
-                                    lines.append(current_line)
-                                current_line = word
-
-                        if current_line:
-                            lines.append(current_line)
-
-                        # Stop if it fits in 2 lines
-                        if len(lines) <= address_max_lines:
-                            wrapped_addr = lines
-                            break
-
-                        curr_size -= 2
-
-                    # Fallback if still too long
-                    if not wrapped_addr:
-                        wrapped_addr = lines[:address_max_lines]
-                
-                    # Draw address lines
-                    for line in wrapped_addr[:address_max_lines]:
+                    value_char_spacing = layout_item.get("value_char_spacing", 0)
+                    
+                    # Get font loader
+                    def font_loader(size_px):
+                        return load_font_dynamic(FONT_REGULAR_PATH, "X", card_width, size_px, language=lang)
+                    
+                    # Fit wrapped text for address
+                    best_size, wrapped_lines = fit_wrapped_text_pil(
+                        val,
+                        font_loader,
+                        start_size_px=value_font_size_eff,
+                        min_size_px=10,
+                        max_width_px=max_w,
+                        max_lines=address_max_lines,
+                        char_spacing=value_char_spacing,
+                        draw=draw,
+                        lang=lang,
+                    )
+                    
+                    # Load font at best size
+                    addr_font = load_font_dynamic(FONT_REGULAR_PATH, "X", card_width, best_size, language=lang)
+                    
+                    # Draw each line
+                    val_line_height = layout_item.get("value_line_height") or line_height
+                    try:
+                        val_lh = float(val_line_height)
+                    except (ValueError, TypeError):
+                        val_lh = 1.2
+                    spacing = val_lh if val_lh > 10 else best_size * (val_lh if val_lh > 0 else 1.2)
+                    
+                    for line in wrapped_lines[:address_max_lines]:
                         line_display = process_text_for_drawing(line, lang)
                         if layout_item["value_visible"]:
                             value_draw_x = flip_x_for_text_direction(
                                 value_x_eff,
                                 line_display,
                                 addr_font,
-                                card_width, # type: ignore
+                                card_width,
                                 direction,
                                 draw=draw,
                                 grow_mode=layout_item["value_grow"],
@@ -2747,9 +2727,9 @@ def edit_student(student_id):
                                 target_image=template,
                                 **get_draw_text_kwargs(line_display, lang),
                             )
-                        value_y_eff += curr_size + 6
+                        value_y_eff += spacing
                         if advances_flow:
-                            current_y += curr_size + 6
+                            current_y += spacing
                 
                     continue
                 
@@ -3101,11 +3081,8 @@ def edit_student(student_id):
 
 
 @dashboard_bp.route("/admin/activity_log")
+@login_required
 def view_activity_log():
-    # 1. Security Check
-    if not session.get("admin"):
-        return redirect(url_for("auth.login"))
-
     # 2. Pagination Logic
     page = request.args.get('page', 1, type=int)
     per_page = 50  # Show 50 logs per page
@@ -3123,11 +3100,8 @@ def view_activity_log():
     )
 
 @dashboard_bp.route("/admin/reset_activity_log", methods=["POST"])
+@login_required
 def reset_activity_log():
-    # 1. Security Check
-    if not session.get("admin"):
-        return redirect(url_for("auth.login"))
-
     try:
         # 2. Delete all records in ActivityLog table
         db.session.query(ActivityLog).delete()

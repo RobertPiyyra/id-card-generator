@@ -1277,6 +1277,8 @@ def generate_qr_code(data, qr_settings, size=120):
     INTERNAL_SIZE = max(size, 300)
 
     try:
+        if not isinstance(qr_settings, dict):
+            qr_settings = {}
         qr = qrcode.QRCode(
             version=1,
             error_correction=qrcode.constants.ERROR_CORRECT_H,

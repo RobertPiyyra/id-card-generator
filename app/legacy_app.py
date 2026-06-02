@@ -47,8 +47,6 @@ from sqlalchemy.exc import IntegrityError
 import numpy as np
 from app.config import Config
 from app.extensions import csrf, limiter, scheduler
-from app.routes.corel_routes import corel_bp
-from app.routes.editor_routes import editor_bp
 from app.services import redis_service
 from app.services.redis_service import (
     REDIS_CACHE_TTL,
@@ -134,8 +132,6 @@ from app.services.photo_service import (
     _prepare_camera_student_photo_bytes
 )
 
-# Migrated dashboard routes
-from app.routes.dashboard_routes import index, fetch_record, clear_edit_session, edit_student
 
 def _cleanup_lost_bulk_jobs():
     try:
@@ -420,7 +416,9 @@ def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if not session.get("admin"):
-            from flask import redirect, url_for
+            from flask import redirect, url_for, request, jsonify
+            if request.is_json or request.path.startswith('/api') or request.path.startswith('/corel'):
+                return jsonify({"success": False, "error": "Unauthorized"}), 403
             return redirect(url_for("auth.login"))
         return f(*args, **kwargs)
     return decorated_function
@@ -495,6 +493,24 @@ def internal_error(error):
     if request.is_json or request.path.startswith('/api'):
         return jsonify({"success": False, "error": "An internal server error occurred"}), 500
     return "500 - Internal Server Error", 500
+
+@app.after_request
+def add_security_headers(response):
+    """
+    Applies security headers to harden the web application against browser-based attacks.
+    """
+    # Prevent clickjacking
+    response.headers['X-Frame-Options'] = 'DENY'
+    # Prevent MIME type sniffing
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    # Basic Content-Security-Policy (allows CDNs, Cloudinary, and inline scripts/styles used by the visual editor)
+    csp = (
+        "default-src 'self' 'unsafe-inline' 'unsafe-eval' https: data: blob:; "
+        "img-src 'self' data: blob: https:; "
+        "font-src 'self' https: data:;"
+    )
+    response.headers['Content-Security-Policy'] = csp
+    return response
 
 # Add the rgb_to_hex template filter
 @app.template_filter('rgb_to_hex')
@@ -3456,7 +3472,7 @@ def upload_font():
         return redirect(url_for('dashboard.admin', error="Invalid file format. Use TTF or OTF"))
 
 @app.route("/upload_qr_logo", methods=["POST"])
-@csrf.exempt
+@login_required
 def upload_qr_logo():
     if 'qr_logo_file' not in request.files:
         logger.warning("Upload QR logo failed: 'qr_logo_file' key not found in request.files")
@@ -4051,34 +4067,38 @@ def admin_preview_card():
 
             # --- ADDRESS LOGIC (DYNAMIC LINES) ---
             if field_key == 'ADDRESS':
-                curr_size = value_font_size_eff
-                min_size = 12 
-                wrapped_addr = []
-                while curr_size >= min_size:
-                    addr_font = load_safe_font(font_settings.get("font_regular", "arial.ttf"), curr_size, lang, display_val)
-                    avg_char_w = curr_size * 0.55 + value_char_spacing
-                    chars_limit = max(5, int(max_w / max(avg_char_w, 1)))
-                    wrapped_addr = safe_wrap_preview(raw_val, chars_limit)
-                    fits_horizontally = len(wrapped_addr) <= address_max_lines
-                    if fits_horizontally:
-                        for line in wrapped_addr:
-                            measure_text = process_text_for_drawing(line, lang)
-                            line_w = measure_text_width_with_spacing_local(measure_text, addr_font, value_char_spacing, draw=draw, **get_draw_text_kwargs(measure_text, lang))
-                            if line_w > max_w:
-                                fits_horizontally = False
-                                break
-                    if fits_horizontally:
-                        break
-                    curr_size -= 2
+                from app.services.render_service import fit_wrapped_text_pil
                 
-                # Load safe font for address using real shaped text (better glyph matching)
+                # Get font loader
+                def font_loader(size_px):
+                    return load_safe_font(font_settings.get("font_regular", "arial.ttf"), size_px, lang, raw_val)
+                
+                best_size, wrapped_lines = fit_wrapped_text_pil(
+                    raw_val,
+                    font_loader,
+                    start_size_px=value_font_size_eff,
+                    min_size_px=10,
+                    max_width_px=max_w,
+                    max_lines=address_max_lines,
+                    char_spacing=value_char_spacing,
+                    draw=draw,
+                    lang=lang,
+                )
+                
                 addr_font = load_safe_font(
                     font_settings.get("font_regular", "arial.ttf"),
-                    curr_size,
+                    best_size,
                     lang,
-                    display_val,
+                    raw_val,
                 )
-                for line in wrapped_addr[:address_max_lines]:
+                
+                try:
+                    val_lh = float(value_line_height)
+                except (ValueError, TypeError):
+                    val_lh = 1.2
+                spacing = val_lh if val_lh > 10 else best_size * (val_lh if val_lh > 0 else 1.2)
+                
+                for line in wrapped_lines[:address_max_lines]:
                     line_display = process_text_for_drawing(line, lang)
                     if layout_item["value_visible"]:
                         line_w = measure_text_width_with_spacing_local(line_display, addr_font, value_char_spacing, draw=draw, **get_draw_text_kwargs(line_display, lang))
@@ -4102,7 +4122,6 @@ def admin_preview_card():
                             bottom_color=value_fill_bottom,
                             **get_draw_text_kwargs(line_display, lang)
                         )
-                    spacing = value_line_height if curr_size > 20 else curr_size + 5
                     value_y_eff += spacing
                     if advances_flow:
                         current_y += spacing
