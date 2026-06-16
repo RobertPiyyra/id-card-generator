@@ -644,12 +644,37 @@
                     </select>
                 </div>
             </div>
-            
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label><i class="fas fa-shapes"></i> Photo Shape</label>
+                    <select name="photo_shape" id="photoShape" onchange="updateBorderPreview()">
+                        <option value="rectangle">Rectangle</option>
+                        <option value="rounded">Rounded Rectangle</option>
+                        <option value="circle">Circle / Oval</option>
+                        <option value="triangle">Triangle</option>
+                        <option value="diamond">Diamond</option>
+                        <option value="pentagon">Pentagon</option>
+                        <option value="hexagon">Hexagon</option>
+                        <option value="heptagon">Heptagon</option>
+                        <option value="octagon">Octagon</option>
+                        <option value="custom-polygon">Custom Polygon</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label><i class="fas fa-border-all"></i> All Corners (pixels)</label>
+                    <input type="number" id="photoBorderAll" min="0" max="100" value="0" oninput="setAllBorders(this.value)">
+                    <small style="color: #666; font-size: 0.8rem;">
+                        <i class="fas fa-info-circle"></i> Corner values apply to rectangle and rounded rectangle shapes
+                    </small>
+                </div>
+            </div>
+
             <div class="form-group">
-                <label><i class="fas fa-border-all"></i> All Corners (pixels)</label>
-                <input type="number" id="photoBorderAll" min="0" max="100" value="0" oninput="setAllBorders(this.value)">
+                <label><i class="fas fa-compress-arrows-alt"></i> Shape Inset (pixels)</label>
+                <input type="number" name="photo_shape_inset" id="photoShapeInset" min="0" max="250" value="0" oninput="updateBorderPreview()">
                 <small style="color: #666; font-size: 0.8rem;">
-                    <i class="fas fa-info-circle"></i> Set all corners to the same value
+                    <i class="fas fa-info-circle"></i> Pulls circle and polygon edges inward without moving the photo box
                 </small>
             </div>
             

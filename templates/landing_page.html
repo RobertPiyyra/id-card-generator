@@ -244,10 +244,10 @@
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
-            font-size: 1.8rem;
+            font-size: 1.4rem;
             display: flex;
             align-items: center;
-            gap: 12px;
+            gap: 6px;
             position: relative;
             overflow: hidden;
         }
@@ -296,7 +296,7 @@
         }
 
         .nav-link:hover {
-            color: white !important;
+            color: rgb(236, 224, 224) !important;
             transform: translateY(-2px);
         }
 
@@ -305,7 +305,7 @@
             position: relative;
             padding: 180px 0 120px;
             overflow: hidden;
-            background: linear-gradient(135deg, rgba(0, 102, 255, 0.1) 0%, rgba(0, 210, 255, 0.1) 100%);
+            background: linear-gradient(135deg, rgba(213, 221, 233, 0.1) 0%, rgba(0, 210, 255, 0.1) 100%);
         }
 
         .hero-section::before {
@@ -1390,7 +1390,7 @@
     <nav class="navbar navbar-expand-lg navbar-light nav-custom fixed-top">
         <div class="container">
             <a class="navbar-brand" href="#home">
-                <img src="{{ url_for('static', filename='images/logo.jpg') }}" style="height: 60px; width: auto;" class="me-2">
+                <img src="{{ url_for('static', filename='images/logo.jpg') }}" style="height: 50px; width: auto;" class="me-2">
                 Noor Graphics
             </a>
             <button class="navbar-toggler border-0 shadow-none px-2" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
@@ -1454,11 +1454,12 @@
                             <i class="fas fa-id-card" style="font-size: 8rem; background: var(--primary-gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 30px;"></i>
                             <h3 class="mb-3">Features Include:</h3>
                             <ul class="list-unstyled text-start" style="font-size: 1.1rem;">
-                                <li class="mb-2"><i class="fas fa-check-circle text-success me-2"></i> Custom Templates</li>
-                                <li class="mb-2"><i class="fas fa-check-circle text-success me-2"></i> Bulk Generation</li>
-                                <li class="mb-2"><i class="fas fa-check-circle text-success me-2"></i> QR Code Integration</li>
-                                <li class="mb-2"><i class="fas fa-check-circle text-success me-2"></i> Secure Database</li>
-                                <li class="mb-2"><i class="fas fa-check-circle text-success me-2"></i> Print Ready</li>
+                                <li class="mb-2"><i class="fas fa-check-circle text-success me-2"></i> Side-Aware Visual Editor</li>
+                                <li class="mb-2"><i class="fas fa-check-circle text-success me-2"></i> AI Photo Crop &amp; BG Removal</li>
+                                <li class="mb-2"><i class="fas fa-check-circle text-success me-2"></i> Multilingual &amp; RTL Engine</li>
+                                <li class="mb-2"><i class="fas fa-check-circle text-success me-2"></i> Asynchronous Bulk Generation</li>
+                                <li class="mb-2"><i class="fas fa-check-circle text-success me-2"></i> CorelDRAW Vector PDF Exports</li>
+                                <li class="mb-2"><i class="fas fa-check-circle text-success me-2"></i> Dynamic QR &amp; Barcode Systems</li>
                             </ul>
                         </div>
                     </div>
@@ -1506,44 +1507,44 @@
             <div class="row mb-5">
                 <div class="col-12 text-center">
                     <h2 class="section-title">Our Services</h2>
-                    <p class="section-subtitle">Comprehensive ID card solutions for all your needs</p>
+                    <p class="section-subtitle">Comprehensive ID card solutions tailored for educational institutions and organizations</p>
                 </div>
             </div>
             <div class="row g-4">
                 <div class="col-lg-3 col-md-6">
                     <div class="service-card">
                         <div class="service-icon">
-                            <i class="fas fa-id-badge"></i>
+                            <i class="fas fa-crop-simple"></i>
                         </div>
-                        <h4 class="mb-3">ID Card Design</h4>
-                        <p>Custom ID card designs tailored to your organization's branding and requirements.</p>
+                        <h4 class="mb-3">Interactive Layout Editor</h4>
+                        <p>Design your ID card layouts directly in-app. Control labels, text wrapping, fonts, and custom shapes for front and back sides.</p>
                     </div>
                 </div>
                 <div class="col-lg-3 col-md-6">
                     <div class="service-card">
                         <div class="service-icon">
-                            <i class="fas fa-qrcode"></i>
+                            <i class="fas fa-wand-magic-sparkles"></i>
                         </div>
-                        <h4 class="mb-3">QR Code Integration</h4>
-                        <p>Secure QR codes for quick verification and access to digital information.</p>
+                        <h4 class="mb-3">AI Photo Customization</h4>
+                        <p>Enjoy automated face detection, rembg background isolation, transparent edge trimming, and hijab/turban-safe cropping.</p>
                     </div>
                 </div>
                 <div class="col-lg-3 col-md-6">
                     <div class="service-card">
                         <div class="service-icon">
-                            <i class="fas fa-print"></i>
+                            <i class="fas fa-language"></i>
                         </div>
-                        <h4 class="mb-3">Bulk Printing</h4>
-                        <p>High-quality bulk printing services for schools, colleges, and corporations.</p>
+                        <h4 class="mb-3">Multilingual Processing</h4>
+                        <p>Complete right-to-left BiDi text shaping for Urdu, Arabic, and Hindi with safe Unicode fallbacks to prevent font corruption.</p>
                     </div>
                 </div>
                 <div class="col-lg-3 col-md-6">
                     <div class="service-card">
                         <div class="service-icon">
-                            <i class="fas fa-database"></i>
+                            <i class="fas fa-file-excel"></i>
                         </div>
-                        <h4 class="mb-3">Data Management</h4>
-                        <p>Secure database management system for storing and organizing ID card data.</p>
+                        <h4 class="mb-3">Asynchronous Bulk Queue</h4>
+                        <p>Upload large Excel/CSV student lists, map columns dynamically, and compile hundreds of cards via safe background Redis workers.</p>
                     </div>
                 </div>
             </div>
@@ -1554,74 +1555,74 @@
         <div class="container">
             <div class="row mb-5">
                 <div class="col-12 text-center">
-                    <h2 class="section-title">Advanced Features</h2>
-                    <p class="section-subtitle">Powerful tools to streamline your ID card management</p>
+                    <h2 class="section-title">Technical Capabilities</h2>
+                    <p class="section-subtitle">Enterprise-level architecture designed for heavy-duty card production</p>
                 </div>
             </div>
             <div class="row g-4">
                 <div class="col-lg-4 col-md-6">
                     <div class="feature-box">
                         <div class="feature-icon">
-                            <i class="fas fa-shield-alt"></i>
+                            <i class="fas fa-face-smile"></i>
                         </div>
                         <div class="feature-content">
-                            <h4>Security First</h4>
-                            <p>End-to-end encryption and secure data storage to protect sensitive information.</p>
+                            <h4>AI-Powered Photo Engine</h4>
+                            <p>Autodetect faces via MediaPipe, strip backgrounds using Rembg (ONNX Runtime), and trim transparent padding automatically.</p>
                         </div>
                     </div>
                 </div>
                 <div class="col-lg-4 col-md-6">
                     <div class="feature-box">
                         <div class="feature-icon">
-                            <i class="fas fa-sync-alt"></i>
+                            <i class="fas fa-language"></i>
                         </div>
                         <div class="feature-content">
-                            <h4>Auto Sync</h4>
-                            <p>Automatic synchronization across all devices and platforms in real-time.</p>
+                            <h4>Native Urdu / Hindi / Arabic</h4>
+                            <p>RTL text support with BiDi glyph shaping and dynamic Safe-Font fallbacks, preventing tofu (□) errors on rendering.</p>
                         </div>
                     </div>
                 </div>
                 <div class="col-lg-4 col-md-6">
                     <div class="feature-box">
                         <div class="feature-icon">
-                            <i class="fas fa-mobile-alt"></i>
+                            <i class="fas fa-crop-simple"></i>
                         </div>
                         <div class="feature-content">
-                            <h4>Mobile Friendly</h4>
-                            <p>Fully responsive design that works perfectly on all mobile devices.</p>
+                            <h4>Visual Template Editor</h4>
+                            <p>A side-aware editor (front/back layout support) with locks, distribution layers, and custom text/shape rendering.</p>
                         </div>
                     </div>
                 </div>
                 <div class="col-lg-4 col-md-6">
                     <div class="feature-box">
                         <div class="feature-icon">
-                            <i class="fas fa-cloud-upload-alt"></i>
+                            <i class="fas fa-file-pdf"></i>
                         </div>
                         <div class="feature-content">
-                            <h4>Cloud Storage</h4>
-                            <p>Secure cloud storage for all your ID card templates and data.</p>
+                            <h4>CorelDRAW Smart Export</h4>
+                            <p>Outputs vector editable PDFs (stripping transparency tags that crash CorelDRAW) and high-res 600 DPI Print PDFs.</p>
                         </div>
                     </div>
                 </div>
                 <div class="col-lg-4 col-md-6">
                     <div class="feature-box">
                         <div class="feature-icon">
-                            <i class="fas fa-chart-line"></i>
+                            <i class="fas fa-qrcode"></i>
                         </div>
                         <div class="feature-content">
-                            <h4>Analytics Dashboard</h4>
-                            <p>Comprehensive analytics to track usage and generate reports.</p>
+                            <h4>Dynamic QR &amp; Barcodes</h4>
+                            <p>Code128 barcodes and JSON/URL/Text QR codes with secure client-side and server-side cached rendering pipelines.</p>
                         </div>
                     </div>
                 </div>
                 <div class="col-lg-4 col-md-6">
                     <div class="feature-box">
                         <div class="feature-icon">
-                            <i class="fas fa-headset"></i>
+                            <i class="fas fa-server"></i>
                         </div>
                         <div class="feature-content">
-                            <h4>24/7 Support</h4>
-                            <p>Round-the-clock customer support to assist with any issues.</p>
+                            <h4>Redis Caching &amp; Async Queue</h4>
+                            <p>Protects against stampedes, implements lazy Redis fallbacks, and executes bulk excel tasks via RQ workers.</p>
                         </div>
                     </div>
                 </div>

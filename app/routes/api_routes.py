@@ -38,6 +38,7 @@ from app.services import redis_service
 from app.services.redis_service import _redis_candidate_urls, get_redis_client
 from app.services.bulk_job_service import _get_bulk_job_state, _list_bulk_job_states, _set_bulk_job_state
 from app.services.photo_service import resolve_student_photo_reference
+from app.legacy_app import admin_required, super_admin_required
 
 logger = logging.getLogger(__name__)
 
@@ -53,18 +54,16 @@ def taskstatus(task_id):
 
 
 @api_bp.route('/admin/bulk-jobs', methods=['GET'])
+@admin_required
 def list_bulk_jobs():
-    if not session.get("admin"):
-        return jsonify({"success": False, "message": "Unauthorized"}), 403
     limit = request.args.get("limit", 100, type=int)
     rows = _list_bulk_job_states(limit=limit)
     return jsonify({"success": True, "jobs": rows})
 
 
 @api_bp.route('/admin/bulk-jobs/<task_id>/cancel', methods=['POST'])
+@admin_required
 def cancel_bulk_job(task_id):
-    if not session.get("admin"):
-        return jsonify({"success": False, "message": "Unauthorized"}), 403
     task = _get_bulk_job_state(task_id)
     if not task:
         return jsonify({"success": False, "message": "Task not found"}), 404
@@ -81,9 +80,8 @@ def cancel_bulk_job(task_id):
 
 
 @api_bp.route('/admin/bulk-jobs/<task_id>/failed-rows.csv', methods=['GET'])
+@admin_required
 def bulk_job_failed_rows_csv(task_id):
-    if not session.get("admin"):
-        return jsonify({"success": False, "message": "Unauthorized"}), 403
     task = _get_bulk_job_state(task_id)
     if not task:
         return jsonify({"success": False, "message": "Task not found"}), 404
@@ -210,10 +208,8 @@ def manage_template_fields(template_id):
 
 
 @api_bp.route('/admin/template/form-fields/<int:field_id>', methods=['PUT', 'DELETE'])
+@admin_required
 def manage_single_field(field_id):
-    if not session.get("admin"):
-        return jsonify({"success": False, "message": "Unauthorized"}), 403
-    
     try:
         field = db.session.get(TemplateField, field_id)
         if not field:
@@ -298,9 +294,8 @@ __all__ = ["api_bp"]
 
 
 @api_bp.route("/admin/template/<int:template_id>/versions", methods=["GET"])
+@admin_required
 def template_versions(template_id):
-    if not session.get("admin"):
-        return jsonify({"success": False, "message": "Unauthorized"}), 403
     versions = (
         TemplateVersion.query.filter_by(template_id=template_id)
         .order_by(TemplateVersion.version_number.desc())
@@ -428,10 +423,8 @@ def compare_template_snapshots(s1, s2):
 
 
 @api_bp.route("/admin/template/<int:template_id>/version-diff/<int:v1_id>/<int:v2_id>", methods=["GET"])
+@admin_required
 def template_version_diff(template_id, v1_id, v2_id):
-    if not session.get("admin"):
-        return jsonify({"success": False, "message": "Unauthorized"}), 403
-    
     v1 = TemplateVersion.query.filter_by(id=v1_id, template_id=template_id).first()
     v2 = TemplateVersion.query.filter_by(id=v2_id, template_id=template_id).first()
     
@@ -466,9 +459,8 @@ def template_version_diff(template_id, v1_id, v2_id):
 
 
 @api_bp.route("/admin/template/<int:template_id>/rollback/<int:version_id>", methods=["POST"])
+@admin_required
 def rollback_template_version(template_id, version_id):
-    if not session.get("admin"):
-        return jsonify({"success": False, "message": "Unauthorized"}), 403
     template = db.session.get(Template, template_id)
     if not template:
         return jsonify({"success": False, "message": "Template not found"}), 404
@@ -502,9 +494,8 @@ def rollback_template_version(template_id, version_id):
 
 
 @api_bp.route("/admin/template/<int:template_id>/workflow", methods=["GET", "POST"])
+@admin_required
 def template_workflow(template_id):
-    if not session.get("admin"):
-        return jsonify({"success": False, "message": "Unauthorized"}), 403
     template = db.session.get(Template, template_id)
     if not template:
         return jsonify({"success": False, "message": "Template not found"}), 404
@@ -548,9 +539,8 @@ def template_workflow(template_id):
 
 
 @api_bp.route("/admin/audit-events", methods=["GET"])
+@admin_required
 def admin_audit_events():
-    if not session.get("admin"):
-        return jsonify({"success": False, "message": "Unauthorized"}), 403
     entity_type = (request.args.get("entity_type") or "").strip()
     entity_id = (request.args.get("entity_id") or "").strip()
     q = ImmutableAuditEvent.query
@@ -580,9 +570,8 @@ def admin_audit_events():
 
 
 @api_bp.route("/admin/template/<int:template_id>/design-qa", methods=["GET"])
+@admin_required
 def template_design_qa(template_id):
-    if not session.get("admin"):
-        return jsonify({"success": False, "message": "Unauthorized"}), 403
     template = db.session.get(Template, template_id)
     if not template:
         return jsonify({"success": False, "message": "Template not found"}), 404
@@ -590,9 +579,8 @@ def template_design_qa(template_id):
 
 
 @api_bp.route("/admin/template/<int:template_id>/qa-settings", methods=["GET", "POST"])
+@admin_required
 def template_qa_settings(template_id):
-    if not session.get("admin"):
-        return jsonify({"success": False, "message": "Unauthorized"}), 403
     template = db.session.get(Template, template_id)
     if not template:
         return jsonify({"success": False, "message": "Template not found"}), 404
@@ -605,9 +593,8 @@ def template_qa_settings(template_id):
 
 
 @api_bp.route("/admin/preview-modes/<int:student_id>", methods=["GET"])
+@admin_required
 def preview_modes(student_id):
-    if not session.get("admin"):
-        return jsonify({"success": False, "message": "Unauthorized"}), 403
     student = db.session.get(Student, student_id)
     if not student:
         return jsonify({"success": False, "message": "Student not found"}), 404
@@ -618,9 +605,8 @@ def preview_modes(student_id):
 
 
 @api_bp.route("/admin/template/<int:template_id>/batch-rules", methods=["GET", "POST"])
+@admin_required
 def template_batch_rules(template_id):
-    if not session.get("admin"):
-        return jsonify({"success": False, "message": "Unauthorized"}), 403
     template = db.session.get(Template, template_id)
     if not template:
         return jsonify({"success": False, "message": "Template not found"}), 404
@@ -633,9 +619,8 @@ def template_batch_rules(template_id):
 
 
 @api_bp.route("/verify/v2/token/<int:student_id>", methods=["POST"])
+@admin_required
 def issue_verify_token_v2(student_id):
-    if not session.get("admin"):
-        return jsonify({"success": False, "message": "Unauthorized"}), 403
     student = db.session.get(Student, student_id)
     if not student:
         return jsonify({"success": False, "message": "Student not found"}), 404
@@ -653,9 +638,8 @@ def issue_verify_token_v2(student_id):
 
 
 @api_bp.route("/admin/analytics/overview", methods=["GET"])
+@admin_required
 def analytics_overview():
-    if not session.get("admin"):
-        return jsonify({"success": False, "message": "Unauthorized"}), 403
     rows = db.session.query(Template.school_name, db.func.count(Student.id)).join(Student, Student.template_id == Template.id, isouter=True).group_by(Template.school_name).all()
     by_school = [{"school_name": r[0], "cards_generated": int(r[1] or 0)} for r in rows]
     revoked = db.session.query(db.func.count(Student.id)).filter(Student.verification_revoked == True).scalar() or 0
@@ -665,9 +649,8 @@ def analytics_overview():
 
 
 @api_bp.route("/admin/template/<int:template_id>/localization-pack", methods=["GET", "POST"])
+@admin_required
 def localization_pack(template_id):
-    if not session.get("admin"):
-        return jsonify({"success": False, "message": "Unauthorized"}), 403
     template = db.session.get(Template, template_id)
     if not template:
         return jsonify({"success": False, "message": "Template not found"}), 404
@@ -681,9 +664,8 @@ def localization_pack(template_id):
 
 
 @api_bp.route("/admin/template/<int:template_id>/localized-labels", methods=["GET"])
+@admin_required
 def template_localized_labels(template_id):
-    if not session.get("admin"):
-        return jsonify({"success": False, "message": "Unauthorized"}), 403
     template = db.session.get(Template, template_id)
     if not template:
         return jsonify({"success": False, "message": "Template not found"}), 404
@@ -704,9 +686,8 @@ def template_localized_labels(template_id):
 
 
 @api_bp.route("/admin/template/<int:template_id>/branding", methods=["GET", "POST"])
+@admin_required
 def template_branding(template_id):
-    if not session.get("admin"):
-        return jsonify({"success": False, "message": "Unauthorized"}), 403
     template = db.session.get(Template, template_id)
     if not template:
         return jsonify({"success": False, "message": "Template not found"}), 404
@@ -720,9 +701,8 @@ def template_branding(template_id):
 
 
 @api_bp.route("/admin/import-mappings/<int:template_id>", methods=["GET", "POST"])
+@admin_required
 def import_mappings(template_id):
-    if not session.get("admin"):
-        return jsonify({"success": False, "message": "Unauthorized"}), 403
     if request.method == "GET":
         rows = ImportMapping.query.filter_by(template_id=template_id).order_by(ImportMapping.updated_at.desc()).all()
         return jsonify({"success": True, "mappings": [{"id": r.id, "name": r.name, "mapping_json": r.mapping_json} for r in rows]})
@@ -740,9 +720,8 @@ def import_mappings(template_id):
 
 
 @api_bp.route("/admin/import-mappings/preview", methods=["POST"])
+@admin_required
 def import_mapping_preview():
-    if not session.get("admin"):
-        return jsonify({"success": False, "message": "Unauthorized"}), 403
     payload = request.get_json(silent=True) or {}
     headers = payload.get("headers") or []
     mapping = payload.get("mapping_json") or {}
@@ -756,9 +735,8 @@ def import_mapping_preview():
 
 
 @api_bp.route("/admin/disaster-recovery/snapshot", methods=["POST"])
+@admin_required
 def dr_create_snapshot():
-    if not session.get("admin"):
-        return jsonify({"success": False, "message": "Unauthorized"}), 403
     payload = {
         "templates": [
             {
@@ -805,17 +783,15 @@ def _restore_snapshot_payload(payload):
 
 
 @api_bp.route("/admin/disaster-recovery/snapshots", methods=["GET"])
+@admin_required
 def dr_list_snapshots():
-    if not session.get("admin"):
-        return jsonify({"success": False, "message": "Unauthorized"}), 403
     rows = DisasterRecoverySnapshot.query.order_by(DisasterRecoverySnapshot.created_at.desc()).limit(100).all()
     return jsonify({"success": True, "snapshots": [{"id": r.id, "snapshot_name": r.snapshot_name, "created_at": r.created_at.isoformat()} for r in rows]})
 
 
 @api_bp.route("/admin/disaster-recovery/restore/<int:snapshot_id>", methods=["POST"])
+@admin_required
 def dr_restore_snapshot(snapshot_id):
-    if not session.get("admin"):
-        return jsonify({"success": False, "message": "Unauthorized"}), 403
     snap = db.session.get(DisasterRecoverySnapshot, snapshot_id)
     if not snap:
         return jsonify({"success": False, "message": "Snapshot not found"}), 404
@@ -825,9 +801,8 @@ def dr_restore_snapshot(snapshot_id):
 
 
 @api_bp.route("/admin/disaster-recovery/restore-to-date", methods=["POST"])
+@admin_required
 def dr_restore_to_date():
-    if not session.get("admin"):
-        return jsonify({"success": False, "message": "Unauthorized"}), 403
     payload = request.get_json(silent=True) or {}
     target_at = (payload.get("target_at") or "").strip()
     if not target_at:
@@ -860,9 +835,8 @@ def dr_restore_to_date():
 
 
 @api_bp.route("/admin/students/<int:student_id>/photo-quality", methods=["POST"])
+@admin_required
 def photo_quality_check(student_id):
-    if not session.get("admin"):
-        return jsonify({"success": False, "message": "Unauthorized"}), 403
     student = db.session.get(Student, student_id)
     if not student:
         return jsonify({"success": False, "message": "Student not found"}), 404
@@ -886,9 +860,8 @@ def photo_quality_check(student_id):
 
 
 @api_bp.route("/admin/students/<int:student_id>/verification-status", methods=["POST"])
+@admin_required
 def update_student_verification_status(student_id):
-    if not session.get("admin"):
-        return jsonify({"success": False, "message": "Unauthorized"}), 403
     student = db.session.get(Student, student_id)
     if not student:
         return jsonify({"success": False, "message": "Student not found"}), 404
@@ -903,9 +876,8 @@ def update_student_verification_status(student_id):
 
 
 @api_bp.route("/admin/verification-audits", methods=["GET"])
+@admin_required
 def list_verification_audits():
-    if not session.get("admin"):
-        return jsonify({"success": False, "message": "Unauthorized"}), 403
     student_id = request.args.get("student_id", type=int)
     limit = max(1, min(200, request.args.get("limit", 50, type=int)))
     query = VerificationAudit.query

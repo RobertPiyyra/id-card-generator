@@ -766,6 +766,28 @@
             </div>
             <div class="rowx"><label>Photo X/Y</label><input id="photoX" type="number" class="form-control form-control-sm" onchange="applyBlockInputs()"><input id="photoY" type="number" class="form-control form-control-sm" onchange="applyBlockInputs()"></div>
             <div class="rowx"><label>Photo W/H</label><input id="photoW" type="number" class="form-control form-control-sm" onchange="applyBlockInputs()"><input id="photoH" type="number" class="form-control form-control-sm" onchange="applyBlockInputs()"></div>
+            <div class="rowx"><label>Shape</label>
+              <select id="photoShapeVE" class="form-select form-select-sm" onchange="applyBlockInputs()" style="grid-column: 2 / span 2">
+                <option value="rectangle">Rectangle</option>
+                <option value="rounded">Rounded Rectangle</option>
+                <option value="circle">Circle / Oval</option>
+                <option value="triangle">Triangle</option>
+                <option value="diamond">Diamond</option>
+                <option value="pentagon">Pentagon</option>
+                <option value="hexagon">Hexagon</option>
+                <option value="heptagon">Heptagon</option>
+                <option value="octagon">Octagon</option>
+                <option value="custom-polygon">Custom Polygon</option>
+              </select>
+            </div>
+            <div class="rowx"><label>Frame / Inset</label><input id="photoFrameColorVE" type="color" class="form-control form-control-sm" onchange="applyBlockInputs()"><input id="photoShapeInsetVE" type="number" min="0" max="250" class="form-control form-control-sm" onchange="applyBlockInputs()" title="Shape inset"></div>
+            <div class="rowx"><label>All Corners</label><input id="photoCornerAllVE" type="number" min="0" max="250" class="form-control form-control-sm" onchange="setAllPhotoCornersVE(this.value)"><div class="small text-muted">px</div></div>
+            <div class="metrics-grid" style="margin-top:8px">
+              <label>TL</label><input id="photoCornerTLVE" type="number" min="0" max="250" class="form-control form-control-sm" onchange="applyBlockInputs()">
+              <label>TR</label><input id="photoCornerTRVE" type="number" min="0" max="250" class="form-control form-control-sm" onchange="applyBlockInputs()">
+              <label>BR</label><input id="photoCornerBRVE" type="number" min="0" max="250" class="form-control form-control-sm" onchange="applyBlockInputs()">
+              <label>BL</label><input id="photoCornerBLVE" type="number" min="0" max="250" class="form-control form-control-sm" onchange="applyBlockInputs()">
+            </div>
           </div>
           <div class="cardx" style="border-left-color:#00a589;">
             <h6>QR Code</h6>
@@ -795,6 +817,24 @@
         <div class="panel-section" id="panel-fields">
           <div class="cardx fields">
             <h6>Fields (Label / Value)</h6>
+            <div class="grid-field">
+              <div class="ttl">Selected Field Edit</div>
+              <div class="mini-actions mb-2">
+                <button class="btn btn-outline-secondary btn-sm" onclick="selectFieldParts('labels')">Labels</button>
+                <button class="btn btn-outline-secondary btn-sm" onclick="selectFieldParts('values')">Values</button>
+                <button class="btn btn-outline-secondary btn-sm" onclick="selectFieldParts('all')">All</button>
+              </div>
+              <div class="rowx">
+                <label>Selected</label>
+                <input id="fieldSelectionSummary" class="form-control form-control-sm" readonly style="grid-column: 2 / span 2" value="None">
+              </div>
+              <div class="metrics-grid" style="margin-top:8px">
+                <label>Size</label><input id="selectedFieldFontSize" class="form-control form-control-sm" type="number" min="8" max="260" disabled>
+                <label>Height</label><input id="selectedFieldLineHeight" class="form-control form-control-sm" type="number" min="0.5" max="5" step="0.05" disabled>
+                <label>Spacing</label><input id="selectedFieldCharSpacing" class="form-control form-control-sm" type="number" min="-500" max="1000" disabled>
+              </div>
+              <button class="btn btn-primary btn-sm w-100 mt-2" id="applySelectedFieldStyleBtn" onclick="applySelectedFieldTypography()" disabled>Apply To Selected Field(s)</button>
+            </div>
             <div id="fieldList"></div>
           </div>
         </div><!-- /#panel-fields -->
@@ -996,36 +1036,43 @@
       language: initLanguage || "english",
       direction: initDir === "rtl" ? "rtl" : "ltr",
       font: {
-        label_x: parseInt(initFont.label_x || 50, 10),
-        value_x: parseInt(initFont.value_x || 280, 10),
-        label_font_size: parseInt(initFont.label_font_size || 22, 10),
-        value_font_size: parseInt(initFont.value_font_size || 20, 10),
-        start_y: parseInt(initFont.start_y || 275, 10),
-        line_height: parseInt(initFont.line_height || 50, 10),
+        label_x: parseInt(initFont.label_x ?? 50, 10),
+        value_x: parseInt(initFont.value_x ?? 280, 10),
+        label_font_size: parseInt(initFont.label_font_size ?? 22, 10),
+        value_font_size: parseInt(initFont.value_font_size ?? 20, 10),
+        start_y: parseInt(initFont.start_y ?? 275, 10),
+        line_height: parseInt(initFont.line_height ?? 50, 10),
         show_label_colon: asBool(initFont.show_label_colon, true),
         align_label_colon: asBool(initFont.align_label_colon, true),
-        label_colon_gap: parseInt(initFont.label_colon_gap || 8, 10),
+        label_colon_gap: parseInt(initFont.label_colon_gap ?? 8, 10),
         colon_font_color: initFont.colon_font_color || initFont.label_font_color || "#0b3f8a",
       },
       photo: {
         enable_photo: initPhoto.enable_photo !== false,
-        photo_x: parseInt(initPhoto.photo_x || 725, 10),
-        photo_y: parseInt(initPhoto.photo_y || 200, 10),
-        photo_width: parseInt(initPhoto.photo_width || 260, 10),
-        photo_height: parseInt(initPhoto.photo_height || 313, 10),
+        photo_x: parseInt(initPhoto.photo_x ?? 725, 10),
+        photo_y: parseInt(initPhoto.photo_y ?? 200, 10),
+        photo_width: parseInt(initPhoto.photo_width ?? 260, 10),
+        photo_height: parseInt(initPhoto.photo_height ?? 313, 10),
+        photo_border_top_left: parseInt(initPhoto.photo_border_top_left ?? 0, 10),
+        photo_border_top_right: parseInt(initPhoto.photo_border_top_right ?? 0, 10),
+        photo_border_bottom_right: parseInt(initPhoto.photo_border_bottom_right ?? 0, 10),
+        photo_border_bottom_left: parseInt(initPhoto.photo_border_bottom_left ?? 0, 10),
+        photo_shape: initPhoto.photo_shape || "rectangle",
+        photo_shape_inset: parseInt(initPhoto.photo_shape_inset ?? 0, 10),
+        photo_frame_color: initPhoto.photo_frame_color || "#8c2440",
       },
       qr: {
         enable_qr: !!initQR.enable_qr,
-        qr_x: parseInt(initQR.qr_x || 50, 10),
-        qr_y: parseInt(initQR.qr_y || 50, 10),
-        qr_size: parseInt(initQR.qr_size || 120, 10),
+        qr_x: parseInt(initQR.qr_x ?? 50, 10),
+        qr_y: parseInt(initQR.qr_y ?? 50, 10),
+        qr_size: parseInt(initQR.qr_size ?? 120, 10),
       },
       barcode: {
         enable_barcode: !!initQR.enable_barcode,
-        barcode_x: parseInt(initQR.barcode_x || 50, 10),
-        barcode_y: parseInt(initQR.barcode_y || 200, 10),
-        barcode_width: parseInt(initQR.barcode_width || 220, 10),
-        barcode_height: parseInt(initQR.barcode_height || 70, 10),
+        barcode_x: parseInt(initQR.barcode_x ?? 50, 10),
+        barcode_y: parseInt(initQR.barcode_y ?? 200, 10),
+        barcode_width: parseInt(initQR.barcode_width ?? 220, 10),
+        barcode_height: parseInt(initQR.barcode_height ?? 70, 10),
       },
       layout: (typeof initLayout === "object" && initLayout) ? initLayout : { fields: {} },
     };
@@ -1153,11 +1200,150 @@
     const DEFAULT_LABEL_FILL = _fontColorToHex(initFont.label_font_color, "#0b3f8a");
     const DEFAULT_VALUE_FILL = _fontColorToHex(initFont.value_font_color, "#0b3f8a");
     const GROW_MODES = ["left", "center", "right"];
+    const PHOTO_SHAPE_SIDES = {
+      triangle: 3,
+      diamond: 4,
+      pentagon: 5,
+      hexagon: 6,
+      heptagon: 7,
+      octagon: 8
+    };
+    const PHOTO_SHAPES = new Set(["rectangle", "rounded", "circle", "custom-polygon", ...Object.keys(PHOTO_SHAPE_SIDES)]);
+
+    function getPolygonSides(shape) {
+      const base = String(shape || "rectangle").split(":")[0].toLowerCase();
+      if (base === "custom-polygon") {
+        const points = parseCustomPolygonUnitPoints(shape);
+        return points && points.length >= 3 ? points.length : 6;
+      }
+      if (base === "diamond") return 4;
+      return PHOTO_SHAPE_SIDES[base] || 0;
+    }
+
+    function isPolygonShape(shape) {
+      return getPolygonSides(shape) >= 3;
+    }
+
+    function buildPolygonPointsForRect(w, h, shape) {
+      const base = String(shape || "rectangle").split(":")[0].toLowerCase();
+      if (base === "custom-polygon") {
+        const customPoints = parseCustomPolygonUnitPoints(shape);
+        const sourcePoints = customPoints && customPoints.length >= 3
+          ? customPoints
+          : [
+              { x: 0.5, y: 0 },
+              { x: 1, y: 0.25 },
+              { x: 1, y: 0.75 },
+              { x: 0.5, y: 1 },
+              { x: 0, y: 0.75 },
+              { x: 0, y: 0.25 }
+            ];
+        return sourcePoints.map(function(point) {
+          return {
+            x: clamp(point.x, 0, 1) * w,
+            y: clamp(point.y, 0, 1) * h
+          };
+        });
+      }
+      if (base === "diamond") {
+        return [
+          { x: w / 2, y: 0 },
+          { x: w, y: h / 2 },
+          { x: w / 2, y: h },
+          { x: 0, y: h / 2 }
+        ];
+      }
+      const sides = PHOTO_SHAPE_SIDES[base];
+      if (!sides) return null;
+      if (sides === 6) {
+        let capH = Math.min(h / 2, w * 0.288675135);
+        if (shape.includes(":")) {
+          capH = parseFloat(shape.split(":")[1]) || capH;
+        }
+        capH = Math.min(h / 2, capH);
+        return [
+          { x: w / 2, y: 0 },
+          { x: w, y: capH },
+          { x: w, y: h - capH },
+          { x: w / 2, y: h },
+          { x: 0, y: h - capH },
+          { x: 0, y: capH }
+        ];
+      }
+      const points = [];
+      for (let i = 0; i < sides; i++) {
+        const angle = (-90 + (360 * i / sides)) * Math.PI / 180;
+        points.push({
+          x: (w / 2) + (w / 2) * Math.cos(angle),
+          y: (h / 2) + (h / 2) * Math.sin(angle)
+        });
+      }
+      return points;
+    }
+
+    function parseCustomPolygonUnitPoints(shape) {
+      const raw = String(shape || "").trim();
+      const prefix = "custom-polygon:";
+      if (!raw.toLowerCase().startsWith(prefix)) return null;
+      try {
+        const parsed = JSON.parse(raw.slice(prefix.length));
+        if (!Array.isArray(parsed)) return null;
+        const points = parsed.map(function(point) {
+          if (Array.isArray(point) && point.length >= 2) {
+            return { x: Number(point[0]), y: Number(point[1]) };
+          }
+          if (point && typeof point === "object") {
+            return { x: Number(point.x), y: Number(point.y) };
+          }
+          return null;
+        }).filter(function(point) {
+          return point && Number.isFinite(point.x) && Number.isFinite(point.y);
+        });
+        return points.length >= 3 ? points : null;
+      } catch (err) {
+        return null;
+      }
+    }
+
+    function photoPointsToCustomShape(points, boxW, boxH) {
+      const w = Math.max(1, Number(boxW) || 1);
+      const h = Math.max(1, Number(boxH) || 1);
+      const normalized = (points || []).map(function(point) {
+        const x = clamp((Number(point.x) || 0) / w, 0, 1);
+        const y = clamp((Number(point.y) || 0) / h, 0, 1);
+        return [Number(x.toFixed(4)), Number(y.toFixed(4))];
+      });
+      return normalized.length >= 3 ? "custom-polygon:" + JSON.stringify(normalized) : "rectangle";
+    }
 
     function normalizeGrow(grow, direction) {
       const g = (typeof grow === "string") ? grow.trim().toLowerCase() : "";
       if (GROW_MODES.includes(g)) return g;
       return (direction === "rtl") ? "right" : "left";
+    }
+
+    function normalizePhotoShapeVE(shape) {
+      const value = String(shape || "rectangle").trim();
+      const lowerVal = value.toLowerCase();
+      const base = lowerVal.split(":")[0];
+      if (base === "custom-polygon" && !lowerVal.includes(":")) {
+        return photoPointsToCustomShape(buildPolygonPointsForRect(100, 100, "hexagon") || [], 100, 100);
+      }
+      if (base.startsWith("custom-polygon") || PHOTO_SHAPE_SIDES[base]) {
+        return value;
+      }
+      const valLower = value.toLowerCase().replace("_", "-");
+      const aliases = {
+        rect: "rectangle",
+        square: "rectangle",
+        round: "rounded",
+        "rounded-rectangle": "rounded",
+        ellipse: "circle",
+        oval: "circle",
+        rhombus: "diamond"
+      };
+      const normalized = aliases[valLower] || valLower;
+      return PHOTO_SHAPES.has(normalized) ? normalized : "rectangle";
     }
 
     function leftFromAnchor(anchorX, objWidth, direction, grow) {
@@ -1399,7 +1585,7 @@
       const isDynamicField = Object.prototype.hasOwnProperty.call(dynamicFieldMap, String(key));
       if (!state.layout.fields[key]) state.layout.fields[key] = {};
       if (!state.layout.fields[key][obj.part]) state.layout.fields[key][obj.part] = {};
-      const forceManualY = !!options.forceManualY;
+      const forceManualY = !!options.forceManualY || isDynamicField;
       const grow = normalizeGrow(obj.growMode, state.direction);
       const coords = getAbsoluteCoords(obj);
       const anchorX = Math.round(anchorFromLeft(coords.left, obj.width || 0, state.direction, grow));
@@ -1459,6 +1645,113 @@
       syncFieldColon(key);
     }
 
+    function ensureFieldPartState(key, part) {
+      if (!state.layout.fields[key]) state.layout.fields[key] = {};
+      if (!state.layout.fields[key][part]) state.layout.fields[key][part] = {};
+      return state.layout.fields[key][part];
+    }
+
+    function applyFieldTypographyToObject(obj, options = {}) {
+      if (!obj || obj.dataType !== "field") return false;
+      const next = {};
+      if (options.fontSize !== undefined && options.fontSize !== "") {
+        next.fontSize = clamp(parseInt(options.fontSize, 10) || 8, 8, 260);
+      }
+      if (options.charSpacing !== undefined && options.charSpacing !== "") {
+        next.charSpacing = parseInt(options.charSpacing, 10) || 0;
+      }
+      if (options.lineHeight !== undefined && options.lineHeight !== "") {
+        next.lineHeight = Math.max(0.5, parseFloat(options.lineHeight) || 1.16);
+      }
+      if (!Object.keys(next).length) return false;
+
+      obj.set(next);
+      obj.setCoords();
+      updateLayoutFromObject(obj, { forceManualY: true });
+
+      const partState = ensureFieldPartState(obj.fieldKey, obj.part);
+      if ("charSpacing" in next) partState.char_spacing = next.charSpacing;
+      if ("lineHeight" in next) partState.line_height = next.lineHeight;
+      if ("fontSize" in next) partState.font_size = next.fontSize;
+      pruneFieldPartLayout(obj.fieldKey, obj.part);
+      syncFieldColon(obj.fieldKey);
+      return true;
+    }
+
+    function selectedFieldObjects() {
+      return selectedObjects().filter((obj) => obj && obj.dataType === "field");
+    }
+
+    function commonSelectedValue(objects, getter) {
+      if (!objects.length) return "";
+      const first = getter(objects[0]);
+      const same = objects.every((obj) => String(getter(obj)) === String(first));
+      return same ? first : "";
+    }
+
+    function updateSelectedFieldPanel() {
+      const fields = selectedFieldObjects();
+      const summary = document.getElementById("fieldSelectionSummary");
+      const sizeInput = document.getElementById("selectedFieldFontSize");
+      const heightInput = document.getElementById("selectedFieldLineHeight");
+      const spacingInput = document.getElementById("selectedFieldCharSpacing");
+      const applyBtn = document.getElementById("applySelectedFieldStyleBtn");
+      if (!summary || !sizeInput || !heightInput || !spacingInput || !applyBtn) return;
+
+      const disabled = fields.length === 0;
+      summary.value = disabled
+        ? "None"
+        : fields.map((obj) => `${fieldLabelFor(obj.fieldKey)} ${obj.part}`).join(", ");
+      sizeInput.disabled = disabled;
+      heightInput.disabled = disabled;
+      spacingInput.disabled = disabled;
+      applyBtn.disabled = disabled;
+      sizeInput.value = disabled ? "" : commonSelectedValue(fields, (obj) => Math.round(obj.fontSize || 0));
+      heightInput.value = disabled ? "" : commonSelectedValue(fields, (obj) => parseFloat(obj.lineHeight || 1.16));
+      spacingInput.value = disabled ? "" : commonSelectedValue(fields, (obj) => Math.round(obj.charSpacing || 0));
+    }
+
+    function applySelectedFieldTypography() {
+      const fields = selectedFieldObjects();
+      if (!fields.length) {
+        status("Select one or more field parts first.", true);
+        return;
+      }
+      const options = {
+        fontSize: document.getElementById("selectedFieldFontSize").value,
+        lineHeight: document.getElementById("selectedFieldLineHeight").value,
+        charSpacing: document.getElementById("selectedFieldCharSpacing").value
+      };
+      let changed = 0;
+      fields.forEach((obj) => {
+        if (applyFieldTypographyToObject(obj, options)) changed += 1;
+      });
+      refreshFieldFlow();
+      updateSelectedFieldPanel();
+      recordHistory("selected-field-typography");
+      status(`Updated ${changed} selected field part(s).`);
+    }
+
+    function selectFieldParts(mode) {
+      const wanted = [];
+      keyOrder.forEach((key) => {
+        const parts = fieldObjs[key];
+        if (!parts) return;
+        if ((mode === "labels" || mode === "all") && parts.label && parts.label.visible) wanted.push(parts.label);
+        if ((mode === "values" || mode === "all") && parts.value && parts.value.visible) wanted.push(parts.value);
+        if (mode === "all" && parts.colon && parts.colon.visible) wanted.push(parts.colon);
+      });
+      if (!wanted.length) {
+        status("No visible field parts to select.", true);
+        return;
+      }
+      if (wanted.length === 1) canvas.setActiveObject(wanted[0]);
+      else canvas.setActiveObject(new fabric.ActiveSelection(wanted, { canvas }));
+      canvas.requestRenderAll();
+      _syncSelectedUI();
+      status(`Selected ${wanted.length} field part(s).`);
+    }
+
     function normalizeFieldScale(obj) {
       if (!obj || obj.dataType !== "field") return;
       const sx = Number(obj.scaleX || 1);
@@ -1512,19 +1805,7 @@
       if (!Array.isArray(state.layout.objects)) state.layout.objects = [];
       syncBlockInputs();
       redrawFields();
-      if (photoRect) {
-        photoRect.set({
-          left: state.photo.photo_x,
-          top: state.photo.photo_y,
-          width: state.photo.photo_width,
-          height: state.photo.photo_height,
-          scaleX: 1,
-          scaleY: 1,
-          visible: !!state.photo.enable_photo,
-          evented: !!state.photo.enable_photo,
-          selectable: !!state.photo.enable_photo
-        });
-      }
+      if (photoRect) syncPhotoRectFromState();
       if (qrRect) {
         qrRect.set({
           left: state.qr.qr_x,
@@ -1582,19 +1863,10 @@
 
     function setFieldFontSize(key, part, fontSize) {
       const sz = Math.max(8, Math.min(200, parseInt(fontSize, 10) || 8));
-      if (!state.layout.fields[key]) state.layout.fields[key] = {};
-      if (!state.layout.fields[key][part]) state.layout.fields[key][part] = {};
-      const globalDefault = part === "label" ? state.font.label_font_size : state.font.value_font_size;
-      if (sz !== Math.max(8, parseInt(globalDefault, 10) || 8)) {
-        state.layout.fields[key][part].font_size = sz;
-      } else {
-        delete state.layout.fields[key][part].font_size;
-      }
-      // Update live canvas object immediately
-      if (fieldObjs[key] && fieldObjs[key][part]) {
-        fieldObjs[key][part].set({ fontSize: sz });
-        fieldObjs[key][part].setCoords();
-      }
+      const obj = fieldObjs[key] && fieldObjs[key][part];
+      if (obj) applyFieldTypographyToObject(obj, { fontSize: sz });
+      else ensureFieldPartState(key, part).font_size = sz;
+      refreshFieldFlow(key, part);
       canvas.requestRenderAll();
       recordHistory("field-font-size");
       status(`${key} ${part} font size → ${sz}px`);
@@ -1734,24 +2006,18 @@
 
     function setFieldCharSpacing(key, part, val) {
       const sp = parseInt(val, 10) || 0;
-      if (!state.layout.fields[key]) state.layout.fields[key] = {};
-      if (!state.layout.fields[key][part]) state.layout.fields[key][part] = {};
-      state.layout.fields[key][part].char_spacing = sp;
-      if (fieldObjs[key] && fieldObjs[key][part]) {
-        fieldObjs[key][part].set({ charSpacing: sp });
-      }
+      const obj = fieldObjs[key] && fieldObjs[key][part];
+      if (obj) applyFieldTypographyToObject(obj, { charSpacing: sp });
+      else ensureFieldPartState(key, part).char_spacing = sp;
       refreshFieldFlow(key, part);
       recordHistory("field-spacing");
     }
 
     function setFieldLineHeight(key, part, val) {
       const lh = parseFloat(val) || 1.16;
-      if (!state.layout.fields[key]) state.layout.fields[key] = {};
-      if (!state.layout.fields[key][part]) state.layout.fields[key][part] = {};
-      state.layout.fields[key][part].line_height = lh;
-      if (fieldObjs[key] && fieldObjs[key][part]) {
-        fieldObjs[key][part].set({ lineHeight: lh });
-      }
+      const obj = fieldObjs[key] && fieldObjs[key][part];
+      if (obj) applyFieldTypographyToObject(obj, { lineHeight: lh });
+      else ensureFieldPartState(key, part).line_height = lh;
       refreshFieldFlow(key, part);
       recordHistory("field-line-height");
     }
@@ -2271,17 +2537,7 @@
           }
           syncBlockInputs();
           redrawFields();
-          if (photoRect) {
-            photoRect.set({
-              left: state.photo.photo_x,
-              top: state.photo.photo_y,
-              width: state.photo.photo_width,
-              height: state.photo.photo_height,
-              visible: !!state.photo.enable_photo,
-              evented: !!state.photo.enable_photo,
-              selectable: !!state.photo.enable_photo
-            });
-          }
+          if (photoRect) syncPhotoRectFromState();
           if (qrRect) {
             qrRect.set({
               left: state.qr.qr_x,
@@ -2972,6 +3228,7 @@
 
       const o = _activeFieldText();
       const active = canvas.getActiveObject();
+      updateSelectedFieldPanel();
 
       if (active && active.type === "activeSelection") {
         const selectionItems = active.getObjects().filter(Boolean);
@@ -3126,7 +3383,12 @@
         strokeWidthInput.value = (selected.dataType === "custom" && selected.customType !== "image" && selected.customType !== "text")
           ? Math.round(selected.strokeWidth || 2)
           : "";
-        applyBtn.disabled = false;
+      }
+      if (active && active === photoRect) {
+        initPhotoRectControls(active);
+      } else if (photoRect) {
+        photoRect.controls = fabric.Object.prototype.controls;
+        photoRect.hasBorders = true;
       }
       renderLayersList();
     }
@@ -3373,18 +3635,27 @@
       status(`Aligned ${objects.length} item(s): ${mode}.`);
     }
 
+    let _nudgeHistoryTimer = null;
     function nudgeSelection(dx, dy) {
       const objects = selectedObjects();
       if (!objects.length) return false;
       objects.forEach((obj) => {
+        // Use exact pixel delta (bypass snap grid) so 1-pixel arrow key steps always work
         obj.set({
-          left: sround((obj.left || 0) + dx),
-          top: sround((obj.top || 0) + dy)
+          left: Math.round((obj.left || 0) + dx),
+          top: Math.round((obj.top || 0) + dy)
         });
         persistObjectState(obj);
       });
       canvas.requestRenderAll();
-      recordHistory("nudge");
+      // Sync sidebar X/Y inputs so they reflect the new position immediately
+      _syncSelectedUI();
+      // Debounce history recording — record only after the user stops nudging for 400ms
+      if (_nudgeHistoryTimer) clearTimeout(_nudgeHistoryTimer);
+      _nudgeHistoryTimer = setTimeout(() => {
+        recordHistory("nudge");
+        _nudgeHistoryTimer = null;
+      }, 400);
       return true;
     }
 
@@ -3423,6 +3694,23 @@
       state.photo.photo_y = parseInt(document.getElementById("photoY").value || "0", 10);
       state.photo.photo_width = parseInt(document.getElementById("photoW").value || "100", 10);
       state.photo.photo_height = parseInt(document.getElementById("photoH").value || "100", 10);
+      const dropdownShape = document.getElementById("photoShapeVE")?.value || "rectangle";
+      const currentShape = normalizePhotoShapeVE(state.photo.photo_shape || "rectangle");
+      const currentBase = currentShape.split(":")[0].toLowerCase();
+      let newShape;
+      if (dropdownShape === currentBase) {
+        newShape = currentShape;
+      } else {
+        newShape = normalizePhotoShapeVE(dropdownShape);
+      }
+      state.photo.photo_shape = newShape;
+
+      state.photo.photo_shape_inset = Math.max(0, parseInt(document.getElementById("photoShapeInsetVE")?.value || "0", 10) || 0);
+      state.photo.photo_frame_color = document.getElementById("photoFrameColorVE")?.value || state.photo.photo_frame_color || "#8c2440";
+      state.photo.photo_border_top_left = Math.max(0, parseInt(document.getElementById("photoCornerTLVE")?.value || "0", 10) || 0);
+      state.photo.photo_border_top_right = Math.max(0, parseInt(document.getElementById("photoCornerTRVE")?.value || "0", 10) || 0);
+      state.photo.photo_border_bottom_right = Math.max(0, parseInt(document.getElementById("photoCornerBRVE")?.value || "0", 10) || 0);
+      state.photo.photo_border_bottom_left = Math.max(0, parseInt(document.getElementById("photoCornerBLVE")?.value || "0", 10) || 0);
       state.qr.qr_x = parseInt(document.getElementById("qrX").value || "0", 10);
       state.qr.qr_y = parseInt(document.getElementById("qrY").value || "0", 10);
       state.qr.qr_size = parseInt(document.getElementById("qrS").value || "120", 10);
@@ -3430,17 +3718,7 @@
       state.barcode.barcode_y = parseInt(document.getElementById("barcodeY").value || "200", 10);
       state.barcode.barcode_width = parseInt(document.getElementById("barcodeW").value || "220", 10);
       state.barcode.barcode_height = parseInt(document.getElementById("barcodeH").value || "70", 10);
-      if (photoRect) photoRect.set({
-        left: state.photo.photo_x,
-        top: state.photo.photo_y,
-        width: state.photo.photo_width,
-        height: state.photo.photo_height,
-        scaleX:1,
-        scaleY:1,
-        visible: !!state.photo.enable_photo,
-        evented: !!state.photo.enable_photo,
-        selectable: !!state.photo.enable_photo
-      });
+      if (photoRect) syncPhotoRectFromState();
       if (qrRect) qrRect.set({
         left: state.qr.qr_x,
         top: state.qr.qr_y,
@@ -3466,6 +3744,15 @@
       syncTags();
       canvas.renderAll();
       recordHistory("block-inputs");
+    }
+
+    function setAllPhotoCornersVE(value) {
+      const radius = Math.max(0, parseInt(value || "0", 10) || 0);
+      ["photoCornerTLVE", "photoCornerTRVE", "photoCornerBRVE", "photoCornerBLVE"].forEach((id) => {
+        const el = document.getElementById(id);
+        if (el) el.value = radius;
+      });
+      applyBlockInputs();
     }
 
     function toggleBlockVisibility(type, enabled) {
@@ -3507,6 +3794,30 @@
       document.getElementById("photoY").value = Math.round(state.photo.photo_y);
       document.getElementById("photoW").value = Math.round(state.photo.photo_width);
       document.getElementById("photoH").value = Math.round(state.photo.photo_height);
+      const photoShapeEl = document.getElementById("photoShapeVE");
+      if (photoShapeEl) {
+        const fullShape = normalizePhotoShapeVE(state.photo.photo_shape);
+        photoShapeEl.value = fullShape.split(":")[0];
+      }
+      const photoInsetEl = document.getElementById("photoShapeInsetVE");
+      if (photoInsetEl) photoInsetEl.value = Math.max(0, parseInt(state.photo.photo_shape_inset || 0, 10) || 0);
+      const photoFrameColorEl = document.getElementById("photoFrameColorVE");
+      if (photoFrameColorEl) photoFrameColorEl.value = _normalizeHex(state.photo.photo_frame_color || "#8c2440", "#8c2440");
+      const cornerMap = {
+        photoCornerTLVE: state.photo.photo_border_top_left,
+        photoCornerTRVE: state.photo.photo_border_top_right,
+        photoCornerBRVE: state.photo.photo_border_bottom_right,
+        photoCornerBLVE: state.photo.photo_border_bottom_left
+      };
+      Object.entries(cornerMap).forEach(([id, value]) => {
+        const el = document.getElementById(id);
+        if (el) el.value = Math.max(0, parseInt(value || 0, 10) || 0);
+      });
+      const allCornerEl = document.getElementById("photoCornerAllVE");
+      if (allCornerEl) {
+        const values = Object.values(cornerMap).map((value) => Math.max(0, parseInt(value || 0, 10) || 0));
+        allCornerEl.value = values.every((value) => value === values[0]) ? values[0] : "";
+      }
       const enablePhotoEl = document.getElementById("enablePhotoVE");
       if (enablePhotoEl) enablePhotoEl.checked = !!state.photo.enable_photo;
       document.getElementById("qrX").value = Math.round(state.qr.qr_x);
@@ -3526,13 +3837,199 @@
       if (enableBarcodeEl) enableBarcodeEl.checked = !!state.barcode.enable_barcode;
     }
 
-    let bleedRect, safeRect, photoRect, qrRect, barcodeRect, pTag, qTag, bTag;
+    let bleedRect, safeRect, photoRect, photoShapePreview, qrRect, barcodeRect, pTag, qTag, bTag;
     let gridGroup = null;
     function toggleGuides(){ bleedRect.set({visible:document.getElementById("showBleed").checked}); safeRect.set({visible:document.getElementById("showSafe").checked}); canvas.renderAll(); }
+
+    function photoInsetPx(boxW, boxH) {
+      const raw = Math.max(0, parseInt(state.photo.photo_shape_inset || 0, 10) || 0);
+      return Math.min(raw, Math.max(0, Math.floor((Math.min(boxW, boxH) - 2) / 2)));
+    }
+
+    function photoPolygonPoints(boxW, boxH, shape, inset) {
+      const w = Math.max(1, boxW - (inset * 2));
+      const h = Math.max(1, boxH - (inset * 2));
+      const points = buildPolygonPointsForRect(w, h, shape) || buildPolygonPointsForRect(w, h, "hexagon") || [];
+      return points.map(function(point) {
+        return { x: point.x + inset, y: point.y + inset };
+      });
+    }
+
+    function syncPhotoRectAppearance() {
+      if (!photoRect) return;
+      const shape = normalizePhotoShapeVE(state.photo.photo_shape);
+      const base = shape.split(":")[0].toLowerCase();
+      const shaped = base === "circle" || isPolygonShape(shape);
+      photoRect.set({
+        fill: shaped ? "rgba(214,59,98,0.01)" : "rgba(214,59,98,0.04)",
+        stroke: shaped ? "rgba(214,59,98,0)" : (state.photo.photo_frame_color || "#d63b62"),
+        strokeWidth: shaped ? 0 : 2,
+        strokeDashArray: shaped ? [] : [6, 4],
+        cornerColor: "#d63b62"
+      });
+    }
+
+    function syncPhotoRectFromState() {
+      if (!photoRect) return;
+      photoRect.set({
+        left: Math.round(state.photo.photo_x || 0),
+        top: Math.round(state.photo.photo_y || 0),
+        width: Math.max(20, Math.round(state.photo.photo_width || 100)),
+        height: Math.max(20, Math.round(state.photo.photo_height || 100)),
+        scaleX: 1,
+        scaleY: 1,
+        visible: !!state.photo.enable_photo,
+        evented: !!state.photo.enable_photo,
+        selectable: !!state.photo.enable_photo
+      });
+      syncPhotoRectAppearance();
+      initPhotoRectControls(photoRect);
+      photoRect.setCoords();
+    }
+
+    function initPhotoRectControls(photoObj) {
+      if (!photoObj || photoObj.dataType !== "photo") return;
+      const shape = normalizePhotoShapeVE(state.photo.photo_shape);
+      const sides = getPolygonSides(shape);
+
+      if (sides < 3) {
+        photoObj.controls = fabric.Object.prototype.controls;
+        photoObj.hasBorders = true;
+        return;
+      }
+
+      photoObj.hasBorders = false;
+      photoObj.controls = {};
+
+      for (let index = 0; index < sides; index++) {
+        photoObj.controls['p' + index] = new fabric.Control({
+          x: 0,
+          y: 0,
+          positionHandler: function(dim, finalMatrix, fabricObject) {
+            const pts = buildPolygonPointsForRect(
+              Math.max(1, fabricObject.width || state.photo.photo_width || 100),
+              Math.max(1, fabricObject.height || state.photo.photo_height || 100),
+              normalizePhotoShapeVE(state.photo.photo_shape)
+            ) || [];
+            if (!pts[index]) return { x: 0, y: 0 };
+            return fabric.util.transformPoint(
+              {
+                x: pts[index].x - ((fabricObject.width || state.photo.photo_width || 100) / 2),
+                y: pts[index].y - ((fabricObject.height || state.photo.photo_height || 100) / 2)
+              },
+              fabricObject.calcTransformMatrix()
+            );
+          },
+          actionHandler: function(eventData, transform, x, y) {
+            const target = transform.target;
+            const boxW = Math.max(1, target.width || state.photo.photo_width || 100);
+            const boxH = Math.max(1, target.height || state.photo.photo_height || 100);
+            const localPoint = target.toLocalPoint(new fabric.Point(x, y), 'center', 'center');
+            const currentPoints = buildPolygonPointsForRect(boxW, boxH, normalizePhotoShapeVE(state.photo.photo_shape)) || [];
+            if (!currentPoints[index]) return false;
+            const newPoints = currentPoints.map((pt, i) => {
+              if (i !== index) return { x: pt.x, y: pt.y };
+              return {
+                x: clamp(localPoint.x + (boxW / 2), 0, boxW),
+                y: clamp(localPoint.y + (boxH / 2), 0, boxH)
+              };
+            });
+            state.photo.photo_shape = photoPointsToCustomShape(newPoints, boxW, boxH);
+            target.setCoords();
+            syncBlockInputs();
+            syncTags();
+            initPhotoRectControls(target);
+            canvas.requestRenderAll();
+            return true;
+          },
+          cursorStyle: 'pointer',
+          actionName: 'edit-polygon-point',
+          pointIndex: index
+        });
+      }
+    }
+
+    function createPhotoShapePreview() {
+      if (!photoRect || !state.photo.enable_photo) return null;
+      const left = Math.round(photoRect.left || 0);
+      const top = Math.round(photoRect.top || 0);
+      const width = Math.max(20, Math.round(photoRect.width || state.photo.photo_width || 20));
+      const height = Math.max(20, Math.round(photoRect.height || state.photo.photo_height || 20));
+      const inset = photoInsetPx(width, height);
+      const shape = normalizePhotoShapeVE(state.photo.photo_shape);
+      const stroke = state.photo.photo_frame_color || "#d63b62";
+      const common = {
+        selectable: false,
+        evented: false,
+        excludeFromExport: true,
+        dataType: "photo-shape-preview",
+        fill: "rgba(214,59,98,0.16)",
+        stroke,
+        strokeWidth: 2,
+        strokeDashArray: [4, 4],
+        objectCaching: false
+      };
+      if (shape === "circle") {
+        return new fabric.Ellipse({
+          ...common,
+          left: left + inset,
+          top: top + inset,
+          rx: Math.max(1, (width - inset * 2) / 2),
+          ry: Math.max(1, (height - inset * 2) / 2)
+        });
+      }
+      if (shape === "rectangle" || shape === "rounded") {
+        const tl = Math.max(0, parseInt(state.photo.photo_border_top_left || 0, 10) || 0);
+        const tr = Math.max(0, parseInt(state.photo.photo_border_top_right || 0, 10) || 0);
+        const br = Math.max(0, parseInt(state.photo.photo_border_bottom_right || 0, 10) || 0);
+        const bl = Math.max(0, parseInt(state.photo.photo_border_bottom_left || 0, 10) || 0);
+        const radius = shape === "rounded" ? Math.round((tl + tr + br + bl) / 4) : 0;
+        return new fabric.Rect({
+          ...common,
+          left: left + inset,
+          top: top + inset,
+          width: Math.max(1, width - inset * 2),
+          height: Math.max(1, height - inset * 2),
+          rx: radius,
+          ry: radius
+        });
+      }
+      const effW = Math.max(1, width - inset * 2);
+      const effH = Math.max(1, height - inset * 2);
+      const polyPoints = buildPolygonPointsForRect(effW, effH, shape) || buildPolygonPointsForRect(effW, effH, "hexagon") || [];
+      return new fabric.Polygon(polyPoints, {
+        ...common,
+        left: left + inset,
+        top: top + inset,
+        originX: "left",
+        originY: "top"
+      });
+    }
+
+    function syncPhotoShapePreview() {
+      if (!canvas) return;
+      if (photoShapePreview) {
+        canvas.remove(photoShapePreview);
+        photoShapePreview = null;
+      }
+      photoShapePreview = createPhotoShapePreview();
+      if (!photoShapePreview) {
+        canvas.requestRenderAll();
+        return;
+      }
+      const photoIndex = photoRect ? canvas.getObjects().indexOf(photoRect) : -1;
+      if (photoIndex >= 0) canvas.insertAt(photoShapePreview, Math.max(0, photoIndex), false);
+      else canvas.add(photoShapePreview);
+      if (photoRect) canvas.bringToFront(photoRect);
+      if (pTag) canvas.bringToFront(pTag);
+      canvas.requestRenderAll();
+    }
+
     function syncTags(){
       if (pTag && photoRect) pTag.set({left:photoRect.left+6, top:photoRect.top-18, visible: !!state.photo.enable_photo});
       if (qTag && qrRect) qTag.set({left:qrRect.left+6, top:qrRect.top-18, visible: !!state.qr.enable_qr});
       if (bTag && barcodeRect) bTag.set({left:barcodeRect.left+6, top:barcodeRect.top-18, visible: !!state.barcode.enable_barcode});
+      syncPhotoShapePreview();
     }
     function rebuildGrid() {
       if (gridGroup) {
@@ -3573,6 +4070,7 @@
       canvas.sendToBack(gridGroup);
       if (bleedRect) canvas.bringToFront(bleedRect);
       if (safeRect) canvas.bringToFront(safeRect);
+      if (photoShapePreview) canvas.bringToFront(photoShapePreview);
       if (photoRect) canvas.bringToFront(photoRect);
       if (qrRect) canvas.bringToFront(qrRect);
       if (pTag) canvas.bringToFront(pTag);
@@ -3693,6 +4191,7 @@
       btn.disabled = true; btn.textContent = "Saving...";
       try {
         // Persist all canvas objects back to state before building payload
+        applyBlockInputs();
         Object.values(fieldObjs).forEach((parts) => {
           ["label", "colon", "value"].forEach((part) => {
             if (parts && parts[part]) persistObjectState(parts[part]);
@@ -3707,6 +4206,8 @@
         const mergedPhoto = {
           ...initPhoto,
           ...state.photo,
+          photo_shape: normalizePhotoShapeVE(state.photo.photo_shape || initPhoto.photo_shape || "rectangle"),
+          photo_shape_inset: Math.max(0, parseInt(state.photo.photo_shape_inset || initPhoto.photo_shape_inset || 0, 10) || 0),
         };
 
         // Build merged qr_settings (merges initQR + editor qr state + editor barcode state)
@@ -3761,7 +4262,26 @@
 
         bleedRect = new fabric.Rect({ left:8, top:8, width:CARD_W-16, height:CARD_H-16, fill:"rgba(0,0,0,0)", stroke:"rgba(245,60,90,0.8)", strokeDashArray:[8,6], selectable:false, evented:false });
         safeRect = new fabric.Rect({ left:24, top:24, width:CARD_W-48, height:CARD_H-48, fill:"rgba(0,0,0,0)", stroke:"rgba(0,145,110,0.8)", strokeDashArray:[6,6], selectable:false, evented:false });
-        photoRect = new fabric.Rect({ left:state.photo.photo_x, top:state.photo.photo_y, width:state.photo.photo_width, height:state.photo.photo_height, fill:"rgba(214,59,98,0.16)", stroke:"#d63b62", strokeWidth:2, cornerColor:"#d63b62", dataType:"photo", visible: !!state.photo.enable_photo, evented: !!state.photo.enable_photo, selectable: !!state.photo.enable_photo });
+
+        const photoCommonProps = {
+          left: state.photo.photo_x,
+          top: state.photo.photo_y,
+          fill: "rgba(214,59,98,0.04)",
+          stroke: state.photo.photo_frame_color || "#d63b62",
+          strokeWidth: 2,
+          strokeDashArray: [6,4],
+          cornerColor: "#d63b62",
+          dataType: "photo",
+          visible: !!state.photo.enable_photo,
+          evented: !!state.photo.enable_photo,
+          selectable: !!state.photo.enable_photo
+        };
+        photoRect = new fabric.Rect({
+          ...photoCommonProps,
+          width: state.photo.photo_width || 100,
+          height: state.photo.photo_height || 100
+        });
+        syncPhotoRectAppearance();
         qrRect = new fabric.Rect({ left:state.qr.qr_x, top:state.qr.qr_y, width:state.qr.qr_size, height:state.qr.qr_size, fill:"rgba(0,165,137,0.16)", stroke:"#00a589", strokeWidth:2, cornerColor:"#00a589", lockUniScaling:true, dataType:"qr", visible: !!state.qr.enable_qr, evented: !!state.qr.enable_qr, selectable: !!state.qr.enable_qr });
         barcodeRect = new fabric.Rect({ left:state.barcode.barcode_x, top:state.barcode.barcode_y, width:state.barcode.barcode_width, height:state.barcode.barcode_height, fill:"rgba(124,77,255,0.12)", stroke:"#7c4dff", strokeWidth:2, cornerColor:"#7c4dff", dataType:"barcode", visible: !!state.barcode.enable_barcode, evented: !!state.barcode.enable_barcode, selectable: !!state.barcode.enable_barcode });
         pTag = new fabric.Text("PHOTO", { left:photoRect.left+6, top:photoRect.top-18, fontSize:13, fill:"#c42f55", selectable:false, evented:false, visible: !!state.photo.enable_photo });
@@ -3776,6 +4296,7 @@
         if (gridToggle) gridToggle.checked = gridVisible;
         rebuildGrid();
         syncBlockInputs();
+        syncTags();
         fitCanvas();
         // Fix 17: restore saved zoom if available (bound by screen limits on mobile)
         try {
@@ -3924,11 +4445,41 @@
           }
 
           if (o.dataType === "field") updateLayoutFromObject(o);
+          if (o.dataType === "photo") {
+            state.photo.photo_x = Math.round(o.left || 0);
+            state.photo.photo_y = Math.round(o.top || 0);
+            syncTags();
+          }
           if (o.dataType === "custom") persistCustomObject(o);
         });
         canvas.on("object:scaling", (e) => {
           const o = e.target; if (!o) return;
-          if (o.dataType === "photo") o.set({ width: clamp(sround(o.getScaledWidth()),20,CARD_W), height: clamp(sround(o.getScaledHeight()),20,CARD_H), scaleX:1, scaleY:1 });
+          if (o.dataType === "photo") {
+            if (o.type === "polygon") {
+              // For polygons: scale by regenerating points from new bounding box
+              const newW = clamp(sround(o.getScaledWidth()), 20, CARD_W);
+              const newH = clamp(sround(o.getScaledHeight()), 20, CARD_H);
+              const scaleShape = normalizePhotoShapeVE(state.photo.photo_shape);
+              const sPts = buildPolygonPointsForRect(newW, newH, scaleShape);
+              const sCx = newW / 2;
+              const sCy = newH / 2;
+              const sCentered = sPts.map(function(p) { return { x: p.x - sCx, y: p.y - sCy }; });
+              o.set({ width: newW, height: newH, points: sCentered, scaleX: 1, scaleY: 1 });
+              state.photo.photo_width = Math.round(newW);
+              state.photo.photo_height = Math.round(newH);
+            } else if (o.type === "ellipse") {
+              const newW = clamp(sround(o.getScaledWidth()), 20, CARD_W);
+              const newH = clamp(sround(o.getScaledHeight()), 20, CARD_H);
+              o.set({ rx: Math.max(1, newW / 2), ry: Math.max(1, newH / 2), scaleX: 1, scaleY: 1 });
+              state.photo.photo_width = Math.round(newW);
+              state.photo.photo_height = Math.round(newH);
+            } else {
+              o.set({ width: clamp(sround(o.getScaledWidth()),20,CARD_W), height: clamp(sround(o.getScaledHeight()),20,CARD_H), scaleX:1, scaleY:1 });
+              state.photo.photo_width = Math.round(o.width);
+              state.photo.photo_height = Math.round(o.height);
+            }
+            syncTags();
+          }
           if (o.dataType === "qr") { const side = clamp(sround(Math.max(o.getScaledWidth(),o.getScaledHeight())),20,500); o.set({ width: side, height: side, scaleX:1, scaleY:1 }); }
           if (o.dataType === "barcode") o.set({ width: clamp(sround(o.getScaledWidth()),40,CARD_W), height: clamp(sround(o.getScaledHeight()),20,CARD_H), scaleX:1, scaleY:1 });
           if (o.dataType === "field") normalizeFieldScale(o);
@@ -3951,11 +4502,19 @@
 	                normalizeFieldScale(child);
 		                updateLayoutFromObject(child);
 	              } else if (child.dataType === "photo") {
-                    const coords = getAbsoluteCoords(child);
-	                state.photo.photo_x = Math.round(coords.left);
-	                state.photo.photo_y = Math.round(coords.top);
-	                state.photo.photo_width = Math.round(child.width);
-	                state.photo.photo_height = Math.round(child.height);
+	                    const coords = getAbsoluteCoords(child);
+	                    if (child.type === "polygon") {
+	                      const pbbox = child._calcDimensions();
+	                      state.photo.photo_x = Math.round(coords.left);
+	                      state.photo.photo_y = Math.round(coords.top);
+	                      state.photo.photo_width = Math.max(20, Math.round(pbbox.width));
+	                      state.photo.photo_height = Math.max(20, Math.round(pbbox.height));
+	                    } else {
+	                      state.photo.photo_x = Math.round(coords.left);
+	                      state.photo.photo_y = Math.round(coords.top);
+	                      state.photo.photo_width = Math.round(child.width);
+	                      state.photo.photo_height = Math.round(child.height);
+	                    }
 	              } else if (child.dataType === "qr") {
                     const coords = getAbsoluteCoords(child);
 	                state.qr.qr_x = Math.round(coords.left);
@@ -3977,7 +4536,25 @@
 	            }
 	            if (o.dataType === "photo") {
                   const coords = getAbsoluteCoords(o);
-                  state.photo.photo_x=Math.round(coords.left); state.photo.photo_y=Math.round(coords.top); state.photo.photo_width=Math.round(o.width); state.photo.photo_height=Math.round(o.height); syncTags(); syncBlockInputs();
+                  if (o.type === "polygon") {
+                    const bbox = o._calcDimensions();
+                    state.photo.photo_x = Math.round(coords.left);
+                    state.photo.photo_y = Math.round(coords.top);
+                    state.photo.photo_width = Math.max(20, Math.round(bbox.width));
+                    state.photo.photo_height = Math.max(20, Math.round(bbox.height));
+                  } else if (o.type === "ellipse") {
+                    state.photo.photo_x = Math.round(coords.left);
+                    state.photo.photo_y = Math.round(coords.top);
+                    state.photo.photo_width = Math.round(o.width);
+                    state.photo.photo_height = Math.round(o.height);
+                  } else {
+                    state.photo.photo_x = Math.round(coords.left);
+                    state.photo.photo_y = Math.round(coords.top);
+                    state.photo.photo_width = Math.round(o.width);
+                    state.photo.photo_height = Math.round(o.height);
+                  }
+                  syncTags();
+                  syncBlockInputs();
                 }
 	            if (o.dataType === "qr") {
                   const coords = getAbsoluteCoords(o);

@@ -3,120 +3,491 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Student Verification</title>
+    <title>Student Verification - ID Card Portal</title>
     <link rel="icon" href="data:,">
+    <!-- Google Fonts for modern typography -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <!-- FontAwesome icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
     <style>
+        :root {
+            --bg-gradient: linear-gradient(135deg, #090d16 0%, #15102a 50%, #060814 100%);
+            --verified-color: #10b981;
+            --verified-glow: rgba(16, 185, 129, 0.4);
+            --error-color: #f43f5e;
+            --error-glow: rgba(244, 63, 94, 0.4);
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --glass-bg: rgba(255, 255, 255, 0.03);
+            --glass-border: rgba(255, 255, 255, 0.08);
+            --glass-hover: rgba(255, 255, 255, 0.06);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
         body {
-            font-family: Helvetica, Arial, sans-serif;
-            background-color: #eef2f3;
+            font-family: 'Inter', sans-serif;
+            background: var(--bg-gradient);
+            color: var(--text-primary);
+            min-height: 100vh;
             display: flex;
             justify-content: center;
             align-items: center;
-            min-height: 100vh;
-            margin: 0;
             padding: 20px;
-        }
-        .card {
-            background: white;
-            border-radius: 20px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
-            width: 100%;
-            max-width: 350px;
-            text-align: center;
-            overflow: hidden;
+            overflow-x: hidden;
             position: relative;
         }
-        .status-bar {
-            background-color: #27ae60;
-            color: white;
-            padding: 15px;
-            font-weight: bold;
-            font-size: 1.1em;
-            letter-spacing: 1px;
-            text-transform: uppercase;
+
+        /* Ambient glowing backgrounds */
+        .ambient-glow-1 {
+            position: absolute;
+            width: 300px;
+            height: 300px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(99, 102, 241, 0.15) 0%, rgba(0,0,0,0) 70%);
+            top: 15%;
+            left: 10%;
+            pointer-events: none;
+            z-index: 1;
         }
-        .status-bar.invalid {
-            background-color: #c0392b;
+
+        .ambient-glow-2 {
+            position: absolute;
+            width: 400px;
+            height: 400px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(16, 185, 129, 0.1) 0%, rgba(0,0,0,0) 70%);
+            bottom: 10%;
+            right: 5%;
+            pointer-events: none;
+            z-index: 1;
         }
-        .photo-area {
-            margin-top: 25px;
-            margin-bottom: 15px;
+
+        /* Container & Card */
+        .verification-container {
+            width: 100%;
+            max-width: 440px;
+            perspective: 1000px;
+            z-index: 10;
         }
-        .student-photo {
-            width: 150px;
-            height: 150px;
-            border-radius: 50%; /* Makes photo circular */
-            object-fit: cover;
-            border: 5px solid #f0f0f0;
+
+        .card {
+            background: rgba(13, 16, 27, 0.65);
+            backdrop-filter: blur(25px);
+            -webkit-backdrop-filter: blur(25px);
+            border: 1px solid var(--glass-border);
+            border-radius: 24px;
+            padding: 35px 28px;
+            text-align: center;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5),
+                        0 0 40px rgba(99, 102, 241, 0.05);
+            position: relative;
+            overflow: hidden;
+            transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         }
-        .info-container {
-            padding: 0 30px 40px 30px;
+
+        .card:hover {
+            transform: translateY(-5px);
+            border-color: rgba(255, 255, 255, 0.15);
+            box-shadow: 0 30px 60px -12px rgba(0, 0, 0, 0.6),
+                        0 0 50px rgba(99, 102, 241, 0.1);
         }
-        .student-name {
-            font-size: 1.6em;
-            color: #2c3e50;
-            margin: 10px 0 5px 0;
-            font-weight: 700;
+
+        /* Status Header */
+        .status-header {
+            position: relative;
+            margin-bottom: 24px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            z-index: 2;
         }
-        .school-name {
-            color: #7f8c8d;
-            font-size: 0.9em;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-bottom: 25px;
-            border-bottom: 1px solid #eee;
-            padding-bottom: 15px;
+
+        /* Checkmark Animation */
+        .svg-container {
+            width: 80px;
+            height: 80px;
+            margin-bottom: 16px;
+            position: relative;
         }
-        .detail-box {
-            background: #f8f9fa;
-            padding: 15px;
-            border-radius: 10px;
-            margin-top: 10px;
+
+        .success-circle {
+            stroke-dasharray: 166;
+            stroke-dashoffset: 166;
+            stroke-width: 3;
+            stroke-miterlimit: 10;
+            stroke: var(--verified-color);
+            fill: none;
+            animation: stroke 0.6s cubic-bezier(0.65, 0, 0.45, 1) forwards;
         }
-        .label {
+
+        .checkmark {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
             display: block;
-            font-size: 0.75em;
-            color: #95a5a6;
-            text-transform: uppercase;
-            margin-bottom: 3px;
+            stroke-width: 3;
+            stroke: #fff;
+            stroke-miterlimit: 10;
+            box-shadow: inset 0px 0px 0px var(--verified-color);
+            animation: fill-checkmark .4s ease-in-out .4s forwards, scale-checkmark .3s ease-in-out .9s forwards;
         }
-        .value {
-            font-size: 1.1em;
-            color: #34495e;
+
+        .checkmark-check {
+            transform-origin: 50% 50%;
+            stroke-dasharray: 48;
+            stroke-dashoffset: 48;
+            animation: stroke 0.3s cubic-bezier(0.65, 0, 0.45, 1) 0.8s forwards;
+        }
+
+        /* Error Cross Animation */
+        .error-circle {
+            stroke-dasharray: 166;
+            stroke-dashoffset: 166;
+            stroke-width: 3;
+            stroke-miterlimit: 10;
+            stroke: var(--error-color);
+            fill: none;
+            animation: stroke 0.6s cubic-bezier(0.65, 0, 0.45, 1) forwards;
+        }
+
+        .crossmark {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            display: block;
+            stroke-width: 3;
+            stroke: #fff;
+            stroke-miterlimit: 10;
+            box-shadow: inset 0px 0px 0px var(--error-color);
+            animation: fill-crossmark .4s ease-in-out .4s forwards, scale-checkmark .3s ease-in-out .9s forwards;
+        }
+
+        .cross-line1 {
+            stroke-dasharray: 48;
+            stroke-dashoffset: 48;
+            animation: stroke 0.3s cubic-bezier(0.65, 0, 0.45, 1) 0.7s forwards;
+        }
+
+        .cross-line2 {
+            stroke-dasharray: 48;
+            stroke-dashoffset: 48;
+            animation: stroke 0.3s cubic-bezier(0.65, 0, 0.45, 1) 0.9s forwards;
+        }
+
+        @keyframes stroke {
+            100% {
+                stroke-dashoffset: 0;
+            }
+        }
+
+        @keyframes fill-checkmark {
+            100% {
+                box-shadow: inset 0px 0px 0px 40px var(--verified-color);
+            }
+        }
+
+        @keyframes fill-crossmark {
+            100% {
+                box-shadow: inset 0px 0px 0px 40px var(--error-color);
+            }
+        }
+
+        @keyframes scale-checkmark {
+            0%, 100% {
+                transform: none;
+            }
+            50% {
+                transform: scale3d(1.1, 1.1, 1);
+            }
+        }
+
+        /* Badges */
+        .badge {
+            font-family: 'Outfit', sans-serif;
+            font-size: 0.75rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            padding: 6px 16px;
+            border-radius: 50px;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            margin-top: 5px;
+        }
+
+        .badge.verified {
+            background: rgba(16, 185, 129, 0.15);
+            color: var(--verified-color);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            box-shadow: 0 0 15px rgba(16, 185, 129, 0.1);
+        }
+
+        .badge.invalid {
+            background: rgba(244, 63, 94, 0.15);
+            color: var(--error-color);
+            border: 1px solid rgba(244, 63, 94, 0.3);
+            box-shadow: 0 0 15px rgba(244, 63, 94, 0.1);
+        }
+
+        /* Photo Area */
+        .photo-area {
+            margin: 20px auto;
+            position: relative;
+            width: 140px;
+            height: 140px;
+            z-index: 2;
+        }
+
+        .photo-ring {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--verified-color) 0%, #6366f1 100%);
+            padding: 4px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+            transition: transform 0.3s ease;
+        }
+
+        .card:hover .photo-ring {
+            transform: scale(1.05) rotate(5deg);
+        }
+
+        .photo-ring.invalid-photo {
+            background: linear-gradient(135deg, var(--error-color) 0%, #e11d48 100%);
+        }
+
+        .student-photo {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            object-fit: cover;
+            background: #1e293b;
+            border: 3px solid rgba(15, 23, 42, 0.9);
+        }
+
+        /* Profile details */
+        .profile-title {
+            margin-bottom: 25px;
+            z-index: 2;
+            position: relative;
+        }
+
+        .student-name {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            letter-spacing: -0.5px;
+            margin-bottom: 4px;
+        }
+
+        .school-name {
+            color: var(--text-secondary);
+            font-size: 0.82rem;
+            text-transform: uppercase;
+            font-weight: 700;
+            letter-spacing: 1.5px;
+        }
+
+        /* Detail boxes grid */
+        .details-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-bottom: 25px;
+            text-align: left;
+            z-index: 2;
+            position: relative;
+        }
+
+        .detail-item {
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: 14px;
+            padding: 12px 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: background 0.2s, border-color 0.2s;
+        }
+
+        .detail-item:hover {
+            background: var(--glass-hover);
+            border-color: rgba(255, 255, 255, 0.12);
+        }
+
+        .detail-label {
+            font-size: 0.72rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
             font-weight: 600;
+            letter-spacing: 0.8px;
+        }
+
+        .detail-value {
+            font-size: 0.92rem;
+            color: var(--text-primary);
+            font-weight: 600;
+        }
+
+        .status-pill {
+            background: rgba(16, 185, 129, 0.12);
+            color: var(--verified-color);
+            padding: 3px 10px;
+            border-radius: 50px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            border: 1px solid rgba(16, 185, 129, 0.25);
+        }
+
+        /* Security Audit Footer */
+        .audit-footer {
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+            padding-top: 20px;
+            margin-top: 20px;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            z-index: 2;
+            position: relative;
+        }
+
+        .institution-lock {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            color: var(--verified-color);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .institution-lock.invalid-lock {
+            color: var(--error-color);
+        }
+
+        /* Responsive Breakpoints */
+        @media (max-width: 480px) {
+            body {
+                padding: 15px;
+            }
+            .card {
+                padding: 24px 16px;
+                border-radius: 20px;
+            }
+            .student-name {
+                font-size: 1.5rem;
+            }
+            .detail-value {
+                font-size: 0.85rem;
+            }
         }
     </style>
 </head>
 <body>
 
-    <div class="card">
-        {% if valid %}
-            <div class="status-bar">
-                ✓ Verified Student
-            </div>
+    <div class="ambient-glow-1"></div>
+    <div class="ambient-glow-2"></div>
 
-            <div class="photo-area">
-                <img src="{{ student.photo_url }}" alt="Student Photo" class="student-photo">
-            </div>
-
-            <div class="info-container">
-                <h1 class="student-name">{{ student.name }}</h1>
-                
-                <div class="school-name">{{ student.school_name }}</div>
-
-                <div class="detail-box">
-                    <span class="label">Father's Name</span>
-                    <span class="value">{{ student.father_name }}</span>
+    <div class="verification-container">
+        <div class="card">
+            
+            {% if valid %}
+                <!-- Verification Status Header -->
+                <div class="status-header">
+                    <div class="svg-container">
+                        <svg class="checkmark" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 52">
+                            <circle class="success-circle" cx="26" cy="26" r="25" />
+                            <path class="checkmark-check" fill="none" d="M14.1 27.2l7.1 7.2 16.7-16.8"/>
+                        </svg>
+                    </div>
+                    <span class="badge verified">
+                        <i class="fa-solid fa-shield-halved"></i> Verified Student
+                    </span>
                 </div>
-            </div>
-        {% else %}
-            <div class="status-bar invalid">
-                ✕ Record Not Found
-            </div>
-            <div class="info-container">
-                <p style="margin-top: 30px; color: #555;">{{ error }}</p>
-            </div>
-        {% endif %}
+
+                <!-- Profile Photo Area -->
+                <div class="photo-area">
+                    <div class="photo-ring">
+                        <img src="{{ student.photo_url }}" alt="Student Photo" class="student-photo">
+                    </div>
+                </div>
+
+                <!-- Identity Details Title -->
+                <div class="profile-title">
+                    <h1 class="student-name">{{ student.name }}</h1>
+                    <div class="school-name">{{ student.school_name }}</div>
+                </div>
+
+                <!-- Structured Detail Rows -->
+                <div class="details-grid">
+                    <div class="detail-item">
+                        <span class="detail-label">Father's Name</span>
+                        <span class="detail-value">{{ student.father_name }}</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Verification Status</span>
+                        <span class="status-pill">Active</span>
+                    </div>
+                </div>
+
+                <!-- Cryptographic Secure Footer -->
+                <div class="audit-footer">
+                    <div class="institution-lock">
+                        <i class="fa-solid fa-lock"></i> Secured Verification Profile
+                    </div>
+                </div>
+
+            {% else %}
+                <!-- Error / Invalid Status Header -->
+                <div class="status-header">
+                    <div class="svg-container">
+                        <svg class="crossmark" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 52">
+                            <circle class="error-circle" cx="26" cy="26" r="25" />
+                            <path class="cross-line1" fill="none" d="M16 16l20 20"/>
+                            <path class="cross-line2" fill="none" d="M36 16L16 36"/>
+                        </svg>
+                    </div>
+                    <span class="badge invalid">
+                        <i class="fa-solid fa-circle-exclamation"></i> Record Not Found
+                    </span>
+                </div>
+
+                <!-- Placeholder Error Icon -->
+                <div class="photo-area">
+                    <div class="photo-ring invalid-photo" style="display: flex; align-items: center; justify-content: center;">
+                        <i class="fa-solid fa-user-slash" style="font-size: 3rem; color: var(--error-color);"></i>
+                    </div>
+                </div>
+
+                <div class="profile-title">
+                    <h1 class="student-name" style="color: var(--error-color);">Invalid ID Card</h1>
+                    <div class="school-name">Credential Registry System</div>
+                </div>
+
+                <!-- Error Explanation Box -->
+                <div class="details-grid" style="text-align: center;">
+                    <div style="background: rgba(244, 63, 94, 0.08); border: 1px solid rgba(244, 63, 94, 0.2); border-radius: 14px; padding: 18px; line-height: 1.5; color: #fda4af; font-size: 0.88rem;">
+                        {{ error }}
+                    </div>
+                </div>
+
+                <!-- Footer with error indicator -->
+                <div class="audit-footer">
+                    <div class="institution-lock invalid-lock">
+                        <i class="fa-solid fa-triangle-exclamation"></i> Unverified Profile
+                    </div>
+                </div>
+            {% endif %}
+
+        </div>
     </div>
 
 </body>

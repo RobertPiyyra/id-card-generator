@@ -1,4 +1,4 @@
-from app.legacy_app import login_required
+from app.legacy_app import admin_required
 import os
 import io
 import json
@@ -38,6 +38,19 @@ def _my_setShadingUsed(self, page):
 canvas.Canvas._setShadingUsed = _my_setShadingUsed
 
 from reportlab.lib.utils import ImageReader
+
+def _parse_hex_to_rgb_normalized(hex_color_str, default=(0.55, 0.14, 0.24)):
+    val = str(hex_color_str or "").strip()
+    if len(val) == 7 and val.startswith("#"):
+        try:
+            return (
+                int(val[1:3], 16) / 255.0,
+                int(val[3:5], 16) / 255.0,
+                int(val[5:7], 16) / 255.0
+            )
+        except ValueError:
+            return default
+    return default
 from reportlab.graphics import renderPDF
 from reportlab.graphics.barcode import createBarcodeDrawing, qr as rl_qr
 from reportlab.graphics.shapes import Drawing
@@ -73,6 +86,7 @@ from utils import (
     load_font_dynamic, get_field_layout_item, PIL_RAQM_AVAILABLE, _font_covers_text,
     get_cloudinary_face_crop_url, round_photo, parse_layout_config, get_anchor_max_text_width,
     get_layout_flow_start_y, get_localized_standard_labels,
+    normalize_photo_shape,
 )
 from utils import load_template_smart
 corel_bp = Blueprint('corel', __name__)
@@ -903,8 +917,11 @@ def _draw_editable_media_overlays(
                     int(float(photo_settings.get("photo_border_bottom_right", 0) or 0)),
                     int(float(photo_settings.get("photo_border_bottom_left", 0) or 0)),
                 ]
+                photo_shape = photo_settings.get("photo_shape", "rectangle")
                 if photo_img.mode != "RGBA":
                     photo_img = photo_img.convert("RGBA")
+                photo_shape_inset = int(float(photo_settings.get("photo_shape_inset", 0) or 0))
+                photo_img = round_photo(photo_img, radii, shape=photo_shape, shape_inset=photo_shape_inset)
                 photo_x = float(card_x) + (float(photo_settings.get("photo_x", 0) or 0) * scale)
                 photo_y = float(card_bottom_y) + (
                     float(card_h_pt)
@@ -912,26 +929,17 @@ def _draw_editable_media_overlays(
                 )
                 scaled_radii = [float(r) * scale for r in radii]
                 c.saveState()
-                if all(r == scaled_radii[0] for r in scaled_radii) and scaled_radii[0] > 0:
-                    path = c.beginPath()
-                    path.roundRect(
-                        photo_x,
-                        photo_y,
-                        float(photo_w_px) * scale,
-                        float(photo_h_px) * scale,
-                        scaled_radii[0],
-                    )
-                    c.clipPath(path, stroke=0)
-                elif any(r > 0 for r in scaled_radii):
-                    path = draw_custom_rounded_rect(
-                        c,
-                        photo_x,
-                        photo_y,
-                        float(photo_w_px) * scale,
-                        float(photo_h_px) * scale,
-                        scaled_radii,
-                    )
-                    c.clipPath(path, stroke=0)
+                _clip_photo_shape_reportlab(
+                    c,
+                    photo_x,
+                    photo_y,
+                    float(photo_w_px) * scale,
+                    float(photo_h_px) * scale,
+                    scaled_radii,
+                    photo_shape,
+                    photo_shape_inset * scale,
+                    shape_geometry_scale=scale,
+                )
                 c.drawImage(
                     _pil_image_reader(photo_img, preserve_alpha=True),
                     photo_x,
@@ -945,47 +953,20 @@ def _draw_editable_media_overlays(
                 if _corel_editable_photo_mode(photo_settings) == "frame_only":
                     c.saveState()
                     # Read user-configured frame color; default to dark-red #8c2440
-                    _frame_hex = str(photo_settings.get("photo_frame_color") or "#8c2440").strip()
-                    if len(_frame_hex) == 7 and _frame_hex.startswith("#"):
-                        try:
-                            _fr = int(_frame_hex[1:3], 16) / 255.0
-                            _fg = int(_frame_hex[3:5], 16) / 255.0
-                            _fb = int(_frame_hex[5:7], 16) / 255.0
-                        except ValueError:
-                            _fr, _fg, _fb = 0.55, 0.14, 0.24
-                    else:
-                        _fr, _fg, _fb = 0.55, 0.14, 0.24
+                    _fr, _fg, _fb = _parse_hex_to_rgb_normalized(photo_settings.get("photo_frame_color"))
                     c.setStrokeColor(Color(_fr, _fg, _fb))
                     c.setLineWidth(max(0.8, 1.2 * scale))
-                    if all(r == scaled_radii[0] for r in scaled_radii) and scaled_radii[0] > 0:
-                        c.roundRect(
-                            photo_x,
-                            photo_y,
-                            float(photo_w_px) * scale,
-                            float(photo_h_px) * scale,
-                            scaled_radii[0],
-                            stroke=1,
-                            fill=0,
-                        )
-                    elif any(r > 0 for r in scaled_radii):
-                        path = draw_custom_rounded_rect(
-                            c,
-                            photo_x,
-                            photo_y,
-                            float(photo_w_px) * scale,
-                            float(photo_h_px) * scale,
-                            scaled_radii,
-                        )
-                        c.drawPath(path, stroke=1, fill=0)
-                    else:
-                        c.rect(
-                            photo_x,
-                            photo_y,
-                            float(photo_w_px) * scale,
-                            float(photo_h_px) * scale,
-                            stroke=1,
-                            fill=0,
-                        )
+                    _draw_photo_frame_reportlab(
+                        c,
+                        photo_x,
+                        photo_y,
+                        float(photo_w_px) * scale,
+                        float(photo_h_px) * scale,
+                        scaled_radii,
+                        photo_shape,
+                        photo_shape_inset * scale,
+                        shape_geometry_scale=scale,
+                    )
                     c.restoreState()
         except Exception as exc:
             logger.warning(
@@ -2215,6 +2196,165 @@ def draw_custom_rounded_rect(c, x, y, w, h, radii):
     return path
 
 
+_PHOTO_SHAPE_POLYGON_SIDES = {
+    "triangle": 3,
+    "diamond": 4,
+    "pentagon": 5,
+    "hexagon": 6,
+    "heptagon": 7,
+    "octagon": 8,
+}
+
+
+def _photo_shape_points(x, y, w, h, shape_name, *, y_axis_down=False, inset=0, shape_geometry_scale=1.0):
+    shape_name = normalize_photo_shape(shape_name)
+    if shape_name.startswith("custom-polygon:"):
+        try:
+            import json
+            normalized_points = json.loads(shape_name[len("custom-polygon:"):])
+            x_val = float(x) + inset
+            y_val = float(y) + inset
+            w_val = max(1.0, float(w) - (inset * 2.0))
+            h_val = max(1.0, float(h) - (inset * 2.0))
+            points = []
+            for px, py in normalized_points:
+                pt_x = x_val + px * w_val
+                if y_axis_down:
+                    pt_y = y_val + py * h_val
+                else:
+                    pt_y = (y_val + h_val) - py * h_val
+                points.append((pt_x, pt_y))
+            return points
+        except Exception:
+            return []
+    base_shape = shape_name.split(":")[0].lower()
+    sides = _PHOTO_SHAPE_POLYGON_SIDES.get(base_shape)
+    if not sides:
+        return []
+    inset = max(0.0, min(float(inset or 0), max(0.0, (min(float(w), float(h)) - 2.0) / 2.0)))
+    x = float(x) + inset
+    y = float(y) + inset
+    w = max(1.0, float(w) - (inset * 2.0))
+    h = max(1.0, float(h) - (inset * 2.0))
+    cx = float(x) + (float(w) / 2.0)
+    cy = float(y) + (float(h) / 2.0)
+    rx = max(1.0, float(w) / 2.0)
+    ry = max(1.0, float(h) / 2.0)
+    rotation = -90.0 if y_axis_down else 90.0
+
+    if int(sides) == 6 and rotation in (-90.0, 90.0, 270.0):
+        cap_h = min(h / 2.0, w * 0.288675135)
+        if ":" in shape_name:
+            try:
+                raw_cap = float(shape_name.split(":", 1)[1])
+                cap_h = max(0.0, min(h / 2.0, raw_cap * float(shape_geometry_scale or 1.0)))
+            except Exception:
+                pass
+        if y_axis_down:
+            return [
+                (cx, y),
+                (cx + w/2.0, y + cap_h),
+                (cx + w/2.0, y + h - cap_h),
+                (cx, y + h),
+                (cx - w/2.0, y + h - cap_h),
+                (cx - w/2.0, y + cap_h),
+            ]
+        else:
+            ymin = y
+            ymax = y + h
+            return [
+                (cx, ymax),
+                (cx + w/2.0, ymax - cap_h),
+                (cx + w/2.0, ymin + cap_h),
+                (cx, ymin),
+                (cx - w/2.0, ymin + cap_h),
+                (cx - w/2.0, ymax - cap_h),
+            ]
+
+    return [
+        (
+            cx + (rx * math.cos(math.radians(rotation + (360.0 * idx / sides)))),
+            cy + (ry * math.sin(math.radians(rotation + (360.0 * idx / sides)))),
+        )
+        for idx in range(sides)
+    ]
+
+
+def _ellipse_path_reportlab(c, x, y, w, h, inset=0):
+    inset = max(0.0, min(float(inset or 0), max(0.0, (min(float(w), float(h)) - 2.0) / 2.0)))
+    x = float(x) + inset
+    y = float(y) + inset
+    w = max(1.0, float(w) - (inset * 2.0))
+    h = max(1.0, float(h) - (inset * 2.0))
+    k = 0.5522847498307936
+    cx = float(x) + (float(w) / 2.0)
+    cy = float(y) + (float(h) / 2.0)
+    rx = float(w) / 2.0
+    ry = float(h) / 2.0
+    path = c.beginPath()
+    path.moveTo(cx, cy + ry)
+    path.curveTo(cx + (k * rx), cy + ry, cx + rx, cy + (k * ry), cx + rx, cy)
+    path.curveTo(cx + rx, cy - (k * ry), cx + (k * rx), cy - ry, cx, cy - ry)
+    path.curveTo(cx - (k * rx), cy - ry, cx - rx, cy - (k * ry), cx - rx, cy)
+    path.curveTo(cx - rx, cy + (k * ry), cx - (k * rx), cy + ry, cx, cy + ry)
+    path.close()
+    return path
+
+
+def _polygon_path_reportlab(c, points):
+    path = c.beginPath()
+    if not points:
+        return path
+    path.moveTo(points[0][0], points[0][1])
+    for px, py in points[1:]:
+        path.lineTo(px, py)
+    path.close()
+    return path
+
+
+def _clip_photo_shape_reportlab(c, x, y, w, h, radii, shape_name, shape_inset=0, shape_geometry_scale=1.0):
+    shape_name = normalize_photo_shape(shape_name)
+    if shape_name == "circle":
+        c.clipPath(_ellipse_path_reportlab(c, x, y, w, h, shape_inset), stroke=0)
+        return True
+    if shape_name not in {"rectangle", "rounded"}:
+        points = _photo_shape_points(x, y, w, h, shape_name, inset=shape_inset, shape_geometry_scale=shape_geometry_scale)
+        if points:
+            c.clipPath(_polygon_path_reportlab(c, points), stroke=0)
+            return True
+        return False
+    if all(r == radii[0] for r in radii) and radii[0] > 0:
+        path = c.beginPath()
+        path.roundRect(x, y, w, h, radii[0])
+        c.clipPath(path, stroke=0)
+        return True
+    if any(r > 0 for r in radii):
+        path = draw_custom_rounded_rect(c, x, y, w, h, radii)
+        c.clipPath(path, stroke=0)
+        return True
+    return False
+
+
+def _draw_photo_frame_reportlab(c, x, y, w, h, radii, shape_name, shape_inset=0, shape_geometry_scale=1.0):
+    shape_name = normalize_photo_shape(shape_name)
+    shape_inset = max(0.0, min(float(shape_inset or 0), max(0.0, (min(float(w), float(h)) - 2.0) / 2.0)))
+    if shape_name == "circle":
+        c.ellipse(x + shape_inset, y + shape_inset, x + w - shape_inset, y + h - shape_inset, stroke=1, fill=0)
+        return
+    if shape_name not in {"rectangle", "rounded"}:
+        points = _photo_shape_points(x, y, w, h, shape_name, inset=shape_inset, shape_geometry_scale=shape_geometry_scale)
+        if points:
+            c.drawPath(_polygon_path_reportlab(c, points), stroke=1, fill=0)
+        return
+    if all(r == radii[0] for r in radii) and radii[0] > 0:
+        c.roundRect(x, y, w, h, radii[0], stroke=1, fill=0)
+    elif any(r > 0 for r in radii):
+        path = draw_custom_rounded_rect(c, x, y, w, h, radii)
+        c.drawPath(path, stroke=1, fill=0)
+    else:
+        c.rect(x, y, w, h, stroke=1, fill=0)
+
+
 LAYOUT_DPI = 300
 PRINT_DPI = 600
 DEFAULT_EXPORT_MODE = "print"
@@ -2935,7 +3075,7 @@ def _generate_direct_editable_pdf_template_export(
             y1 = y0 + height_pt
             return fitz.Rect(x0, y0, max(x1, x0 + 2.0), max(y1, y0 + 2.0))
 
-        def _prepare_box_image(photo_bytes_io, target_w_px: int, target_h_px: int, radii=None) -> bytes | None:
+        def _prepare_box_image(photo_bytes_io, target_w_px: int, target_h_px: int, radii=None, photo_shape="rectangle", photo_shape_inset=0) -> bytes | None:
             if photo_bytes_io is None:
                 return None
             try:
@@ -2956,8 +3096,7 @@ def _generate_direct_editable_pdf_template_export(
                         centering=(0.5, 0.35),
                     )
                 normalized_radii = [int(float(r or 0)) for r in (radii or [])]
-                if any(normalized_radii):
-                    img = round_photo(img, normalized_radii)
+                img = round_photo(img, normalized_radii, shape=photo_shape, shape_inset=photo_shape_inset)
                 out = io.BytesIO()
                 img.save(out, format="PNG")
                 return out.getvalue()
@@ -3129,6 +3268,52 @@ def _generate_direct_editable_pdf_template_export(
             )
             shape.commit(overlay=True)
 
+        def _draw_photo_frame_fitz(
+            page: fitz.Page,
+            rect: fitz.Rect,
+            radii: list[float],
+            box_w_px: int,
+            box_h_px: int,
+            stroke_width: float,
+            color: tuple[float, float, float],
+            photo_shape="rectangle",
+            photo_shape_inset=0,
+        ) -> None:
+            normalized_shape = normalize_photo_shape(photo_shape)
+            photo_shape_inset = max(0.0, min(float(photo_shape_inset or 0), max(0.0, (min(rect.width, rect.height) - 2.0) / 2.0)))
+            if normalized_shape == "circle":
+                inset_rect = fitz.Rect(
+                    rect.x0 + photo_shape_inset,
+                    rect.y0 + photo_shape_inset,
+                    rect.x1 - photo_shape_inset,
+                    rect.y1 - photo_shape_inset,
+                )
+                page.draw_oval(inset_rect, color=color, width=stroke_width, overlay=True)
+                return
+            if normalized_shape not in {"rectangle", "rounded"}:
+                points = _photo_shape_points(
+                    rect.x0,
+                    rect.y0,
+                    rect.width,
+                    rect.height,
+                    normalized_shape,
+                    y_axis_down=True,
+                    inset=photo_shape_inset,
+                    shape_geometry_scale=(rect.height / max(1.0, float(box_h_px or rect.height))),
+                )
+                if not points:
+                    page.draw_rect(rect, color=color, width=stroke_width, overlay=True)
+                    return
+                shape = page.new_shape()
+                shape.draw_line(points[0], points[1])
+                for start, end in zip(points[1:], points[2:]):
+                    shape.draw_line(start, end)
+                shape.draw_line(points[-1], points[0])
+                shape.finish(width=stroke_width, color=color, fill=None, closePath=True)
+                shape.commit(overlay=True)
+                return
+            _draw_rounded_photo_frame(page, rect, radii, box_w_px, box_h_px, stroke_width, color)
+
         page = None
         x_scale = float(card_w_pt) / max(1.0, float(card_w_px))
         y_scale = float(card_h_pt) / max(1.0, float(card_h_px))
@@ -3219,12 +3404,21 @@ def _generate_direct_editable_pdf_template_export(
                     photo_settings.get("photo_border_bottom_right", 0),
                     photo_settings.get("photo_border_bottom_left", 0),
                 ]
+                photo_shape = photo_settings.get("photo_shape", "rectangle")
+                photo_shape_inset = int(float(photo_settings.get("photo_shape_inset", 0) or 0))
                 editable_photo_mode = _corel_editable_photo_mode(photo_settings)
                 draw_editable_photo_frame = editable_photo_mode == "frame_only"
                 if photo_settings.get("enable_photo", True):
                     photo_bytes_io, has_real_student_photo = _load_student_photo_stream(student, pw_px, ph_px)
                     if photo_bytes_io and (has_real_student_photo or not draw_editable_photo_frame):
-                        prepared_photo = _prepare_box_image(photo_bytes_io, pw_px, ph_px, radii=radii)
+                        prepared_photo = _prepare_box_image(
+                            photo_bytes_io,
+                            pw_px,
+                            ph_px,
+                            radii=radii,
+                            photo_shape=photo_shape,
+                            photo_shape_inset=photo_shape_inset,
+                        )
                         if prepared_photo:
                             before_contents = list(page.get_contents() or [])
                             image_xref = page.insert_image(
@@ -3234,7 +3428,11 @@ def _generate_direct_editable_pdf_template_export(
                                 keep_proportion=False,
                             )
                             after_contents = list(page.get_contents() or [])
-                            if mode != "editable" and len(after_contents) > len(before_contents):
+                            if (
+                                mode != "editable"
+                                and normalize_photo_shape(photo_shape) in {"rectangle", "rounded"}
+                                and len(after_contents) > len(before_contents)
+                            ):
                                 _apply_rounded_image_clip(
                                     page,
                                     image_xref,
@@ -3245,22 +3443,25 @@ def _generate_direct_editable_pdf_template_export(
                                 )
                     if draw_editable_photo_frame:
                         try:
-                            if mode == "editable":
+                            _fr, _fg, _fb = _parse_hex_to_rgb_normalized(photo_settings.get("photo_frame_color"))
+                            if mode == "editable" and normalize_photo_shape(photo_shape) == "rectangle":
                                 page.draw_rect(
                                     photo_rect,
-                                    color=(0.55, 0.14, 0.24),
+                                    color=(_fr, _fg, _fb),
                                     width=max(0.8, 1.2 * text_scale),
                                     overlay=True,
                                 )
                             else:
-                                _draw_rounded_photo_frame(
+                                _draw_photo_frame_fitz(
                                     page,
                                     photo_rect,
                                     radii,
                                     pw_px,
                                     ph_px,
                                     max(0.8, 1.2 * text_scale),
-                                    (0.55, 0.14, 0.24),
+                                    (_fr, _fg, _fb),
+                                    photo_shape,
+                                    photo_shape_inset * text_scale,
                                 )
                         except Exception:
                             pass
@@ -3362,7 +3563,8 @@ def _generate_direct_editable_pdf_template_export(
                 {"k": "MOBILE", "l": local_apply_text_case(labels_map["MOBILE"], text_case), "v": local_apply_text_case(student.phone, text_case), "ord": 50, "field_type": "tel", "translate_label": False},
                 {"k": "ADDRESS", "l": local_apply_text_case(labels_map["ADDRESS"], text_case), "v": local_apply_text_case(_translate_value_for_export(student.address, source_language=source_language, target_language=lang, field_key="ADDRESS", field_type="textarea"), text_case), "ord": 60, "field_type": "textarea", "translate_label": False},
             ]
-            custom_data = getattr(student, "custom_data", None) or {}
+            from app.services.render_service import normalize_custom_data
+            custom_data = normalize_custom_data(getattr(student, "custom_data", None))
             for f in db_fields:
                 translated_label = f.field_label
                 if _normalize_language(source_language) != _normalize_language(lang):
@@ -3828,7 +4030,7 @@ def _apply_hb_text_overlay(pdf_bytes: bytes, runs: list[dict], page_height_pt: f
 
 
 @corel_bp.route("/corel/preview/<int:template_id>")
-@login_required
+@admin_required
 def corel_preview(template_id):
 
     template = db.session.get(Template, template_id)
@@ -3918,7 +4120,7 @@ def corel_preview(template_id):
 
 
 @corel_bp.route("/download_compiled_vector_pdf/<int:template_id>")
-@login_required
+@admin_required
 def download_compiled_vector_pdf(template_id):
 
     try:
@@ -3934,6 +4136,10 @@ def download_compiled_vector_pdf(template_id):
         template = db.session.get(Template, template_id)
         if not template:
             return "No data found", 404
+            
+        if session.get("admin_role") == "school_admin" and template.school_name != session.get("admin_school"):
+            return "Unauthorized access to this school's data", 403
+            
         try:
             from app.services.premium_service import run_design_qa
             qa_settings = (getattr(template, "qa_settings", None) or {})
@@ -4594,10 +4800,14 @@ def download_compiled_vector_pdf(template_id):
             photo_w = pw_px * scale
             photo_h = ph_px * scale
 
-            r_tl = float(photo_settings.get('photo_border_top_left', 0)) * scale
-            r_tr = float(photo_settings.get('photo_border_top_right', 0)) * scale
-            r_br = float(photo_settings.get('photo_border_bottom_right', 0)) * scale
-            r_bl = float(photo_settings.get('photo_border_bottom_left', 0)) * scale
+            photo_radii_px = [
+                int(float(photo_settings.get('photo_border_top_left', 0) or 0)),
+                int(float(photo_settings.get('photo_border_top_right', 0) or 0)),
+                int(float(photo_settings.get('photo_border_bottom_right', 0) or 0)),
+                int(float(photo_settings.get('photo_border_bottom_left', 0) or 0)),
+            ]
+            photo_shape = photo_settings.get("photo_shape", "rectangle")
+            r_tl, r_tr, r_br, r_bl = [float(radius) * scale for radius in photo_radii_px]
             radii = [r_tl, r_tr, r_br, r_bl]
 
             editable_photo_mode = _corel_editable_photo_mode(photo_settings)
@@ -4631,19 +4841,29 @@ def download_compiled_vector_pdf(template_id):
                         str(getattr(student, "photo_url", "") or "").strip()
                         or str(getattr(student, "photo_filename", "") or "").strip()
                     )
+                    prepared_photo = round_photo(
+                        prepared_photo,
+                        photo_radii_px,
+                        shape=photo_shape,
+                        shape_inset=photo_settings.get("photo_shape_inset", 0),
+                    )
                     photo_bytes_io = io.BytesIO()
                     prepared_photo.save(photo_bytes_io, format="PNG")
                     photo_bytes_io.seek(0)
 
                 if photo_bytes_io and (has_real_student_photo or not draw_editable_photo_frame):
                     c.saveState()
-                    if all(r == r_tl for r in radii) and r_tl > 0:
-                        path = c.beginPath()
-                        path.roundRect(photo_x, photo_y, photo_w, photo_h, r_tl)
-                        c.clipPath(path, stroke=0)
-                    elif any(r > 0 for r in radii):
-                        path = draw_custom_rounded_rect(c, photo_x, photo_y, photo_w, photo_h, radii)
-                        c.clipPath(path, stroke=0)
+                    _clip_photo_shape_reportlab(
+                        c,
+                        photo_x,
+                        photo_y,
+                        photo_w,
+                        photo_h,
+                        radii,
+                        photo_shape,
+                        float(photo_settings.get("photo_shape_inset", 0) or 0) * scale,
+                        shape_geometry_scale=scale,
+                    )
 
                     try:
                         if mode == "print":
@@ -4677,15 +4897,20 @@ def download_compiled_vector_pdf(template_id):
 
                 if draw_editable_photo_frame:
                     c.saveState()
-                    c.setStrokeColor(Color(0.55, 0.14, 0.24))
+                    _fr, _fg, _fb = _parse_hex_to_rgb_normalized(photo_settings.get("photo_frame_color"))
+                    c.setStrokeColor(Color(_fr, _fg, _fb))
                     c.setLineWidth(max(0.8, 1.2 * scale))
-                    if all(r == r_tl for r in radii) and r_tl > 0:
-                        c.roundRect(photo_x, photo_y, photo_w, photo_h, r_tl, stroke=1, fill=0)
-                    elif any(r > 0 for r in radii):
-                        path = draw_custom_rounded_rect(c, photo_x, photo_y, photo_w, photo_h, radii)
-                        c.drawPath(path, stroke=1, fill=0)
-                    else:
-                        c.rect(photo_x, photo_y, photo_w, photo_h, stroke=1, fill=0)
+                    _draw_photo_frame_reportlab(
+                        c,
+                        photo_x,
+                        photo_y,
+                        photo_w,
+                        photo_h,
+                        radii,
+                        photo_shape,
+                        float(photo_settings.get("photo_shape_inset", 0) or 0) * scale,
+                        shape_geometry_scale=scale,
+                    )
                     c.restoreState()
 
             # --- C. QR / BARCODE ---
@@ -4814,7 +5039,8 @@ def download_compiled_vector_pdf(template_id):
                 {'k': "ADDRESS", 'l': local_apply_text_case(labels_map['ADDRESS'], text_case), 'v': local_apply_text_case(student.address, text_case), 'ord': 60}
             ]
             
-            custom_data = getattr(student, "custom_data", None) or {}
+            from app.services.render_service import normalize_custom_data
+            custom_data = normalize_custom_data(getattr(student, "custom_data", None))
             db_fields = TemplateField.query.filter_by(template_id=template_id).order_by(TemplateField.display_order.asc()).all()
             for f in db_fields:
                 val = custom_data.get(f.field_name, "")

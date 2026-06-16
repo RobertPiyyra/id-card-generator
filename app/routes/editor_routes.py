@@ -1,6 +1,7 @@
-from app.legacy_app import login_required
+from app.legacy_app import admin_required
 from flask import Blueprint, render_template, request, jsonify, session, redirect, url_for, send_file, make_response, current_app
 from models import db, Template, TemplateField
+from sqlalchemy.orm.attributes import flag_modified
 from app.services.template_lifecycle_service import create_template_version_snapshot, log_immutable_audit_event, get_session_actor
 from utils import (
     get_template_path,
@@ -9,6 +10,7 @@ from utils import (
     get_template_language_direction,
     parse_layout_config,
     derive_font_settings_from_layout_config,
+    normalize_photo_shape,
 )
 import json
 import io
@@ -126,6 +128,11 @@ def _merge_font_settings(current_font, incoming_font):
     return merged
 
 
+def _assign_template_json_setting(template, attr_name, value):
+    setattr(template, attr_name, dict(value or {}))
+    flag_modified(template, attr_name)
+
+
 def _template_source_name(template, side):
     if side == "back":
         source_path = getattr(template, "back_filename", None) or getattr(template, "back_template_url", None) or ""
@@ -174,11 +181,13 @@ def _template_settings_payload(template, side):
 # 1. Main Editor Page Route
 # =========================================================
 @editor_bp.route("/admin/template_editor/<int:template_id>")
-@login_required
+@admin_required
 def template_editor(template_id):
     
     template = db.session.get(Template, template_id)
     if not template: return "Template not found", 404
+    if session.get("admin_role") == "school_admin" and template.school_name != session.get("admin_school"):
+        return "Unauthorized access", 403
     side = _normalize_editor_side(template, request.args.get("side"))
     
     # URL for the template background image (served via our helper route)
@@ -231,13 +240,15 @@ def template_editor(template_id):
 # 2. Helper: Serve Template as Flat Image (JPG)
 # =========================================================
 @editor_bp.route("/editor/get_template_image/<int:template_id>")
-@login_required
+@admin_required
 def get_template_image(template_id):
     """
     Serves the template file (PDF or Image) as a high-quality JPEG 
     for the visual editor canvas.
     """
     template = db.session.get(Template, template_id)
+    if template and session.get("admin_role") == "school_admin" and template.school_name != session.get("admin_school"):
+        return "Unauthorized access", 403
     side = _normalize_editor_side(template, request.args.get("side")) if template else "front"
     if not session.get("admin"):
         token = (request.args.get("token") or "").strip()
@@ -265,16 +276,16 @@ def get_template_image(template_id):
         response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
         response.headers["Pragma"] = "no-cache"
         response.headers["Expires"] = "0"
-        response.headers["Access-Control-Allow-Origin"] = "*"
         return response
     except Exception as e:
-        print(f"Editor Image Error: {e}")
+        logger.error(f"Editor Image Error: {e}")
         return "Error processing image", 500
 
 # =========================================================
 # 3. API: Get Individual Field Settings
 # =========================================================
 @editor_bp.route('/admin/get_editor_fields/<int:template_id>')
+@admin_required
 def get_editor_fields(template_id):
     """
     Returns JSON of the template's layout_config.
@@ -282,6 +293,8 @@ def get_editor_fields(template_id):
 
     template = db.session.get(Template, template_id)
     if not template: return jsonify({"error": "Template not found"}), 404
+    if session.get("admin_role") == "school_admin" and template.school_name != session.get("admin_school"):
+        return jsonify({"error": "Unauthorized access"}), 403
     
     side = request.args.get("side", "front").strip().lower()
     if side == "back" and getattr(template, "is_double_sided", False):
@@ -294,7 +307,7 @@ def get_editor_fields(template_id):
 
 
 @editor_bp.route('/admin/template_settings/<int:template_id>')
-@login_required
+@admin_required
 def get_template_settings_api(template_id):
     """
     Returns the current side-specific template settings used by both editors.
@@ -303,6 +316,8 @@ def get_template_settings_api(template_id):
 
     template = db.session.get(Template, template_id)
     if not template: return jsonify({"success": False, "error": "Template not found"}), 404
+    if session.get("admin_role") == "school_admin" and template.school_name != session.get("admin_school"):
+        return jsonify({"success": False, "error": "Unauthorized access"}), 403
 
     side = _normalize_editor_side(template, request.args.get("side"))
     return jsonify(_template_settings_payload(template, side))
@@ -311,7 +326,7 @@ def get_template_settings_api(template_id):
 # 4. API: Save All Settings (Global + Fields)
 # =========================================================
 @editor_bp.route("/admin/save_field_settings", methods=["POST"])
-@login_required
+@admin_required
 def save_field_settings():
     """
     Saves BOTH the global template settings (Photo/QR position) 
@@ -332,6 +347,8 @@ def save_field_settings():
     template = db.session.get(Template, template_id)
     if not template:
         return jsonify({"error": "Template not found"}), 404
+    if session.get("admin_role") == "school_admin" and template.school_name != session.get("admin_school"):
+        return jsonify({"error": "Unauthorized access"}), 403
 
     settings_side = str(data.get("settings_side") or "front").strip().lower()
     if settings_side not in {"front", "back"}:
@@ -361,14 +378,15 @@ def save_field_settings():
             current_font = (template.back_font_settings if settings_side == "back" else template.font_settings) or {}
             merged_font = _merge_font_settings(current_font, data.get('font_settings') or {})
             if settings_side == "back":
-                template.back_font_settings = merged_font
+                _assign_template_json_setting(template, "back_font_settings", merged_font)
             else:
-                template.font_settings = merged_font
+                _assign_template_json_setting(template, "font_settings", merged_font)
 
          # Save photo settings as before
         if 'photo_settings' in data and isinstance(data.get('photo_settings'), dict):
             incoming_photo = data.get('photo_settings') or {}
-            current_photo = (template.back_photo_settings if settings_side == "back" else template.photo_settings) or {}
+            existing_photo = (template.back_photo_settings if settings_side == "back" else template.photo_settings) or {}
+            current_photo = dict(existing_photo)
             current_photo['photo_x'] = int(incoming_photo.get('photo_x', current_photo.get('photo_x', 0)))
             current_photo['photo_y'] = int(incoming_photo.get('photo_y', current_photo.get('photo_y', 0)))
             current_photo['photo_width'] = int(incoming_photo.get('photo_width', current_photo.get('photo_width', 100)))
@@ -376,6 +394,12 @@ def save_field_settings():
             current_photo['corel_editable_photo_mode'] = str(
                 incoming_photo.get('corel_editable_photo_mode', current_photo.get('corel_editable_photo_mode', 'frame_only'))
             ).strip().lower() or 'frame_only'
+            current_photo['photo_shape'] = normalize_photo_shape(
+                incoming_photo.get('photo_shape', current_photo.get('photo_shape', 'rectangle'))
+            )
+            current_photo['photo_shape_inset'] = int(
+                incoming_photo.get('photo_shape_inset', current_photo.get('photo_shape_inset', 0)) or 0
+            )
             # Save enable_photo visibility flag from visual editor
             if 'enable_photo' in incoming_photo:
                 current_photo['enable_photo'] = bool(incoming_photo['enable_photo'])
@@ -387,11 +411,12 @@ def save_field_settings():
                 _key = f'photo_border_{_corner}'
                 current_photo[_key] = int(incoming_photo.get(_key, current_photo.get(_key, 0)))
             if settings_side == "back":
-                template.back_photo_settings = current_photo
+                _assign_template_json_setting(template, "back_photo_settings", current_photo)
             else:
-                template.photo_settings = current_photo
+                _assign_template_json_setting(template, "photo_settings", current_photo)
         elif 'photo_x' in data:
-            current_photo = (template.back_photo_settings if settings_side == "back" else template.photo_settings) or {}
+            existing_photo = (template.back_photo_settings if settings_side == "back" else template.photo_settings) or {}
+            current_photo = dict(existing_photo)
             current_photo['photo_x'] = int(data.get('photo_x', 0))
             current_photo['photo_y'] = int(data.get('photo_y', 0))
             current_photo['photo_width'] = int(data.get('photo_width', 100))
@@ -400,15 +425,20 @@ def save_field_settings():
                 current_photo['corel_editable_photo_mode'] = str(
                     data.get('corel_editable_photo_mode', 'frame_only')
                 ).strip().lower() or 'frame_only'
+            if 'photo_shape' in data:
+                current_photo['photo_shape'] = normalize_photo_shape(data.get('photo_shape', 'rectangle'))
+            if 'photo_shape_inset' in data:
+                current_photo['photo_shape_inset'] = int(data.get('photo_shape_inset', 0) or 0)
             if settings_side == "back":
-                template.back_photo_settings = current_photo
+                _assign_template_json_setting(template, "back_photo_settings", current_photo)
             else:
-                template.photo_settings = current_photo
+                _assign_template_json_setting(template, "photo_settings", current_photo)
 
         # Save QR + barcode settings from visual editor
         if 'qr_settings' in data and isinstance(data.get('qr_settings'), dict):
             incoming_qr = data.get('qr_settings') or {}
-            current_qr = (template.back_qr_settings if settings_side == "back" else template.qr_settings) or {}
+            existing_qr = (template.back_qr_settings if settings_side == "back" else template.qr_settings) or {}
+            current_qr = dict(existing_qr)
             # Merge ALL keys from incoming into stored qr_settings
             # This preserves qr_data_type, qr_base_url etc. while updating positions
             _QR_NUMERIC_KEYS = [
@@ -447,25 +477,28 @@ def save_field_settings():
                 current_qr['barcode_back_color'] = incoming_qr['barcode_bg_color']
 
             if settings_side == "back":
-                template.back_qr_settings = current_qr
+                _assign_template_json_setting(template, "back_qr_settings", current_qr)
             else:
-                template.qr_settings = current_qr
+                _assign_template_json_setting(template, "qr_settings", current_qr)
 
         # Save layout_config JSON from editor
         if 'layout_config' in data:
             parsed_layout = parse_layout_config(data['layout_config'])
             if settings_side == "back":
                 template.back_layout_config = json.dumps(parsed_layout, ensure_ascii=False) if parsed_layout else None
-                template.back_font_settings = derive_font_settings_from_layout_config(
+                _assign_template_json_setting(template, "back_font_settings", derive_font_settings_from_layout_config(
                     parsed_layout,
                     template.back_font_settings or {},
-                )
+                ))
             else:
                 template.layout_config = json.dumps(parsed_layout, ensure_ascii=False) if parsed_layout else None
-                template.font_settings = derive_font_settings_from_layout_config(
+                _assign_template_json_setting(template, "font_settings", derive_font_settings_from_layout_config(
                     parsed_layout,
                     template.font_settings or {},
-                )
+                ))
+
+        from datetime import datetime, timezone
+        template.updated_at = datetime.now(timezone.utc)
 
         db.session.commit()
         actor, actor_role = get_session_actor()

@@ -1443,6 +1443,9 @@
                                         <a href="{{ url_for('dashboard.download_school_excel', template_id=template.id) }}" class="btn btn-excel btn-sm">
                                             <i class="fas fa-file-excel"></i> Download Excel Data
                                         </a>
+                                        <a href="{{ url_for('dashboard.download_school_photos_zip', template_id=template.id) }}" class="btn btn-secondary btn-sm">
+                                            <i class="fas fa-images"></i> Download Photos ZIP
+                                        </a>
                                         <form action="{{ url_for('dashboard.delete_school_sheets', template_id=template.id) }}" method="POST" style="display:inline;" onsubmit="return confirm('WARNING: This will delete ALL generated A4 sheets for {{ template.school_name }}. \n\nOnly do this AFTER you have downloaded and printed the merged PDF.\n\nAre you sure?');">
                                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                                             <button type="submit" class="btn btn-delete btn-sm">
@@ -1685,3 +1688,4 @@
 </body>
 
 </html>
+`

@@ -4,6 +4,7 @@ import re
 import logging
 import unicodedata
 import time
+import math
 from urllib.parse import urlparse
 from PIL import Image, ImageFont, ImageDraw
 import fitz # PyMuPDF
@@ -544,6 +545,8 @@ def get_default_photo_config():
         "photo_border_top_right": 0,
         "photo_border_bottom_right": 0,
         "photo_border_bottom_left": 0,
+        "photo_shape": "rectangle",
+        "photo_shape_inset": 0,
         "corel_editable_photo_mode": "frame_only",
     }
 
@@ -1170,7 +1173,145 @@ def load_template(path):
         draw.text((100, 200), "Using fallback template", fill="blue")
         return fallback
 
-def round_photo(image, radii, border_color=None, border_thickness=0):
+_PHOTO_POLYGON_SIDES = {
+    "triangle": 3,
+    "diamond": 4,
+    "pentagon": 5,
+    "hexagon": 6,
+    "heptagon": 7,
+    "octagon": 8,
+}
+
+
+def normalize_photo_shape(value):
+    val_str = str(value or "rectangle").strip()
+    base_shape = val_str.split(":")[0].lower().replace("_", "-")
+    aliases = {
+        "rect": "rectangle",
+        "square": "rectangle",
+        "round": "rounded",
+        "rounded-rectangle": "rounded",
+        "rounded_rect": "rounded",
+        "circle": "circle",
+        "ellipse": "circle",
+        "oval": "circle",
+        "rhombus": "diamond",
+    }
+    base_shape = aliases.get(base_shape, base_shape)
+    if base_shape.startswith("custom-polygon"):
+        if ":" not in val_str:
+            return "custom-polygon:[[0.5,0],[1,0.25],[1,0.75],[0.5,1],[0,0.75],[0,0.25]]"
+        return val_str
+    if base_shape in {"rectangle", "rounded", "circle"} or base_shape in _PHOTO_POLYGON_SIDES:
+        return val_str
+    return "rectangle"
+
+
+def _photo_border_rgba(border_color):
+    if isinstance(border_color, (list, tuple)) and len(border_color) >= 3:
+        try:
+            return (int(border_color[0]), int(border_color[1]), int(border_color[2]), 255)
+        except (ValueError, TypeError):
+            return (140, 36, 64, 255)
+
+    color_hex = str(border_color or "").strip()
+    if color_hex.startswith("#"):
+        color_hex = color_hex[1:]
+    if len(color_hex) == 6:
+        try:
+            return (
+                int(color_hex[0:2], 16),
+                int(color_hex[2:4], 16),
+                int(color_hex[4:6], 16),
+                255,
+            )
+        except ValueError:
+            pass
+    return (140, 36, 64, 255)
+
+
+def _regular_polygon_points(width, height, sides, rotation_degrees=-90, inset=0, cap_height=None):
+    w = max(1.0, float(width))
+    h = max(1.0, float(height))
+    cx = w / 2.0
+    cy = h / 2.0
+    rx = max(1.0, (w / 2.0) - float(inset or 0))
+    ry = max(1.0, (h / 2.0) - float(inset or 0))
+
+    if int(sides) == 6 and rotation_degrees in (-90, 270, -90.0, 270.0):
+        w_eff = max(1.0, w - 2.0 * float(inset or 0))
+        h_eff = max(1.0, h - 2.0 * float(inset or 0))
+        cap_h = min(h_eff / 2.0, w_eff * 0.288675135)
+        if cap_height is not None:
+            try:
+                cap_h = max(0.0, min(h_eff / 2.0, float(cap_height)))
+            except Exception:
+                pass
+        return [
+            (cx, float(inset or 0)),
+            (cx + (w_eff / 2.0), float(inset or 0) + cap_h),
+            (cx + (w_eff / 2.0), float(inset or 0) + h_eff - cap_h),
+            (cx, float(inset or 0) + h_eff),
+            (cx - (w_eff / 2.0), float(inset or 0) + h_eff - cap_h),
+            (cx - (w_eff / 2.0), float(inset or 0) + cap_h),
+        ]
+
+    points = []
+    for idx in range(max(3, int(sides))):
+        angle = math.radians(rotation_degrees + (360.0 * idx / max(3, int(sides))))
+        points.append((cx + rx * math.cos(angle), cy + ry * math.sin(angle)))
+    return points
+
+
+def _hex_cap_height_from_shape(shape, width, height):
+    if ":" not in str(shape or ""):
+        return None
+    base_shape, raw_cap = str(shape).split(":", 1)
+    if base_shape.strip().lower() != "hexagon":
+        return None
+    try:
+        return max(0.0, min(float(height) / 2.0, float(raw_cap)))
+    except Exception:
+        return None
+
+
+def _shape_mask(size, shape, inset=0):
+    w, h = size
+    inset = max(0, int(float(inset or 0)))
+    inset = min(inset, max(0, (min(w, h) - 2) // 2))
+    mask = Image.new("L", (w, h), 0)
+    draw = ImageDraw.Draw(mask)
+    if shape == "circle":
+        draw.ellipse((inset, inset, w - 1 - inset, h - 1 - inset), fill=255)
+    elif shape == "diamond":
+        draw.polygon([
+            (w / 2, inset),
+            (w - 1 - inset, h / 2),
+            (w / 2, h - 1 - inset),
+            (inset, h / 2),
+        ], fill=255)
+    elif shape.startswith("custom-polygon:"):
+        try:
+            import json
+            normalized_points = json.loads(shape[len("custom-polygon:"):])
+            w_eff = w - 2 * inset
+            h_eff = h - 2 * inset
+            points = [(inset + px * w_eff, inset + py * h_eff) for px, py in normalized_points]
+            draw.polygon(points, fill=255)
+        except Exception:
+            draw.rectangle((inset, inset, w - 1 - inset, h - 1 - inset), fill=255)
+    else:
+        base_shape = shape.split(":")[0].lower()
+        sides = _PHOTO_POLYGON_SIDES.get(base_shape)
+        if sides:
+            cap_h = _hex_cap_height_from_shape(shape, w - (2 * inset), h - (2 * inset))
+            draw.polygon(_regular_polygon_points(w, h, sides, inset=inset, cap_height=cap_h), fill=255)
+        else:
+            draw.rectangle((inset, inset, w - 1 - inset, h - 1 - inset), fill=255)
+    return mask
+
+
+def round_photo(image, radii, border_color=None, border_thickness=0, shape=None, polygon_sides=None, shape_inset=0):
     """
     Apply rounded corners using subtractive masking.
     Starts with an opaque mask and 'cuts out' only the specific corners needed.
@@ -1180,6 +1321,55 @@ def round_photo(image, radii, border_color=None, border_thickness=0):
     image = image.convert("RGBA")
     w, h = image.size
     tl, tr, br, bl = [int(float(r or 0)) for r in radii]
+    normalized_shape = normalize_photo_shape(shape)
+    shape_inset = max(0, int(float(shape_inset or 0)))
+    shape_inset = min(shape_inset, max(0, (min(w, h) - 2) // 2))
+
+    if polygon_sides:
+        try:
+            sides = max(3, min(12, int(polygon_sides)))
+            if sides != _PHOTO_POLYGON_SIDES.get(normalized_shape):
+                normalized_shape = f"polygon-{sides}"
+                _PHOTO_POLYGON_SIDES[normalized_shape] = sides
+        except Exception:
+            pass
+
+    if normalized_shape not in {"rectangle", "rounded"}:
+        mask = _shape_mask((w, h), normalized_shape, inset=shape_inset)
+        image.putalpha(mask)
+        t = int(border_thickness or 0)
+        if border_color and t > 0:
+            try:
+                color = _photo_border_rgba(border_color)
+                overlay = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+                draw_ov = ImageDraw.Draw(overlay)
+                inset = shape_inset + max(1, t // 2)
+                if normalized_shape == "circle":
+                    draw_ov.ellipse((inset, inset, w - 1 - inset, h - 1 - inset), outline=color, width=t)
+                elif normalized_shape == "diamond":
+                    points = [(w / 2, inset), (w - 1 - inset, h / 2), (w / 2, h - 1 - inset), (inset, h / 2)]
+                    draw_ov.line(points + [points[0]], fill=color, width=t, joint="curve")
+                elif normalized_shape.startswith("custom-polygon:"):
+                    try:
+                        import json
+                        normalized_points = json.loads(normalized_shape[len("custom-polygon:"):])
+                        w_eff = w - 2 * inset
+                        h_eff = h - 2 * inset
+                        points = [(inset + px * w_eff, inset + py * h_eff) for px, py in normalized_points]
+                        draw_ov.line(points + [points[0]], fill=color, width=t, joint="curve")
+                    except Exception:
+                        pass
+                else:
+                    base_shape = normalized_shape.split(":")[0].lower()
+                    sides = _PHOTO_POLYGON_SIDES.get(base_shape, 6)
+                    cap_h = _hex_cap_height_from_shape(normalized_shape, w - (2 * inset), h - (2 * inset))
+                    points = _regular_polygon_points(w, h, sides, inset=inset, cap_height=cap_h)
+                    draw_ov.line(points + [points[0]], fill=color, width=t, joint="curve")
+                image = Image.alpha_composite(image, overlay)
+            except Exception as border_err:
+                import logging
+                logging.getLogger("legacy_app").warning(f"Error rendering shaped photo border: {border_err}")
+        return image
 
     # 1. Start with a completely Opaque (White) mask
     # This means "Show the whole image" by default
@@ -1218,26 +1408,7 @@ def round_photo(image, radii, border_color=None, border_thickness=0):
     t = int(border_thickness or 0)
     if border_color and t > 0:
         try:
-            # Parse border_color (can be hex string, or list/tuple of RGB/RGBA)
-            if isinstance(border_color, (list, tuple)) and len(border_color) >= 3:
-                try:
-                    color = (int(border_color[0]), int(border_color[1]), int(border_color[2]), 255)
-                except (ValueError, TypeError):
-                    color = (140, 36, 64, 255)
-            else:
-                color_hex = str(border_color).strip()
-                if color_hex.startswith("#"):
-                    color_hex = color_hex[1:]
-                if len(color_hex) == 6:
-                    try:
-                        r = int(color_hex[0:2], 16)
-                        g = int(color_hex[2:4], 16)
-                        b = int(color_hex[4:6], 16)
-                        color = (r, g, b, 255)
-                    except ValueError:
-                        color = (140, 36, 64, 255)
-                else:
-                    color = (140, 36, 64, 255)
+            color = _photo_border_rgba(border_color)
 
             overlay = Image.new("RGBA", (w, h), (0, 0, 0, 0))
             draw_ov = ImageDraw.Draw(overlay)
@@ -2304,6 +2475,8 @@ def get_field_layout_item(
                 if key in part_obj:
                     return True
         flat_keys = [
+            f"{part_name}_x",
+            f"{part_name}_y",
             f"{part_name}_font_size",
             f"{part_name}_color",
             f"{part_name}_grow",
@@ -2312,8 +2485,6 @@ def get_field_layout_item(
             f"{part_name}_auto_fit",
             f"{part_name}_max_width",
         ]
-        if not prefer_nested_part_layout:
-            flat_keys = [f"{part_name}_x", f"{part_name}_y"] + flat_keys
         for key in flat_keys:
             if key in field_obj:
                 return True
@@ -2341,12 +2512,16 @@ def get_field_layout_item(
         flat_auto_fit = f"{prefix}_auto_fit"
         flat_max_width = f"{prefix}_max_width"
 
-        if not prefer_nested_part_layout and flat_x in field_obj:
+        part_obj = field_obj.get(prefix)
+        nested_has_x = isinstance(part_obj, dict) and "x" in part_obj
+        nested_has_y = isinstance(part_obj, dict) and "y" in part_obj
+
+        if flat_x in field_obj and not nested_has_x:
             try:
                 result[flat_x] = int(field_obj.get(flat_x))
             except Exception:
                 pass
-        if not prefer_nested_part_layout and flat_y in field_obj:
+        if flat_y in field_obj and not nested_has_y:
             try:
                 flat_y_value = int(field_obj.get(flat_y))
                 # Flat coordinates are saved by older/current visual-editor payloads.

@@ -4,10 +4,13 @@ import math
 import logging
 import json
 import base64
+import threading
 import requests
 import fitz
 import time
 import textwrap
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from functools import lru_cache
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 
 # Flask / database
@@ -47,6 +50,28 @@ logger = logging.getLogger(__name__)
 A4_WIDTH_PX = 2480
 A4_HEIGHT_PX = 3508
 DPI = 300
+
+# Thread-safe in-memory cache for decoded template images.
+# Keyed by (path_or_url, target_w, target_h) so bulk generation can reuse
+# the same decoded template across hundreds of students without re-reading
+# from disk or re-downloading every time.
+_template_cache = {}
+_template_cache_lock = threading.Lock()
+
+
+def _cache_get_template(path_or_url, target_w, target_h):
+    """Get a cached template image, returns (image_bytes, hit) tuple."""
+    cache_key = (path_or_url, target_w, target_h)
+    with _template_cache_lock:
+        return _template_cache.get(cache_key)
+
+
+def _cache_put_template(path_or_url, target_w, target_h, image_bytes):
+    """Store a decoded template image in the in-memory cache."""
+    cache_key = (path_or_url, target_w, target_h)
+    with _template_cache_lock:
+        _template_cache[cache_key] = image_bytes
+
 
 def get_legacy_helpers():
     import app.legacy_app as legacy
@@ -319,10 +344,40 @@ def _render_student_photo(template_img, student_like, photo_settings, scale=1.0)
     try:
         border_color = photo_settings.get('photo_frame_color')
         border_thickness = max(1.0, 2.0 * scale) if border_color else 0
-        photo_img = round_photo(photo_img, radii, border_color=border_color, border_thickness=border_thickness)
+        photo_img = round_photo(
+            photo_img,
+            radii,
+            border_color=border_color,
+            border_thickness=border_thickness,
+            shape=photo_settings.get("photo_shape", "rectangle"),
+            shape_inset=photo_settings.get("photo_shape_inset", 0),
+        )
         template_img.paste(photo_img, (photo_x, photo_y), photo_img)
     except Exception as exc:
         logger.error('Error rendering student photo: %s', exc)
+
+
+def normalize_custom_data(custom_data):
+    if not custom_data:
+        return {}
+    if isinstance(custom_data, dict):
+        return custom_data
+    if isinstance(custom_data, list):
+        normalized = {}
+        for item in custom_data:
+            if isinstance(item, dict):
+                name = item.get('field_name') or item.get('name') or item.get('key')
+                val = item.get('field_value') or item.get('value') or item.get('val')
+                if name:
+                    normalized[name] = val if val is not None else ''
+        return normalized
+    if isinstance(custom_data, str):
+        try:
+            parsed = json.loads(custom_data)
+            return normalize_custom_data(parsed)
+        except Exception:
+            pass
+    return {}
 
 
 def _build_card_field_list(student_like, template_obj, template_id, lang):
@@ -341,7 +396,7 @@ def _build_card_field_list(student_like, template_obj, template_id, lang):
         {'key': 'MOBILE', 'label': labels_map['MOBILE'], 'val': getattr(student_like, 'phone', '') or '', 'order': 50, 'field_type': 'tel', 'translate_label': False},
         {'key': 'ADDRESS', 'label': labels_map['ADDRESS'], 'val': getattr(student_like, 'address', '') or '', 'order': 60, 'field_type': 'textarea', 'translate_label': False},
     ]
-    custom_data = getattr(student_like, '_template_fields', None) or getattr(student_like, 'custom_data', None) or {}
+    custom_data = normalize_custom_data(getattr(student_like, 'custom_data', None))
     for field in _get_render_dynamic_fields(student_like, template_id):
         fields.append({
             'key': field.field_name,
@@ -388,15 +443,33 @@ def draw_text_gradient(draw, position, text, font, top_color, bottom_color, enab
             
         rgb_top = to_rgb(top_color)
         rgb_bottom = to_rgb(bottom_color)
-        
-        for y_idx in range(h + pad * 2):
-            factor = y_idx / float(h + pad * 2 - 1) if (h + pad * 2 > 1) else 0.0
-            r = int(rgb_top[0] + (rgb_bottom[0] - rgb_top[0]) * factor)
-            g = int(rgb_top[1] + (rgb_bottom[1] - rgb_top[1]) * factor)
-            b = int(rgb_top[2] + (rgb_bottom[2] - rgb_top[2]) * factor)
-            for x_idx in range(w + pad * 2):
-                gradient.putpixel((x_idx, y_idx), (r, g, b, 255))
-                
+
+        # Build gradient using NumPy vectorized operations instead of putpixel loop.
+        # This is orders of magnitude faster for typical text sizes (e.g. 200x40px).
+        try:
+            grad_h = h + pad * 2
+            grad_w = w + pad * 2
+            if grad_h > 0 and grad_w > 0:
+                factors = np.linspace(0.0, 1.0, grad_h, dtype=np.float32).reshape(-1, 1)
+                r_chan = (rgb_top[0] + (rgb_bottom[0] - rgb_top[0]) * factors).astype(np.uint8)
+                g_chan = (rgb_top[1] + (rgb_bottom[1] - rgb_top[1]) * factors).astype(np.uint8)
+                b_chan = (rgb_top[2] + (rgb_bottom[2] - rgb_top[2]) * factors).astype(np.uint8)
+                a_chan = np.full((grad_h, 1), 255, dtype=np.uint8)
+                rgba = np.concatenate([r_chan, g_chan, b_chan, a_chan], axis=1)
+                # Broadcast to full width: shape (grad_h, grad_w, 4)
+                rgba_full = np.broadcast_to(rgba[:, np.newaxis, :], (grad_h, grad_w, 4)).copy()
+                gradient = Image.fromarray(rgba_full, "RGBA")
+            else:
+                gradient = Image.new("RGBA", (max(1, grad_w), max(1, grad_h)), (0, 0, 0, 255))
+
+            paste_x = int(position[0] + bbox[0] - pad)
+            paste_y = int(position[1] + bbox[1] - pad)
+            target_image.paste(gradient, (paste_x, paste_y), mask)
+        except Exception:
+            # Fallback: draw without gradient on any NumPy/PIL issue.
+            draw.text(position, text, font=font, fill=top_color, **kwargs)
+            return
+
         paste_x = int(position[0] + bbox[0] - pad)
         paste_y = int(position[1] + bbox[1] - pad)
         target_image.paste(gradient, (paste_x, paste_y), mask)
@@ -845,11 +918,10 @@ def _render_student_fields(template_img, template_obj, student_like, font_settin
                 font=label_font,
                 fill=label_fill,
                 char_spacing=label_char_spacing,
-                direction=direction,
                 target_image=template_img,
                 enable_gradient=enable_label_gradient,
                 bottom_color=label_fill_bottom,
-                **get_draw_text_kwargs(label_text_final, lang)
+                **{"direction": direction, **get_draw_text_kwargs(label_text_final, lang)}
             )
             draw_aligned_colon_pil(
                 draw,
@@ -921,11 +993,10 @@ def _render_student_fields(template_img, template_obj, student_like, font_settin
                         font=addr_font,
                         fill=value_fill,
                         char_spacing=value_char_spacing,
-                        direction=direction,
                         target_image=template_img,
                         enable_gradient=enable_value_gradient,
                         bottom_color=value_fill_bottom,
-                        **get_draw_text_kwargs(line_display, lang)
+                        **{"direction": direction, **get_draw_text_kwargs(line_display, lang)}
                     )
                 try:
                     val_lh = float(value_line_height)
@@ -961,11 +1032,10 @@ def _render_student_fields(template_img, template_obj, student_like, font_settin
                 font=value_font,
                 fill=value_fill,
                 char_spacing=value_char_spacing,
-                direction=direction,
                 target_image=template_img,
                 enable_gradient=enable_value_gradient,
                 bottom_color=value_fill_bottom,
-                **get_draw_text_kwargs(display_val, lang)
+                **{"direction": direction, **get_draw_text_kwargs(display_val, lang)}
             )
         if advances_flow:
             current_y += value_line_height
@@ -1098,6 +1168,12 @@ def _load_template_image_for_render_cached(path_or_url, target_w, target_h, scal
     target_w = max(1, int(target_w or 1))
     target_h = max(1, int(target_h or 1))
     scale = max(1.0, float(scale_key or 1.0))
+
+    # Check in-memory cache first (fast path for bulk generation)
+    cached = _cache_get_template(path_or_url, target_w, target_h)
+    if cached is not None:
+        return cached
+
     image_open = getattr(Image, "open_original", Image.open)
 
     if _looks_like_pdf_template_source(path_or_url):
@@ -1135,7 +1211,11 @@ def _load_template_image_for_render_cached(path_or_url, target_w, target_h, scal
 
     out = io.BytesIO()
     img.save(out, format="PNG")
-    return out.getvalue()
+    png_bytes = out.getvalue()
+
+    # Store in in-memory cache for reuse
+    _cache_put_template(path_or_url, target_w, target_h, png_bytes)
+    return png_bytes
 
 
 def _load_template_image_for_render(path_or_url, card_width, card_height, render_scale=1.0):
@@ -1217,7 +1297,7 @@ def build_student_card_text_runs(template_obj, student_like, side="front"):
         {'key': 'ADDRESS', 'label': labels_map['ADDRESS'], 'val': getattr(student_like, "address", "") or "", 'order': 60, 'field_type': 'textarea', 'translate_label': False},
     ]
 
-    custom_data = getattr(student_like, "custom_data", None) or {}
+    custom_data = normalize_custom_data(getattr(student_like, "custom_data", None))
     for field in _get_render_dynamic_fields(student_like, template_id):
         all_fields.append({
             'key': field.field_name,

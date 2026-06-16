@@ -21,7 +21,7 @@ def _database_url():
 
 
 class Config:
-    SECRET_KEY = os.getenv("SECRET_KEY", "fallback_dev_key_if_env_fails")
+    SECRET_KEY = os.getenv("SECRET_KEY")
     TEMPLATES_AUTO_RELOAD = True
 
     SQLALCHEMY_DATABASE_URI = _database_url()
@@ -47,21 +47,17 @@ class Config:
 
 
 class DevelopmentConfig(Config):
-    pass
+    SESSION_COOKIE_SECURE = False
+    TEMPLATES_AUTO_RELOAD = True
 
 
 class ProductionConfig(Config):
-    pass
+    SESSION_COOKIE_SECURE = True
 
 
 def get_config():
     env_name = (os.getenv("FLASK_ENV") or os.getenv("APP_ENV") or "").strip().lower()
     if env_name in {"development", "dev", "local"}:
         return DevelopmentConfig
-    
-    # In production, require a custom SECRET_KEY to be set in environment variables
-    secret_key = os.getenv("SECRET_KEY")
-    if not secret_key or secret_key == "fallback_dev_key_if_env_fails":
-        raise RuntimeError("SECRET_KEY environment variable is missing or insecure in production mode!")
-        
+
     return ProductionConfig

@@ -8,7 +8,11 @@ import os
 import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from app.services.render_service import fit_wrapped_text_pil, _load_font_pil
+from app.services.render_service import fit_wrapped_text_pil
+from utils import load_font_dynamic
+
+def _load_font_pil(name, size):
+    return load_font_dynamic(name, "X", None, size)
 
 def test_fit_wrapped_text_pil():
     """Test that fit_wrapped_text_pil respects max_lines limit."""

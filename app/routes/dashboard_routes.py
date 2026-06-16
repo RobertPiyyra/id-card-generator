@@ -1,4 +1,4 @@
-from app.legacy_app import login_required
+from app.legacy_app import admin_required, super_admin_required, school_admin_required, student_required
 import os
 import time
 import uuid
@@ -6,12 +6,15 @@ import logging
 import io
 import json
 import textwrap
+import zipfile
+import mimetypes
 from types import SimpleNamespace
 from datetime import datetime, timezone
 from collections import defaultdict
 from io import BytesIO
 import glob
 import pandas as pd
+import requests
 from werkzeug.utils import secure_filename
 from flask import Blueprint, render_template, request, redirect, url_for, session, flash, jsonify, send_file, current_app
 from PIL import Image, ImageDraw, ImageOps
@@ -222,7 +225,6 @@ def draw_aligned_colon_pil_helper(draw, img_width, direction, value_x, y, colon_
 
 # ================== Landing Page Routes ==================
 @dashboard_bp.route("/")
-@login_required
 def landing():
     """Landing page route"""
     return render_template("landing_page.html")
@@ -247,7 +249,6 @@ def user_guide():
 
 
 @dashboard_bp.route("/about")
-@login_required
 def about():
     """About page"""
     return render_template("about.html")
@@ -255,32 +256,33 @@ def about():
 
 # ================== Admin Dashboard ==================
 @dashboard_bp.route("/admin", methods=["GET"])
+@admin_required
 def admin():
-    if 'student_email' not in session and not session.get("admin"):
-        flash('Please log in to access the admin panel.', 'error')
-        return redirect(url_for('auth.student_login'))
-    
     success = request.args.get("success")
     error = request.args.get("error")
     
     try:
+        page = request.args.get("page", 1, type=int)
+        per_page = request.args.get("per_page", 50, type=int)
+        per_page = max(10, min(per_page, 200))  # clamp between 10 and 200
+
         if session.get("admin"):
             # RBAC: Super admin sees all, School admin sees only their school
+            query = db.session.query(Student).order_by(Student.created_at.desc())
             if session.get("admin_role") == "school_admin":
-                rows = db.session.query(Student).filter_by(school_name=session.get("admin_school")).order_by(Student.created_at.desc()).all()
-            else:
-                rows = db.session.query(Student).order_by(Student.created_at.desc()).all()
+                query = query.filter_by(school_name=session.get("admin_school"))
+            pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+            rows = pagination.items
+            total_students = pagination.total
         else:
-            # Students see only their records
-            rows = db.session.query(Student).filter_by(
-                email=session['student_email']
-            ).order_by(Student.created_at.desc()).all()
-        
+            rows = []
+            total_students = 0
+
         # FIX: Make sure get_templates() returns a list
         templates_list = get_templates()
-        
+
         # Log for debugging
-        logger.info(f"Admin panel loaded - User: {session.get('student_email') or 'admin'}, Records found: {len(rows)}, Templates: {len(templates_list)}")
+        logger.info(f"Admin panel loaded - User: {session.get('student_email') or 'admin'}, Records: {len(rows)}/{total_students}, Page: {page}, Templates: {len(templates_list)}")
         
         available_fonts = get_available_fonts()
         
@@ -347,7 +349,8 @@ def admin():
             error=error,
             schools_data=schools_data,
             is_admin=session.get("admin", False),
-            template_arrangements=template_arrangements
+            template_arrangements=template_arrangements,
+            pagination=pagination,
         )
     except Exception as e:
         logger.error(f"Error loading admin panel: {e}")
@@ -366,13 +369,14 @@ def admin():
             pdf_sheets_by_template=defaultdict(list),
             schools_data={},
             is_admin=session.get("admin", False),
-            template_arrangements={}
+            template_arrangements={},
+            pagination=None,
         ), 500
 
 
 # ================== Compile School Sheets Route ==================
 @dashboard_bp.route("/admin/download_compiled_school_pdf/<int:template_id>")
-@login_required
+@admin_required
 def download_compiled_school_pdf(template_id):
     mode = (request.args.get("mode") or "").strip().lower() or "print"
     if mode not in {"print", "editable"}:
@@ -382,6 +386,7 @@ def download_compiled_school_pdf(template_id):
 
 # ================== Preview Routes ==================
 @dashboard_bp.route("/admin/student_preview/<int:student_id>")
+@admin_required
 def admin_student_preview(student_id):
     """Get student preview data"""
   
@@ -409,7 +414,7 @@ def admin_student_preview(student_id):
 
 
 @dashboard_bp.route("/admin/generate_preview/<int:student_id>")
-@login_required
+@admin_required
 def generate_student_preview(student_id):
     """Generate a fresh preview for a student with Safe Font Fallback"""
 
@@ -752,7 +757,14 @@ def generate_student_preview(student_id):
                             int(float(photo_settings.get("photo_border_bottom_right", 0) or 0)),
                             int(float(photo_settings.get("photo_border_bottom_left", 0) or 0))
                         ]
-                        photo_img = round_photo(photo_img, radii, border_color=photo_settings.get("photo_frame_color"), border_thickness=2 if photo_settings.get("photo_frame_color") else 0)
+                        photo_img = round_photo(
+                            photo_img,
+                            radii,
+                            border_color=photo_settings.get("photo_frame_color"),
+                            border_thickness=2 if photo_settings.get("photo_frame_color") else 0,
+                            shape=photo_settings.get("photo_shape", "rectangle"),
+                            shape_inset=photo_settings.get("photo_shape_inset", 0),
+                        )
                         template_img.paste(photo_img, (photo_settings["photo_x"], photo_settings["photo_y"]), photo_img)
                 except Exception as e:
                     logger.error(f"Error adding photo to preview: {e}")
@@ -893,7 +905,7 @@ def generate_student_preview(student_id):
 
 
 @dashboard_bp.route("/test_preview")
-@login_required
+@admin_required
 def test_preview():
     """Test route to verify preview generation works"""
     try:
@@ -928,6 +940,7 @@ def test_preview():
 
 
 @dashboard_bp.route("/admin/download_student_pdf/<int:student_id>")
+@admin_required
 def download_student_pdf(student_id):
     """Download student PDF"""
   
@@ -971,13 +984,17 @@ def download_student_pdf(student_id):
 
 # ================== Excel Export ==================
 @dashboard_bp.route('/download_school_excel/<int:template_id>')
-@login_required
+@admin_required
 def download_school_excel(template_id):
 
     try:
         template = db.session.get(Template, template_id)
         if not template:
             flash('Template not found.', 'error')
+            return redirect(url_for('dashboard.admin'))
+            
+        if session.get("admin_role") == "school_admin" and template.school_name != session.get("admin_school"):
+            flash('You are not authorized to access this school.', 'error')
             return redirect(url_for('dashboard.admin'))
 
         students = Student.query.filter_by(template_id=template_id).all()
@@ -1001,8 +1018,10 @@ def download_school_excel(template_id):
                 'Created At': student.created_at.strftime('%Y-%m-%d %H:%M:%S') if student.created_at else ''
             }
 
-            if student.custom_data and isinstance(student.custom_data, dict):
-                for key, val in student.custom_data.items():
+            if student.custom_data:
+                from app.services.render_service import normalize_custom_data
+                norm_data = normalize_custom_data(student.custom_data)
+                for key, val in norm_data.items():
                     header = key.replace('_', ' ').title()
                     row[header] = val
 
@@ -1033,15 +1052,136 @@ def download_school_excel(template_id):
         return redirect(url_for('dashboard.admin'))
 
 
+def _guess_photo_zip_extension(local_path=None, photo_url=None, content_type=None):
+    """Pick a stable image extension for photo zip members."""
+    ext = ""
+    for source in (local_path, photo_url):
+        if source:
+            candidate = os.path.splitext(str(source).split("?", 1)[0])[1].lower()
+            if candidate in {".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp", ".tif", ".tiff"}:
+                ext = candidate
+                break
+    if not ext and content_type:
+        guessed = mimetypes.guess_extension(str(content_type).split(";", 1)[0].strip())
+        if guessed:
+            ext = guessed.lower()
+    if ext == ".jpe":
+        ext = ".jpg"
+    return ext or ".jpg"
+
+
+def _unique_zip_member_name(base_name, extension, used_names):
+    clean_base = secure_filename(base_name or "") or "student_photo"
+    clean_ext = extension if str(extension).startswith(".") else f".{extension}"
+    candidate = f"{clean_base}{clean_ext}"
+    counter = 2
+    while candidate.lower() in used_names:
+        candidate = f"{clean_base}_{counter}{clean_ext}"
+        counter += 1
+    used_names.add(candidate.lower())
+    return candidate
+
+
+@dashboard_bp.route('/download_school_photos_zip/<int:template_id>')
+@admin_required
+def download_school_photos_zip(template_id):
+    """Download all available student photos for one template as a zip."""
+    try:
+        if not session.get("admin"):
+            flash('Admin login required to download school photos.', 'error')
+            return redirect(url_for('dashboard.admin'))
+
+        template = db.session.get(Template, template_id)
+        if not template:
+            flash('Template not found.', 'error')
+            return redirect(url_for('dashboard.admin'))
+
+        if session.get("admin_role") == "school_admin" and template.school_name != session.get("admin_school"):
+            flash('You are not authorized to download photos for this school.', 'error')
+            return redirect(url_for('dashboard.admin'))
+
+        students = (
+            Student.query
+            .filter_by(template_id=template_id)
+            .order_by(Student.name.asc(), Student.id.asc())
+            .all()
+        )
+
+        if not students:
+            flash('No students found for this school.', 'warning')
+            return redirect(url_for('dashboard.admin'))
+
+        output = BytesIO()
+        used_names = set()
+        added_count = 0
+
+        with zipfile.ZipFile(output, "w", zipfile.ZIP_DEFLATED) as zip_file:
+            for student in students:
+                photo_url, local_path = resolve_student_photo_reference(student)
+                photo_bytes = None
+                content_type = None
+
+                if local_path and os.path.exists(local_path):
+                    try:
+                        with open(local_path, "rb") as photo_file:
+                            photo_bytes = photo_file.read()
+                    except OSError as exc:
+                        logger.warning("Unable to read local photo for student %s: %s", student.id, exc)
+                elif photo_url:
+                    try:
+                        response = requests.get(photo_url, timeout=15)
+                        response.raise_for_status()
+                        photo_bytes = response.content
+                        content_type = response.headers.get("Content-Type")
+                    except Exception as exc:
+                        logger.warning("Unable to download remote photo for student %s: %s", student.id, exc)
+
+                if not photo_bytes:
+                    continue
+
+                extension = _guess_photo_zip_extension(local_path, photo_url, content_type)
+                member_name = _unique_zip_member_name(
+                    getattr(student, "name", None) or f"student_{student.id}",
+                    extension,
+                    used_names,
+                )
+                zip_file.writestr(member_name, photo_bytes)
+                added_count += 1
+
+        if added_count == 0:
+            flash('No student photos were available for this school.', 'warning')
+            return redirect(url_for('dashboard.admin'))
+
+        output.seek(0)
+        clean_school_name = secure_filename(template.school_name) or f"template_{template_id}"
+        timestamp = datetime.now().strftime("%Y%m%d")
+        filename = f"{clean_school_name}_Photos_{timestamp}.zip"
+
+        return send_file(
+            output,
+            download_name=filename,
+            as_attachment=True,
+            mimetype='application/zip'
+        )
+
+    except Exception as e:
+        logger.error(f"Error downloading photo zip for template {template_id}: {e}")
+        flash(f"Error generating photo zip: {str(e)}", 'error')
+        return redirect(url_for('dashboard.admin'))
+
+
 # ================== Delete School Sheets ==================
 @dashboard_bp.route("/admin/delete_school_sheets/<int:template_id>", methods=["POST"])
-@login_required
+@admin_required
 def delete_school_sheets(template_id):
 
     try:
         template = db.session.get(Template, template_id)
         if not template:
             return redirect(url_for("dashboard.admin", error="Template not found"))
+
+        if session.get("admin_role") == "school_admin" and template.school_name != session.get("admin_school"):
+            return redirect(url_for('dashboard.admin', error="You are not authorized to access this school."))
 
         deleted_count = 0
 
@@ -1085,7 +1225,7 @@ def delete_school_sheets(template_id):
 
 # ================== Cleanup Old Files ==================
 @dashboard_bp.route("/admin/run_cleanup", methods=["POST"])
-@login_required
+@super_admin_required
 def run_cleanup():
         
     try:
@@ -1099,7 +1239,7 @@ def run_cleanup():
 
 # ================== Delete Students by Template ==================
 @dashboard_bp.route("/delete_all_students_by_template/<int:template_id>", methods=["POST"])
-@login_required
+@admin_required
 def delete_all_students_by_template(template_id):
 
     try:
@@ -1112,6 +1252,9 @@ def delete_all_students_by_template(template_id):
 
         if count == 0:
             return redirect(url_for("dashboard.admin", error="No students found for this school."))
+
+        if session.get("admin_role") == "school_admin" and template.school_name != session.get("admin_school"):
+            return redirect(url_for('dashboard.admin', error="You are not authorized to access this school."))
 
         for student in students:
             if student.photo_filename:
@@ -1159,11 +1302,8 @@ __all__ = ["dashboard_bp"]
 
 
 @dashboard_bp.route("/index", methods=["GET", "POST"])
+@student_required
 def index():
-    # 1. Security Check
-    if not session.get("student_email") and not _is_admin_session():
-        return redirect(url_for("auth.student_login"))
-
     # 2. Init Variables
     generated_url = None
     back_generated_url = None
@@ -1804,7 +1944,14 @@ def index():
                             )
                     if ph:
                         radii = [int(float(photo_settings.get(f"photo_border_{k}", 0) or 0)) for k in ["top_left", "top_right", "bottom_right", "bottom_left"]]
-                        ph = round_photo(ph, radii, border_color=photo_settings.get("photo_frame_color"), border_thickness=2 if photo_settings.get("photo_frame_color") else 0)
+                        ph = round_photo(
+                            ph,
+                            radii,
+                            border_color=photo_settings.get("photo_frame_color"),
+                            border_thickness=2 if photo_settings.get("photo_frame_color") else 0,
+                            shape=photo_settings.get("photo_shape", "rectangle"),
+                            shape_inset=photo_settings.get("photo_shape_inset", 0),
+                        )
                         template_img.paste(ph, (photo_settings["photo_x"], photo_settings["photo_y"]), ph)
                 except Exception as e:
                     logger.error(f"Error adding photo: {e}")
@@ -2233,6 +2380,7 @@ def clear_edit_session():
 
 
 @dashboard_bp.route("/edit/<int:student_id>", methods=["GET", "POST"])
+@student_required
 def edit_student(student_id):
     generated_url = None
     back_generated_url = None
@@ -2830,7 +2978,14 @@ def edit_student(student_id):
                             int(float(photo_settings.get("photo_border_bottom_right", 0) or 0)),
                             int(float(photo_settings.get("photo_border_bottom_left", 0) or 0))
                         ]
-                        photo_img = round_photo(photo_img, radii, border_color=photo_settings.get("photo_frame_color"), border_thickness=2 if photo_settings.get("photo_frame_color") else 0)
+                        photo_img = round_photo(
+                            photo_img,
+                            radii,
+                            border_color=photo_settings.get("photo_frame_color"),
+                            border_thickness=2 if photo_settings.get("photo_frame_color") else 0,
+                            shape=photo_settings.get("photo_shape", "rectangle"),
+                            shape_inset=photo_settings.get("photo_shape_inset", 0),
+                        )
                         template.paste(photo_img, (photo_settings["photo_x"], photo_settings["photo_y"]), photo_img)
 
                 except Exception as e:
@@ -3081,7 +3236,7 @@ def edit_student(student_id):
 
 
 @dashboard_bp.route("/admin/activity_log")
-@login_required
+@admin_required
 def view_activity_log():
     # 2. Pagination Logic
     page = request.args.get('page', 1, type=int)
@@ -3100,7 +3255,7 @@ def view_activity_log():
     )
 
 @dashboard_bp.route("/admin/reset_activity_log", methods=["POST"])
-@login_required
+@super_admin_required
 def reset_activity_log():
     try:
         # 2. Delete all records in ActivityLog table

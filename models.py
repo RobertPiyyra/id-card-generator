@@ -19,8 +19,9 @@ class Template(db.Model):
     template_url = Column(Text, nullable=True)  # NEW: Cloudinary URL for the template image
     back_filename = Column(String(255), nullable=True)
     back_template_url = Column(Text, nullable=True)
-    school_name = Column(String(255), nullable=False)
+    school_name = Column(String(255), nullable=False, index=True)
     created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     
     # Settings stored as JSON
     font_settings = Column(MutableDict.as_mutable(JSON), default=dict)
@@ -109,11 +110,11 @@ class Student(db.Model):
     data_hash = Column(String(255), unique=True)
     
     # Relationships
-    template_id = Column(Integer, ForeignKey('templates.id'))
-    school_name = Column(String(255))
+    template_id = Column(Integer, ForeignKey('templates.id'), index=True)
+    school_name = Column(String(255), index=True)
     
     # User Auth
-    email = Column(String(255), unique=False)
+    email = Column(String(255), unique=False, index=True)
     password = Column(String(255))
     
     # Dynamic Data
@@ -137,7 +138,7 @@ class ActivityLog(db.Model):
     target = db.Column(db.String(100))       # Target ID or Name (optional)
     details = db.Column(db.String(255))      # Additional details
     ip_address = db.Column(db.String(50))    # User's IP address
-    timestamp = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    timestamp = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), index=True)
 
 
 # ================== Notification Preferences Model ==================
@@ -219,7 +220,7 @@ class AdminUser(db.Model):
     username = db.Column(db.String(100), unique=True, nullable=False)
     password_hash = db.Column(db.String(255), nullable=False)
     role = db.Column(db.String(50), default='school_admin')  # e.g., 'super_admin' or 'school_admin'
-    school_name = db.Column(db.String(255), nullable=True)   # Scopes access for school_admin
+    school_name = db.Column(db.String(255), nullable=True, index=True)   # Scopes access for school_admin
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
 

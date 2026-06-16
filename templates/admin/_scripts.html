@@ -16,7 +16,7 @@
                 if (rgb.startsWith('#')) return rgb;
                 if (rgb.includes(',')) rgb = rgb.split(',').map(Number);
             }
-            
+
             if (Array.isArray(rgb) && rgb.length >= 3) {
                 return "#" + ((1 << 24) + (rgb[0] << 16) + (rgb[1] << 8) + rgb[2]).toString(16).slice(1);
             }
@@ -78,39 +78,69 @@
         // ---------------------------------------------------------
         // 2. LOAD SAVED SETTINGS
         // ---------------------------------------------------------
-        function loadTemplateSettings() {
+        async function loadTemplateSettings() {
            const selector = document.getElementById('templateSelector');
            const selectedOption = selector.options[selector.selectedIndex];
            const saveBtn = document.getElementById('saveSettingsBtn');
            const sideSelect = document.getElementById('templateSide');
            const sideWrap = document.getElementById('templateSideWrap');
-            
-            if (selectedOption && selectedOption.value) {
-                const templateId = selectedOption.value;
-                document.getElementById('templateId').value = templateId;
-                const isDoubleSided = (selectedOption.getAttribute('data-is-double-sided') || 'false') === 'true';
-                if (sideWrap) sideWrap.style.display = isDoubleSided ? 'block' : 'none';
-                const activeSide = (isDoubleSided && sideSelect && sideSelect.value === 'back') ? 'back' : 'front';
-                if (sideSelect) {
-                    sideSelect.value = activeSide;
-                }
-                const sideLabel = document.getElementById('adminPreviewSideLabel');
-                const sourceLabel = document.getElementById('adminPreviewSourceLabel');
-                if (sideLabel) {
-                    sideLabel.textContent = activeSide === 'back' ? 'Back Preview' : 'Front Preview';
-                }
-                 if (sourceLabel) {
-                    const sourceName = selectedOption.getAttribute(activeSide === 'back' ? 'data-back-source-name' : 'data-source-name') || '';
-                    let shortName = sourceName;
-                    if (sourceName) {
-                        const base = sourceName.split(/[/\\]/).pop();
-                        shortName = base.length > 25 ? base.substring(0, 12) + '...' + base.substring(base.length - 10) : base;
-                    }
-                    sourceLabel.textContent = sourceName ? `Source: ${shortName}` : '';
-                    sourceLabel.title = sourceName || '';
-                }
 
-                // Load JSON settings Safely
+             if (selectedOption && selectedOption.value) {
+                 const templateId = selectedOption.value;
+                 document.getElementById('templateId').value = templateId;
+                 const isDoubleSided = (selectedOption.getAttribute('data-is-double-sided') || 'false') === 'true';
+                 if (sideWrap) sideWrap.style.display = isDoubleSided ? 'block' : 'none';
+                 const activeSide = (isDoubleSided && sideSelect && sideSelect.value === 'back') ? 'back' : 'front';
+                 if (sideSelect) {
+                     sideSelect.value = activeSide;
+                 }
+
+                 // Dynamically fetch the latest template settings to avoid stale DOM attributes overwriting
+                 try {
+                     const response = await fetch(`/admin/template_settings/${templateId}?side=${activeSide}`);
+                     if (response.ok) {
+                         const data = await response.json();
+                         if (data.success) {
+                             const targetPrefix = activeSide === 'back' ? 'data-back-' : 'data-';
+                             selectedOption.setAttribute(`${targetPrefix}font-settings`, JSON.stringify(data.font_settings));
+                             selectedOption.setAttribute(`${targetPrefix}photo-settings`, JSON.stringify(data.photo_settings));
+                             selectedOption.setAttribute(`${targetPrefix}qr-settings`, JSON.stringify(data.qr_settings));
+                             selectedOption.setAttribute('data-card-orientation', data.card_orientation);
+                             selectedOption.setAttribute('data-deadline', data.deadline || '');
+                             selectedOption.setAttribute(`${targetPrefix}language`, data.language || 'english');
+                             selectedOption.setAttribute(`${targetPrefix}direction`, data.text_direction || 'ltr');
+                             selectedOption.setAttribute('data-card-width', data.card_width);
+                             selectedOption.setAttribute('data-card-height', data.card_height);
+                             selectedOption.setAttribute('data-sheet-width', data.sheet_width);
+                             selectedOption.setAttribute('data-sheet-height', data.sheet_height);
+                             selectedOption.setAttribute('data-grid-rows', data.grid_rows);
+                             selectedOption.setAttribute('data-grid-cols', data.grid_cols);
+                             if (data.layout_config) {
+                                 selectedOption.setAttribute(`${targetPrefix}layout-config`, JSON.stringify(data.layout_config));
+                             }
+                         }
+                     }
+                 } catch (e) {
+                     console.error('Error loading template settings via API:', e);
+                 }
+
+                 const sideLabel = document.getElementById('adminPreviewSideLabel');
+                 const sourceLabel = document.getElementById('adminPreviewSourceLabel');
+                 if (sideLabel) {
+                     sideLabel.textContent = activeSide === 'back' ? 'Back Preview' : 'Front Preview';
+                 }
+                  if (sourceLabel) {
+                     const sourceName = selectedOption.getAttribute(activeSide === 'back' ? 'data-back-source-name' : 'data-source-name') || '';
+                     let shortName = sourceName;
+                     if (sourceName) {
+                         const base = sourceName.split(/[/\\]/).pop();
+                         shortName = base.length > 25 ? base.substring(0, 12) + '...' + base.substring(base.length - 10) : base;
+                     }
+                     sourceLabel.textContent = sourceName ? `Source: ${shortName}` : '';
+                     sourceLabel.title = sourceName || '';
+                 }
+
+                 // Load JSON settings Safely
                 const fontSettings = JSON.parse(selectedOption.getAttribute(activeSide === 'back' ? 'data-back-font-settings' : 'data-font-settings') || '{}') || {};
                 const photoSettings = JSON.parse(selectedOption.getAttribute(activeSide === 'back' ? 'data-back-photo-settings' : 'data-photo-settings') || '{}') || {};
                 
@@ -182,14 +212,14 @@
 
                 toggleGradientFields();
 
-                document.getElementById('labelFontSize').value = fontSettings.label_font_size || 40;
-                document.getElementById('valueFontSize').value = fontSettings.value_font_size || 36;
-                document.getElementById('colonFontSize').value = fontSettings.colon_font_size || fontSettings.label_font_size || 40;
-                document.getElementById('labelX').value = fontSettings.label_x || 50;
-                document.getElementById('valueX').value = fontSettings.value_x || 280;
-                document.getElementById('startY').value = fontSettings.start_y || 275;
-                document.getElementById('lineHeight').value = fontSettings.line_height || 50;
-                const addressLineCount = String(fontSettings.address_max_lines || 2);
+                document.getElementById('labelFontSize').value = fontSettings.label_font_size ?? 40;
+                document.getElementById('valueFontSize').value = fontSettings.value_font_size ?? 36;
+                document.getElementById('colonFontSize').value = fontSettings.colon_font_size ?? fontSettings.label_font_size ?? 40;
+                document.getElementById('labelX').value = fontSettings.label_x ?? 50;
+                document.getElementById('valueX').value = fontSettings.value_x ?? 280;
+                document.getElementById('startY').value = fontSettings.start_y ?? 275;
+                document.getElementById('lineHeight').value = fontSettings.line_height ?? 50;
+                const addressLineCount = String(fontSettings.address_max_lines ?? 2);
                 const addressLineRadio = document.querySelector(`input[name="address_max_lines"][value="${addressLineCount}"]`);
                 if (addressLineRadio) addressLineRadio.checked = true;
                 document.getElementById('textCase').value = fontSettings.text_case || 'normal';
@@ -197,15 +227,15 @@
                 document.getElementById('alignLabelColon').checked = (fontSettings.align_label_colon !== false);
                 document.getElementById('labelColonGap').value = fontSettings.label_colon_gap ?? 8;
 
-                document.getElementById('photoX').value = photoSettings.photo_x || 725;
-                document.getElementById('photoY').value = photoSettings.photo_y || 200;
-                document.getElementById('photoWidth').value = photoSettings.photo_width || 260;
-                document.getElementById('photoHeight').value = photoSettings.photo_height || 313;
+                document.getElementById('photoX').value = photoSettings.photo_x ?? 725;
+                document.getElementById('photoY').value = photoSettings.photo_y ?? 200;
+                document.getElementById('photoWidth').value = photoSettings.photo_width ?? 260;
+                document.getElementById('photoHeight').value = photoSettings.photo_height ?? 313;
                 
-                document.getElementById('photoBorderTL').value = photoSettings.photo_border_top_left || 0;
-                document.getElementById('photoBorderTR').value = photoSettings.photo_border_top_right || 0;
-                document.getElementById('photoBorderBR').value = photoSettings.photo_border_bottom_right || 0;
-                document.getElementById('photoBorderBL').value = photoSettings.photo_border_bottom_left || 0;
+                document.getElementById('photoBorderTL').value = photoSettings.photo_border_top_left ?? 0;
+                document.getElementById('photoBorderTR').value = photoSettings.photo_border_top_right ?? 0;
+                document.getElementById('photoBorderBR').value = photoSettings.photo_border_bottom_right ?? 0;
+                document.getElementById('photoBorderBL').value = photoSettings.photo_border_bottom_left ?? 0;
 
                 const frameColor = photoSettings.photo_frame_color || '#8c2440';
                 document.getElementById('photoFrameColor').value = frameColor;
@@ -216,6 +246,17 @@
                 if (editablePhotoModeEl) {
                     editablePhotoModeEl.value = photoSettings.corel_editable_photo_mode || 'frame_only';
                 }
+                const photoShapeEl = document.getElementById('photoShape');
+                if (photoShapeEl) {
+                    const rawShape = photoSettings.photo_shape || 'rectangle';
+                    photoShapeEl.value = rawShape.split(':')[0];
+                    photoShapeEl.dataset.userTouched = '0';
+                }
+                const photoShapeInsetEl = document.getElementById('photoShapeInset');
+                if (photoShapeInsetEl) {
+                    photoShapeInsetEl.value = photoSettings.photo_shape_inset ?? 0;
+                }
+                updateBorderPreview();
 
 
                 // QR + Barcode settings (independent)
@@ -225,9 +266,9 @@
                 toggleBarcodeSettings();
 
                 document.getElementById('qrDataType').value = qrSettings.qr_data_type || 'student_id';
-                document.getElementById('qrX').value = qrSettings.qr_x || 50;
-                document.getElementById('qrY').value = qrSettings.qr_y || 50;
-                document.getElementById('qrSize').value = qrSettings.qr_size || 120;
+                document.getElementById('qrX').value = qrSettings.qr_x ?? 50;
+                document.getElementById('qrY').value = qrSettings.qr_y ?? 50;
+                document.getElementById('qrSize').value = qrSettings.qr_size ?? 120;
                 document.getElementById('qrFillColor').value = rgbToHex(qrSettings.qr_fill_color);
                 document.getElementById('qrBackColor').value = rgbToHex(qrSettings.qr_back_color);
                 document.getElementById('qrStyle').value = qrSettings.qr_style || 'square';
@@ -251,10 +292,10 @@
                 toggleQRContentFields();
                 toggleQRLogoField();
 
-                document.getElementById('barcodeX').value = qrSettings.barcode_x || 50;
-                document.getElementById('barcodeY').value = qrSettings.barcode_y || 200;
-                document.getElementById('barcodeWidth').value = qrSettings.barcode_width || 220;
-                document.getElementById('barcodeHeight').value = qrSettings.barcode_height || 70;
+                document.getElementById('barcodeX').value = qrSettings.barcode_x ?? 50;
+                document.getElementById('barcodeY').value = qrSettings.barcode_y ?? 200;
+                document.getElementById('barcodeWidth').value = qrSettings.barcode_width ?? 220;
+                document.getElementById('barcodeHeight').value = qrSettings.barcode_height ?? 70;
                 document.getElementById('barcodeFillColor').value = rgbToHex(qrSettings.barcode_fill_color || [0, 0, 0]);
                 document.getElementById('barcodeBackColor').value = rgbToHex(qrSettings.barcode_back_color || [255, 255, 255]);
                 document.getElementById('barcodeDataType').value = qrSettings.barcode_data_type || 'student_id';
@@ -329,7 +370,7 @@
         function saveTemplateSettings() {
             const saveBtn = document.getElementById('saveSettingsBtn');
             const originalText = saveBtn.innerHTML;
-            
+
             if (saveBtn.disabled) {
                 showNotification('Please select a template first.', 'error');
                 return;
@@ -417,19 +458,36 @@
                     label_colon_gap: getIntValue('labelColonGap', 8)
                 },
                 
-                // Photo Settings
-                photo_settings: {
-                    photo_x: getIntValue('photoX', 725),
-                    photo_y: getIntValue('photoY', 200),
-                    photo_width: getIntValue('photoWidth', 260),
-                    photo_height: getIntValue('photoHeight', 313),
-                    photo_border_top_left: getIntValue('photoBorderTL', 0),
-                    photo_border_top_right: getIntValue('photoBorderTR', 0),
-                    photo_border_bottom_right: getIntValue('photoBorderBR', 0),
-                    photo_border_bottom_left: getIntValue('photoBorderBL', 0),
-                    photo_frame_color: getStringValue('photoFrameColor', '#8c2440'),
-                    corel_editable_photo_mode: getStringValue('corelEditablePhotoMode', 'frame_only')
-                },
+                // Photo Settings – preserve custom geometry suffix (e.g. "hexagon:41")
+                photo_settings: (function() {
+                    const shapeEl = document.getElementById('photoShape');
+                    const dropdownShape = (shapeEl && shapeEl.value) ? shapeEl.value : 'rectangle';
+                    // Read the full shape string from the currently loaded data attribute
+                    const selector = document.getElementById('templateSelector');
+                    const selOpt = selector && selector.options[selector.selectedIndex];
+                    const activeSide = (document.getElementById('templateSide') && document.getElementById('templateSideWrap').style.display !== 'none')
+                        ? document.getElementById('templateSide').value : 'front';
+                    const attrName = activeSide === 'back' ? 'data-back-photo-settings' : 'data-photo-settings';
+                    let loadedPhotoSettings = {};
+                    try { loadedPhotoSettings = JSON.parse((selOpt && selOpt.getAttribute(attrName)) || '{}') || {}; } catch(e) {}
+                    const loadedShape = loadedPhotoSettings.photo_shape || 'rectangle';
+                    // If the dropdown base matches the loaded base, keep the full string (preserves ":41")
+                    const resolvedShape = (dropdownShape === loadedShape.split(':')[0]) ? loadedShape : dropdownShape;
+                    return {
+                        photo_x: getIntValue('photoX', 725),
+                        photo_y: getIntValue('photoY', 200),
+                        photo_width: getIntValue('photoWidth', 260),
+                        photo_height: getIntValue('photoHeight', 313),
+                        photo_border_top_left: getIntValue('photoBorderTL', 0),
+                        photo_border_top_right: getIntValue('photoBorderTR', 0),
+                        photo_border_bottom_right: getIntValue('photoBorderBR', 0),
+                        photo_border_bottom_left: getIntValue('photoBorderBL', 0),
+                        photo_shape: resolvedShape,
+                        photo_shape_inset: getIntValue('photoShapeInset', 0),
+                        photo_frame_color: getStringValue('photoFrameColor', '#8c2440'),
+                        corel_editable_photo_mode: getStringValue('corelEditablePhotoMode', 'frame_only')
+                    };
+                })(),
 
                 // QR Settings
                 qr_settings: {}
@@ -1250,7 +1308,37 @@
             const bl = document.getElementById('photoBorderBL').value || 0;
             
             const preview = document.getElementById('borderPreview');
+            const fullShape = (document.getElementById('photoShape')?.value || 'rectangle').toLowerCase();
+            const shape = fullShape.split(':')[0];
+            const inset = Math.max(0, parseInt(document.getElementById('photoShapeInset')?.value || '0', 10) || 0);
+            const pct = Math.min(45, Math.round((inset / 100) * 100));
+            preview.style.clipPath = '';
             preview.style.borderRadius = `${tl}px ${tr}px ${br}px ${bl}px`;
+            if (shape === 'circle') {
+                preview.style.borderRadius = '50%';
+                preview.style.clipPath = `inset(${pct}% round 50%)`;
+            } else if (shape === 'triangle') {
+                preview.style.borderRadius = '0';
+                preview.style.clipPath = `polygon(50% ${pct}%, ${100 - pct}% ${100 - pct}%, ${pct}% ${100 - pct}%)`;
+            } else if (shape === 'diamond') {
+                preview.style.borderRadius = '0';
+                preview.style.clipPath = `polygon(50% ${pct}%, ${100 - pct}% 50%, 50% ${100 - pct}%, ${pct}% 50%)`;
+            } else if (shape === 'pentagon') {
+                preview.style.borderRadius = '0';
+                preview.style.clipPath = 'polygon(50% 0%, 98% 35%, 80% 100%, 20% 100%, 2% 35%)';
+            } else if (shape === 'hexagon') {
+                preview.style.borderRadius = '0';
+                preview.style.clipPath = 'polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%)';
+            } else if (shape === 'heptagon') {
+                preview.style.borderRadius = '0';
+                preview.style.clipPath = 'polygon(50% 0%, 90% 20%, 100% 62%, 72% 100%, 28% 100%, 0% 62%, 10% 20%)';
+            } else if (shape === 'octagon') {
+                preview.style.borderRadius = '0';
+                preview.style.clipPath = 'polygon(30% 0%, 70% 0%, 100% 30%, 100% 70%, 70% 100%, 30% 100%, 0% 70%, 0% 30%)';
+            } else if (shape === 'custom-polygon') {
+                preview.style.borderRadius = '0';
+                preview.style.clipPath = 'polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%)';
+            }
         }
 
         // QR / Barcode toggle (mutually exclusive)
@@ -1514,7 +1602,28 @@
             });
         }
 
-        function updateAdminPreview() {
+        async function refreshSelectedTemplateSettingsOption(selectedOption, activeSide) {
+            if (!selectedOption || !selectedOption.value) return null;
+            try {
+                const response = await fetch(`/admin/template_settings/${selectedOption.value}?side=${activeSide}`);
+                if (!response.ok) return null;
+                const data = await response.json();
+                if (!data || !data.success) return null;
+                const targetPrefix = activeSide === 'back' ? 'data-back-' : 'data-';
+                selectedOption.setAttribute(`${targetPrefix}font-settings`, JSON.stringify(data.font_settings || {}));
+                selectedOption.setAttribute(`${targetPrefix}photo-settings`, JSON.stringify(data.photo_settings || {}));
+                selectedOption.setAttribute(`${targetPrefix}qr-settings`, JSON.stringify(data.qr_settings || {}));
+                selectedOption.setAttribute(`${targetPrefix}language`, data.language || 'english');
+                selectedOption.setAttribute(`${targetPrefix}direction`, data.text_direction || 'ltr');
+                selectedOption.setAttribute('data-card-orientation', data.card_orientation || 'landscape');
+                return data;
+            } catch (err) {
+                console.warn('Could not refresh template settings before preview:', err);
+                return null;
+            }
+        }
+
+        async function updateAdminPreview() {
             const selector = document.getElementById('templateSelector');
             const selectedOption = selector.options[selector.selectedIndex];
             const previewImg = document.getElementById('adminPreviewImage');
@@ -1527,7 +1636,12 @@
             
             loadingDiv.style.display = "block";
             previewImg.style.opacity = "0.5";
-            
+
+            const activeSide = (document.getElementById('templateSide') && document.getElementById('templateSideWrap').style.display !== 'none')
+                ? document.getElementById('templateSide').value
+                : 'front';
+            await refreshSelectedTemplateSettingsOption(selectedOption, activeSide);
+
         
             const rawLabelColor = document.getElementById('labelFontColor').value;
             const rawValueColor = document.getElementById('valueFontColor').value;
@@ -1554,6 +1668,15 @@
                 colonColorArr = rawColonColor.split(',').map(Number);
             }
 
+            const previewInt = (id, defaultValue) => {
+                const el = document.getElementById(id);
+                if (!el || el.value === '' || el.value === null) return defaultValue;
+                const val = parseInt(el.value, 10);
+                return Number.isNaN(val) ? defaultValue : val;
+            };
+            const card_orientation = document.getElementById('cardOrientation').value || 'landscape';
+            const liveLang = document.getElementById('templateLanguage') ? document.getElementById('templateLanguage').value : 'english';
+            const liveDir = document.getElementById('templateDirection') ? document.getElementById('templateDirection').value : 'ltr';
             const font_settings = {
                 font_bold: document.getElementById('fontBold').value || 'arialbd.ttf',
                 font_regular: document.getElementById('fontRegular').value || 'arial.ttf',
@@ -1566,29 +1689,44 @@
                 value_font_color_bottom: hexToRgbArray(document.getElementById('valueFontColorBottom') ? document.getElementById('valueFontColorBottom').value : '#333333'),
                 enable_colon_gradient: document.getElementById('enableColonGradient') ? document.getElementById('enableColonGradient').checked : false,
                 colon_font_color_bottom: hexToRgbArray(document.getElementById('colonFontColorBottom') ? document.getElementById('colonFontColorBottom').value : '#333333'),
-                label_font_size: parseInt(document.getElementById('labelFontSize').value) || 40,
-                value_font_size: parseInt(document.getElementById('valueFontSize').value) || 36,
-                colon_font_size: parseInt(document.getElementById('colonFontSize').value) || 40,
-                label_x: parseInt(document.getElementById('labelX').value) || 50,
-                value_x: parseInt(document.getElementById('valueX').value) || 280,
-                start_y: parseInt(document.getElementById('startY').value) || 275,
-                line_height: parseInt(document.getElementById('lineHeight').value) || 50,
+                label_font_size: previewInt('labelFontSize', 40),
+                value_font_size: previewInt('valueFontSize', 36),
+                colon_font_size: previewInt('colonFontSize', 40),
+                label_x: previewInt('labelX', 50),
+                value_x: previewInt('valueX', 280),
+                start_y: previewInt('startY', 275),
+                line_height: previewInt('lineHeight', 50),
                 address_max_lines: parseInt((document.querySelector('input[name="address_max_lines"]:checked') || {}).value || '2', 10),
                 text_case: document.getElementById('textCase').value || 'normal',
                 show_label_colon: document.getElementById('showLabelColon').checked,
                 align_label_colon: document.getElementById('alignLabelColon').checked,
-                label_colon_gap: parseInt(document.getElementById('labelColonGap').value) || 8
+                label_colon_gap: previewInt('labelColonGap', 8)
             };
         
+            // Preserve custom geometry suffix for photo_shape in preview
+            const _previewShapeEl = document.getElementById('photoShape');
+            const _previewDropdownShape = (_previewShapeEl && _previewShapeEl.value) ? _previewShapeEl.value : 'rectangle';
+            const _previewAttrName = activeSide === 'back' ? 'data-back-photo-settings' : 'data-photo-settings';
+            let _previewLoadedPS = {};
+            try { _previewLoadedPS = JSON.parse((selectedOption && selectedOption.getAttribute(_previewAttrName)) || '{}') || {}; } catch(e) {}
+            const _previewLoadedShape = _previewLoadedPS.photo_shape || 'rectangle';
+            const _previewLoadedBase = _previewLoadedShape.split(':')[0];
+            const _shapeTouched = _previewShapeEl && _previewShapeEl.dataset.userTouched === '1';
+            const _previewResolvedShape = (
+                _previewDropdownShape === _previewLoadedBase ||
+                (!_shapeTouched && _previewDropdownShape === 'rectangle' && _previewLoadedBase !== 'rectangle')
+            ) ? _previewLoadedShape : _previewDropdownShape;
             const photo_settings = {
-                photo_x: parseInt(document.getElementById('photoX').value) || 725,
-                photo_y: parseInt(document.getElementById('photoY').value) || 200,
-                photo_width: parseInt(document.getElementById('photoWidth').value) || 260,
-                photo_height: parseInt(document.getElementById('photoHeight').value) || 313,
-                photo_border_top_left: parseInt(document.getElementById('photoBorderTL').value) || 0,
-                photo_border_top_right: parseInt(document.getElementById('photoBorderTR').value) || 0,
-                photo_border_bottom_right: parseInt(document.getElementById('photoBorderBR').value) || 0,
-                photo_border_bottom_left: parseInt(document.getElementById('photoBorderBL').value) || 0,
+                photo_x: previewInt('photoX', 725),
+                photo_y: previewInt('photoY', 200),
+                photo_width: previewInt('photoWidth', 260),
+                photo_height: previewInt('photoHeight', 313),
+                photo_border_top_left: previewInt('photoBorderTL', 0),
+                photo_border_top_right: previewInt('photoBorderTR', 0),
+                photo_border_bottom_right: previewInt('photoBorderBR', 0),
+                photo_border_bottom_left: previewInt('photoBorderBL', 0),
+                photo_shape: _previewResolvedShape,
+                photo_shape_inset: previewInt('photoShapeInset', 0),
                 photo_frame_color: document.getElementById('photoFrameColor') ? document.getElementById('photoFrameColor').value : '#8c2440',
                 corel_editable_photo_mode: document.getElementById('corelEditablePhotoMode') ? document.getElementById('corelEditablePhotoMode').value : 'frame_only'
             };
@@ -1601,7 +1739,7 @@
             const safeInt = (id, defaultValue) => {
                 const el = document.getElementById(id);
                 if (!el) return defaultValue;
-                const val = parseInt(el.value);
+                const val = parseInt(el.value, 10);
                 return isNaN(val) ? defaultValue : val;
             };
 
@@ -1636,12 +1774,6 @@
                 }
             }
         
-            const card_orientation = document.getElementById('cardOrientation').value || 'landscape';
-            const liveLang = document.getElementById('templateLanguage') ? document.getElementById('templateLanguage').value : 'english';
-            const liveDir = document.getElementById('templateDirection') ? document.getElementById('templateDirection').value : 'ltr';
-            const activeSide = (document.getElementById('templateSide') && document.getElementById('templateSideWrap').style.display !== 'none')
-                ? document.getElementById('templateSide').value
-                : 'front';
             const sideLabel = document.getElementById('adminPreviewSideLabel');
             const sourceLabel = document.getElementById('adminPreviewSourceLabel');
             if (sideLabel) {
@@ -1705,6 +1837,9 @@
             const inputs = document.querySelectorAll('#templateSettingsForm input, #templateSettingsForm select, #templateSettingsForm textarea');
             inputs.forEach(input => {
                 input.addEventListener('change', function() {
+                    if (this.id === 'photoShape') {
+                        this.dataset.userTouched = '1';
+                    }
                     console.log('Setting changed:', this.name, this.value);
                     updateAdminPreview();
                 });
@@ -2980,6 +3115,14 @@
         document.addEventListener('DOMContentLoaded', function() {
             console.log('DOM loaded, initializing tabs and event listeners');
             
+            // Automatically refresh template settings when the window/tab gets focus (e.g. returning from visual editor)
+            window.addEventListener('focus', function() {
+                const selector = document.getElementById('templateSelector');
+                if (selector && selector.value) {
+                    loadTemplateSettings();
+                }
+            });
+
             {% if success %}
             showNotification('{{ success }}', 'success');
             {% endif %}
@@ -3608,6 +3751,8 @@
                 'photo_border_top_right': 'Photo Top-Right Corner Radius',
                 'photo_border_bottom_right': 'Photo Bottom-Right Corner Radius',
                 'photo_border_bottom_left': 'Photo Bottom-Left Corner Radius',
+                'photo_shape': 'Photo Shape',
+                'photo_shape_inset': 'Photo Shape Inset',
                 'photo_frame_color': 'Photo Frame Color',
                 'corel_editable_photo_mode': 'Corel Photo Export Mode',
                 'enable_qr': 'Enable QR Code',

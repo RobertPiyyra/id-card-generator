@@ -78,7 +78,7 @@ from utils import (
     split_label_and_colon, colon_anchor_for_value, get_template_language_direction,
     get_template_layout_config, get_anchor_max_text_width, get_layout_flow_start_y,
     derive_font_settings_from_layout_config
-    ,get_localized_standard_labels
+    ,get_localized_standard_labels, normalize_photo_shape
 )
 from cloudinary_config import upload_image
 from models import db, Student, Template, TemplateField, ActivityLog, NotificationPreference, NotificationLog, KeyboardLanguagePreference, AdminUser, TemplateVersion, TemplateWorkflow, ImmutableAuditEvent, BulkJob, BulkJobItem, ImportMapping
@@ -420,6 +420,58 @@ def login_required(f):
             if request.is_json or request.path.startswith('/api') or request.path.startswith('/corel'):
                 return jsonify({"success": False, "error": "Unauthorized"}), 403
             return redirect(url_for("auth.login"))
+        return f(*args, **kwargs)
+    return decorated_function
+
+
+def admin_required(f):
+    from functools import wraps
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not session.get("admin"):
+            from flask import redirect, url_for, request, jsonify
+            if request.is_json or request.path.startswith('/api') or request.path.startswith('/corel'):
+                return jsonify({"success": False, "error": "Unauthorized"}), 403
+            return redirect(url_for("auth.login"))
+        return f(*args, **kwargs)
+    return decorated_function
+
+
+def super_admin_required(f):
+    from functools import wraps
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not session.get("admin") or session.get("admin_role") != "super_admin":
+            from flask import redirect, url_for, request, jsonify
+            if request.is_json or request.path.startswith('/api') or request.path.startswith('/corel'):
+                return jsonify({"success": False, "error": "Forbidden"}), 403
+            return redirect(url_for("auth.login"))
+        return f(*args, **kwargs)
+    return decorated_function
+
+
+def school_admin_required(f):
+    from functools import wraps
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not session.get("admin") or session.get("admin_role") not in ("school_admin", "super_admin"):
+            from flask import redirect, url_for, request, jsonify
+            if request.is_json or request.path.startswith('/api') or request.path.startswith('/corel'):
+                return jsonify({"success": False, "error": "Forbidden"}), 403
+            return redirect(url_for("auth.login"))
+        return f(*args, **kwargs)
+    return decorated_function
+
+
+def student_required(f):
+    from functools import wraps
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not session.get("student_email") and not session.get("admin"):
+            from flask import redirect, url_for, request, jsonify
+            if request.is_json or request.path.startswith('/api') or request.path.startswith('/corel'):
+                return jsonify({"success": False, "error": "Unauthorized"}), 403
+            return redirect(url_for("auth.student_login"))
         return f(*args, **kwargs)
     return decorated_function
 
@@ -3244,6 +3296,8 @@ def update_template_settings_route():
                 "photo_border_bottom_right": safe_get_int(photo_settings_data, "photo_border_bottom_right", 0),
                 "photo_border_bottom_left": safe_get_int(photo_settings_data, "photo_border_bottom_left", 0),
                 "photo_frame_color": str(photo_settings_data.get("photo_frame_color") or "#8c2440").strip() or "#8c2440",
+                "photo_shape": normalize_photo_shape(photo_settings_data.get("photo_shape") or "rectangle"),
+                "photo_shape_inset": safe_get_int(photo_settings_data, "photo_shape_inset", 0),
                 "corel_editable_photo_mode": str(
                     photo_settings_data.get("corel_editable_photo_mode", "frame_only")
                 ).strip().lower() or "frame_only",
@@ -3261,6 +3315,8 @@ def update_template_settings_route():
                 "photo_border_bottom_right": get_form_int(request.form, "photo_border_bottom_right", 0),
                 "photo_border_bottom_left": get_form_int(request.form, "photo_border_bottom_left", 0),
                 "photo_frame_color": str(request.form.get("photo_frame_color") or "#8c2440").strip() or "#8c2440",
+                "photo_shape": normalize_photo_shape(request.form.get("photo_shape") or "rectangle"),
+                "photo_shape_inset": get_form_int(request.form, "photo_shape_inset", 0),
                 "corel_editable_photo_mode": (
                     (request.form.get("corel_editable_photo_mode", "frame_only") or "frame_only").strip().lower()
                 ),
@@ -3804,6 +3860,7 @@ def admin_preview_card():
         
         font_settings = {**get_default_font_config(), **data.get("font_settings", {})}
         photo_settings = {**get_default_photo_config(), **data.get("photo_settings", {})}
+        photo_settings["photo_shape"] = normalize_photo_shape(photo_settings.get("photo_shape", "rectangle"))
         qr_settings = {**get_default_qr_config(), **data.get("qr_settings", {})}
         
         # 2. Load Template
@@ -4182,7 +4239,14 @@ def admin_preview_card():
                     target_height=int(float(photo_settings.get("photo_height", 100) or 100)),
                 )
                 radii = [int(float(photo_settings.get(f"photo_border_{k}", 0) or 0)) for k in ["top_left", "top_right", "bottom_right", "bottom_left"]]
-                ph = round_photo(ph, radii, border_color=photo_settings.get("photo_frame_color"), border_thickness=2 if photo_settings.get("photo_frame_color") else 0)
+                ph = round_photo(
+                    ph,
+                    radii,
+                    border_color=photo_settings.get("photo_frame_color"),
+                    border_thickness=2 if photo_settings.get("photo_frame_color") else 0,
+                    shape=photo_settings.get("photo_shape", "rectangle"),
+                    shape_inset=photo_settings.get("photo_shape_inset", 0),
+                )
                 px = int(float(photo_settings.get("photo_x", 0) or 0))
                 py = int(float(photo_settings.get("photo_y", 0) or 0))
                 template_img.paste(ph, (px, py), ph)
@@ -4986,12 +5050,51 @@ def background_bulk_generate(task_id, template_id, excel_path, photo_map, import
                     row_data_for_rules, custom_data = _apply_batch_rules_for_row(template_obj, row_data_for_rules, custom_data)
 
                     used_photo = "placeholder.jpg"
-                    clean_name = name.lower().strip()
-                    for alias in photo_match_aliases(clean_name):
-                        if alias in photo_map:
-                            used_photo = photo_map[alias]
+                    
+                    # Generate match candidates to handle name, name + father name, roll no + name etc.
+                    match_candidates = []
+                    
+                    # 1. Base name
+                    clean_name = name.strip()
+                    if clean_name:
+                        match_candidates.append(clean_name)
+                        
+                        # 2. Name + Father Name
+                        clean_father = father_name.strip()
+                        if clean_father:
+                            match_candidates.append(f"{clean_name} {clean_father}")
+                            match_candidates.append(f"{clean_father} {clean_name}")
+                            match_candidates.append(f"{clean_name}_{clean_father}")
+                            match_candidates.append(f"{clean_father}_{clean_name}")
+                            
+                        # 3. Roll number or ID combined with Name
+                        for col in row.index:
+                            col_lower = str(col).lower().strip()
+                            if col_lower in ['roll_no', 'rollno', 'roll', 'admission_no', 'admissionno', 'id', 'reg_no', 'regno', 'student_id', 'studentid']:
+                                val = str(row[col]).strip()
+                                # Strip trailing decimals if pandas parsed integer as float
+                                if val.endswith('.0'):
+                                    val = val[:-2]
+                                if val:
+                                    match_candidates.append(f"{val} {clean_name}")
+                                    match_candidates.append(f"{clean_name} {val}")
+                                    match_candidates.append(f"{val}_{clean_name}")
+                                    match_candidates.append(f"{clean_name}_{val}")
+
+                    # Attempt matching against photo_map aliases
+                    matched_photo = None
+                    for cand in match_candidates:
+                        for alias in photo_match_aliases(cand):
+                            if alias in photo_map:
+                                matched_photo = photo_map[alias]
+                                break
+                        if matched_photo:
                             break
+                            
+                    if matched_photo:
+                        used_photo = matched_photo
                     else:
+                        # Fallback to checking explicit photo columns in the Excel row
                         for col in ['photo_filename', 'photo_path', 'photo']:
                             if col not in df.columns or pd.isna(row.get(col)):
                                 continue
@@ -5313,7 +5416,19 @@ def bulk_generate():
             updated_at=datetime.now(timezone.utc).isoformat(),
         )
         queue = get_task_queue()
+        use_rq = False
         if queue is not None:
+            try:
+                from rq import Worker
+                workers = Worker.all(queue=queue)
+                if len(workers) > 0:
+                    use_rq = True
+                else:
+                    logger.warning("Redis is running, but no RQ worker is active on 'id_card_bulk' queue. Falling back to local executor.")
+            except Exception as e:
+                logger.warning("Failed to check active RQ workers: %s", e)
+
+        if use_rq:
             try:
                 job = queue.enqueue(
                     background_bulk_generate,
@@ -5326,7 +5441,7 @@ def bulk_generate():
                 logger.warning("RQ enqueue failed; using local executor: %s", queue_error)
                 executor.submit(background_bulk_generate, task_id, template_id, excel_path, photo_map, import_mapping_id)
         else:
-            logger.warning("Redis/RQ unavailable; using local executor for bulk generation.")
+            logger.warning("Redis/RQ unavailable or no active workers; using local executor for bulk generation.")
             executor.submit(background_bulk_generate, task_id, template_id, excel_path, photo_map, import_mapping_id)
 
         # Log Activity

@@ -9,8 +9,8 @@ from models import Template, Student
 from app.services.render_service import render_student_card_side
 
 with app.app_context():
-    template = db.session.get(Template, 5)
-    student = Student.query.filter_by(template_id=5).first()
+    template = db.session.get(Template, 1)
+    student = Student.query.filter_by(template_id=1).first()
     print("Found template:", template)
     print("Found student:", student)
     
