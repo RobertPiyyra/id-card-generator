@@ -2,7 +2,6 @@ import os
 import re
 import logging
 import smtplib
-import socket
 import ssl
 from email.mime.text import MIMEText
 from datetime import datetime, timezone
@@ -142,28 +141,51 @@ def log_activity(action, target=None, details=None):
         db.session.rollback()
 
 def send_email(to, subject, body):
+    """Send a plain-text email using SMTP settings from app config.
+
+    Supports both implicit SSL (port 465) and STARTTLS (port 587).
+    Returns True on success, False otherwise.
+    """
+    from app.config import get_config
+    cfg = get_config()
+
+    email_from = cfg.EMAIL_FROM
+    password = cfg.EMAIL_PASSWORD
+    smtp_server = cfg.SMTP_SERVER
+    smtp_port = int(cfg.SMTP_PORT)
+
+    if not email_from or not password:
+        logger.error("Email not sent: EMAIL_FROM or EMAIL_PASSWORD is not configured.")
+        return False
+
     msg = MIMEText(body)
-    msg['Subject'] = subject
-    msg['From'] = os.environ.get("EMAIL_FROM")
-    msg['To'] = to
+    msg["Subject"] = subject
+    msg["From"] = email_from
+    msg["To"] = to
+
     server = None
     try:
-        smtp_server = "smtp.gmail.com"
-        smtp_port = 465
-        password = os.environ.get("EMAIL_PASSWORD")
-        addr_info = socket.getaddrinfo(smtp_server, smtp_port, socket.AF_INET, socket.SOCK_STREAM)
-        target_ip = addr_info[0][4][0]
-        context = ssl.create_default_context()
-        server = smtplib.SMTP_SSL(target_ip, smtp_port, context=context, timeout=30)
-        server.login(msg['From'], password)
+        if smtp_port == 465:
+            # Implicit SSL
+            context = ssl.create_default_context()
+            server = smtplib.SMTP_SSL(smtp_server, smtp_port, context=context, timeout=30)
+            server.login(email_from, password)
+        else:
+            # STARTTLS (typical for port 587)
+            server = smtplib.SMTP(smtp_server, smtp_port, timeout=30)
+            server.ehlo()
+            server.starttls(context=ssl.create_default_context())
+            server.ehlo()
+            server.login(email_from, password)
+
         server.send_message(msg)
         return True
     except Exception as e:
-        logger.error(f"Failed to send email: {e}")
+        logger.error("Failed to send email to %s: %s", to, e)
         return False
     finally:
-        if server:
+        if server is not None:
             try:
                 server.quit()
-            except:
-                pass
+            except Exception as close_err:
+                logger.debug("SMTP close error (non-fatal): %s", close_err)

@@ -1,0 +1,304 @@
+{% extends "enterprise/base.html" %}
+
+{% block title %}Analytics Dashboard - ID Card Generator{% endblock %}
+{% block header_title %}Analytics Dashboard{% endblock %}
+
+{% block content %}
+<div class="container-fluid" id="analytics-app">
+    <!-- Header -->
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+        <h2 class="mb-0 d-flex align-items-center gap-2">
+            <i class="fas fa-chart-line text-primary"></i>
+            <span>Analytics</span>
+        </h2>
+        <div class="d-flex gap-2 align-items-center">
+            <select class="form-select form-select-sm" style="width:auto" id="analytics-range">
+                <option value="7">Last 7 days</option>
+                <option value="30" selected>Last 30 days</option>
+                <option value="90">Last 90 days</option>
+            </select>
+            <button class="btn btn-sm btn-outline-primary" onclick="refreshAnalytics()">
+                <i class="fas fa-sync-alt"></i> <span class="d-none d-sm-inline">Refresh</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- KPI Cards -->
+    <div class="row g-3 mb-4">
+        <div class="col-xl-3 col-lg-6 col-sm-6">
+            <div class="card h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <p class="text-muted mb-1 small text-uppercase" style="font-size:0.7rem;letter-spacing:0.5px">Templates</p>
+                            <h3 class="mb-0" id="kpi-templates">{{ stats.total_templates }}</h3>
+                        </div>
+                        <div class="rounded-circle d-flex align-items-center justify-content-center" style="width:42px;height:42px;background:rgba(37,99,235,0.1)">
+                            <i class="fas fa-layer-group text-primary"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-3 col-lg-6 col-sm-6">
+            <div class="card h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <p class="text-muted mb-1 small text-uppercase" style="font-size:0.7rem;letter-spacing:0.5px">Students</p>
+                            <h3 class="mb-0" id="kpi-students">{{ stats.total_students }}</h3>
+                        </div>
+                        <div class="rounded-circle d-flex align-items-center justify-content-center" style="width:42px;height:42px;background:rgba(16,185,129,0.1)">
+                            <i class="fas fa-users text-success"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-3 col-lg-6 col-sm-6">
+            <div class="card h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <p class="text-muted mb-1 small text-uppercase" style="font-size:0.7rem;letter-spacing:0.5px">Cards Generated</p>
+                            <h3 class="mb-0" id="kpi-cards">{{ stats.total_cards_generated }}</h3>
+                        </div>
+                        <div class="rounded-circle d-flex align-items-center justify-content-center" style="width:42px;height:42px;background:rgba(6,182,212,0.1)">
+                            <i class="fas fa-id-card text-info"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-3 col-lg-6 col-sm-6">
+            <div class="card h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <p class="text-muted mb-1 small text-uppercase" style="font-size:0.7rem;letter-spacing:0.5px">Active Templates</p>
+                            <h3 class="mb-0" id="kpi-active">{{ stats.active_templates }}</h3>
+                        </div>
+                        <div class="rounded-circle d-flex align-items-center justify-content-center" style="width:42px;height:42px;background:rgba(245,158,11,0.1)">
+                            <i class="fas fa-check-circle text-warning"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Charts Row -->
+    <div class="row g-3 mb-4">
+        <div class="col-lg-8">
+            <div class="card h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0 fw-semibold">Student Registrations</h6>
+                    <small class="text-muted">Daily</small>
+                </div>
+                <div class="card-body">
+                    <canvas id="studentChart" height="100"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-4">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h6 class="mb-0 fw-semibold">School Distribution</h6>
+                </div>
+                <div class="card-body d-flex align-items-center justify-content-center">
+                    <canvas id="schoolChart" height="180"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Verification & Bulk Jobs -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h6 class="mb-0 fw-semibold"><i class="fas fa-qrcode me-2 text-primary"></i>QR Verifications (7 days)</h6>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center mb-3">
+                        <div class="col-4">
+                            <h4 class="text-primary mb-0">{{ verify_stats.total_scans }}</h4>
+                            <small class="text-muted" style="font-size:0.75rem">Scans</small>
+                        </div>
+                        <div class="col-4">
+                            <h4 class="text-success mb-0">{{ verify_stats.valid }}</h4>
+                            <small class="text-muted" style="font-size:0.75rem">Valid</small>
+                        </div>
+                        <div class="col-4">
+                            <h4 class="text-danger mb-0">{{ verify_stats.invalid }}</h4>
+                            <small class="text-muted" style="font-size:0.75rem">Invalid</small>
+                        </div>
+                    </div>
+                    <canvas id="verifyChart" height="70"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h6 class="mb-0 fw-semibold"><i class="fas fa-tasks me-2 text-info"></i>Bulk Job Status</h6>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center mb-3">
+                        <div class="col-3">
+                            <h4 class="mb-0">{{ bulk_stats.total_jobs }}</h4>
+                            <small class="text-muted" style="font-size:0.75rem">Total</small>
+                        </div>
+                        <div class="col-3">
+                            <h4 class="text-success mb-0">{{ bulk_stats.completed }}</h4>
+                            <small class="text-muted" style="font-size:0.75rem">Done</small>
+                        </div>
+                        <div class="col-3">
+                            <h4 class="text-warning mb-0">{{ bulk_stats.processing }}</h4>
+                            <small class="text-muted" style="font-size:0.75rem">Running</small>
+                        </div>
+                        <div class="col-3">
+                            <h4 class="text-danger mb-0">{{ bulk_stats.failed }}</h4>
+                            <small class="text-muted" style="font-size:0.75rem">Failed</small>
+                        </div>
+                    </div>
+                    {% if bulk_stats.total_jobs > 0 %}
+                    <div class="progress" style="height: 8px;">
+                        <div class="progress-bar bg-success" style="width:{{ (bulk_stats.completed / bulk_stats.total_jobs * 100)|round(1) }}%"></div>
+                        <div class="progress-bar bg-warning" style="width:{{ (bulk_stats.processing / bulk_stats.total_jobs * 100)|round(1) }}%"></div>
+                        <div class="progress-bar bg-danger" style="width:{{ (bulk_stats.failed / bulk_stats.total_jobs * 100)|round(1) }}%"></div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Activity -->
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h6 class="mb-0 fw-semibold"><i class="fas fa-history me-2 text-secondary"></i>Recent Activity</h6>
+            <a href="/admin/activity" class="btn btn-sm btn-outline-primary">View All</a>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th>Actor</th>
+                            <th>Action</th>
+                            <th class="d-none d-md-table-cell">Target</th>
+                            <th>Time</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for activity in recent %}
+                        <tr>
+                            <td><span class="badge bg-secondary">{{ activity.actor }}</span></td>
+                            <td>{{ activity.action }}</td>
+                            <td class="d-none d-md-table-cell">{{ activity.target or '-' }}</td>
+                            <td class="text-muted small">{{ activity.timestamp }}</td>
+                        </tr>
+                        {% endfor %}
+                        {% if not recent %}
+                        <tr><td colspan="4" class="text-center text-muted py-4">No recent activity</td></tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    Chart.defaults.color = getComputedStyle(document.documentElement).getPropertyValue('--text-secondary').trim();
+    Chart.defaults.borderColor = getComputedStyle(document.documentElement).getPropertyValue('--border').trim();
+
+    // School distribution
+    const schoolData = {{ student_analytics.schools|tojson }};
+    if (schoolData.length > 0) {
+        new Chart(document.getElementById('schoolChart'), {
+            type: 'doughnut',
+            data: {
+                labels: schoolData.map(s => s.name),
+                datasets: [{
+                    data: schoolData.map(s => s.count),
+                    backgroundColor: ['#2563eb','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#ec4899'],
+                    borderWidth: 0,
+                }]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: true,
+                plugins: { legend: { position: 'bottom', labels: { padding: 12, font: { size: 11 } } } },
+                cutout: '65%',
+            }
+        });
+    }
+
+    // Verification chart
+    const verifyData = {{ verify_stats.daily|tojson }};
+    if (verifyData.length > 0) {
+        new Chart(document.getElementById('verifyChart'), {
+            type: 'bar',
+            data: {
+                labels: verifyData.map(d => d.date),
+                datasets: [{
+                    label: 'Scans',
+                    data: verifyData.map(d => d.count),
+                    backgroundColor: '#2563eb',
+                    borderRadius: 4,
+                }]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
+            }
+        });
+    }
+
+    // Student registrations (placeholder - would be populated from API)
+    const studentRegData = {{ student_analytics.daily|tojson if student_analytics.daily else '[]' }};
+    if (studentRegData.length > 0) {
+        new Chart(document.getElementById('studentChart'), {
+            type: 'line',
+            data: {
+                labels: studentRegData.map(d => d.date),
+                datasets: [{
+                    label: 'Registrations',
+                    data: studentRegData.map(d => d.count),
+                    borderColor: '#2563eb',
+                    backgroundColor: 'rgba(37,99,235,0.08)',
+                    tension: 0.3, fill: true,
+                }]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: { y: { beginAtZero: true } }
+            }
+        });
+    }
+});
+
+function refreshAnalytics() {
+    showProgress();
+    const range = document.getElementById('analytics-range').value;
+    fetch('/enterprise/admin/api/analytics/stats?days=' + range)
+        .then(r => r.json())
+        .then(data => {
+            if (data.total_templates !== undefined) {
+                document.getElementById('kpi-templates').textContent = data.total_templates;
+                document.getElementById('kpi-students').textContent = data.total_students;
+                document.getElementById('kpi-cards').textContent = data.total_cards_generated;
+                document.getElementById('kpi-active').textContent = data.active_templates;
+            }
+            showToast('Analytics refreshed', 'success');
+        })
+        .catch(() => showToast('Failed to refresh', 'error'))
+        .finally(hideProgress);
+}
+</script>
+{% endblock %}

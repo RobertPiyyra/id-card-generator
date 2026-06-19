@@ -1,0 +1,96 @@
+{% extends "enterprise/base.html" %}
+
+{% block title %}Reports Center{% endblock %}
+{% block header_title %}Export Center{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <h4 class="mb-4 d-flex align-items-center gap-2">
+        <i class="fas fa-file-export text-primary"></i> Reports & Exports
+    </h4>
+
+    <div class="row g-3">
+        <!-- Student Report -->
+        <div class="col-lg-4 col-md-6">
+            <div class="card h-100">
+                <div class="card-body text-center d-flex flex-column">
+                    <div class="mb-3">
+                        <div class="rounded-circle d-inline-flex align-items-center justify-content-center" style="width:56px;height:56px;background:rgba(37,99,235,0.1)">
+                            <i class="fas fa-users fa-2x text-primary"></i>
+                        </div>
+                    </div>
+                    <h6 class="fw-semibold">Student Report</h6>
+                    <p class="text-muted small flex-grow-1">Export all student data with photos, cards, and details</p>
+                    <div class="mb-3">
+                        <select class="form-select form-select-sm" id="student-report-school">
+                            <option value="">All Schools</option>
+                        </select>
+                    </div>
+                    <div class="d-flex gap-2 justify-content-center">
+                        <a href="/enterprise/admin/reports/students?format=xlsx" class="btn btn-primary btn-sm">
+                            <i class="fas fa-file-excel me-1"></i>Excel
+                        </a>
+                        <a href="/enterprise/admin/reports/students?format=csv" class="btn btn-outline-primary btn-sm">
+                            <i class="fas fa-file-csv me-1"></i>CSV
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Activity Report -->
+        <div class="col-lg-4 col-md-6">
+            <div class="card h-100">
+                <div class="card-body text-center d-flex flex-column">
+                    <div class="mb-3">
+                        <div class="rounded-circle d-inline-flex align-items-center justify-content-center" style="width:56px;height:56px;background:rgba(16,185,129,0.1)">
+                            <i class="fas fa-history fa-2x text-success"></i>
+                        </div>
+                    </div>
+                    <h6 class="fw-semibold">Activity Report</h6>
+                    <p class="text-muted small flex-grow-1">Export admin activity logs and audit trail</p>
+                    <div class="mb-3">
+                        <select class="form-select form-select-sm" id="activity-report-days">
+                            <option value="7">Last 7 days</option>
+                            <option value="30" selected>Last 30 days</option>
+                            <option value="90">Last 90 days</option>
+                        </select>
+                    </div>
+                    <div class="d-flex gap-2 justify-content-center">
+                        <a href="/enterprise/admin/reports/activity?format=xlsx" class="btn btn-success btn-sm">
+                            <i class="fas fa-file-excel me-1"></i>Excel
+                        </a>
+                        <a href="/enterprise/admin/reports/activity?format=csv" class="btn btn-outline-success btn-sm">
+                            <i class="fas fa-file-csv me-1"></i>CSV
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bulk Job Report -->
+        <div class="col-lg-4 col-md-6">
+            <div class="card h-100">
+                <div class="card-body text-center d-flex flex-column">
+                    <div class="mb-3">
+                        <div class="rounded-circle d-inline-flex align-items-center justify-content-center" style="width:56px;height:56px;background:rgba(6,182,212,0.1)">
+                            <i class="fas fa-tasks fa-2x text-info"></i>
+                        </div>
+                    </div>
+                    <h6 class="fw-semibold">Bulk Job Report</h6>
+                    <p class="text-muted small flex-grow-1">Export bulk generation job history and status</p>
+                    <div class="mb-3"></div>
+                    <div class="d-flex gap-2 justify-content-center">
+                        <a href="/enterprise/admin/reports/bulk-jobs?format=xlsx" class="btn btn-info btn-sm text-white">
+                            <i class="fas fa-file-excel me-1"></i>Excel
+                        </a>
+                        <a href="/enterprise/admin/reports/bulk-jobs?format=csv" class="btn btn-outline-info btn-sm">
+                            <i class="fas fa-file-csv me-1"></i>CSV
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

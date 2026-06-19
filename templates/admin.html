@@ -1328,6 +1328,9 @@
     </ul>
     
     <a href="/index" class="home-button" title="Back to Home"><i class="fas fa-home"></i></a>
+    <a href="/enterprise/admin/analytics" class="home-button" title="Enterprise Features" style="right: 144px; background: linear-gradient(135deg, #2563eb, #7c3aed);">
+      <i class="fas fa-building"></i>
+    </a>
     <button class="theme-toggle" onclick="toggleTheme()"><i class="fas fa-moon"></i></button>
     <a href="{{ url_for('dashboard.user_guide') }}" class="home-button manual-button" title="User Manual" target="_blank">
       <i class="fas fa-book"></i>
@@ -1374,6 +1377,12 @@
                 <div class="stat-value">{{ available_fonts|length|default(0) }}</div>
                 <i class="fas fa-font fa-2x" style="color: var(--accent-color);"></i>
             </div>
+            <a href="/enterprise/admin/analytics" class="stat-card" style="text-decoration: none; color: inherit; background: linear-gradient(135deg, #2563eb, #7c3aed); color: #fff; cursor: pointer;">
+                <div class="stat-label" style="color: rgba(255,255,255,0.85);">Enterprise</div>
+                <div class="stat-value" style="color: #fff;">&#8594;</div>
+                <i class="fas fa-building fa-2x" style="color: rgba(255,255,255,0.6);"></i>
+                <div style="font-size: 0.75rem; margin-top: 4px; color: rgba(255,255,255,0.7);">Analytics, Security, Monitoring...</div>
+            </a>
         </div>
 
         <div class="section" id="searchContainer">

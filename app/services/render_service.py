@@ -43,6 +43,10 @@ from utils import (
 
 # Cross references
 from app.services.photo_service import load_student_photo_rgba, _process_photo_pil
+from app.performance import (
+    get_cached_font, get_cached_qr, set_cached_qr,
+    get_cached_barcode, set_cached_barcode, timed,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -1066,6 +1070,7 @@ def render_student_card_side_background(
 )
 
 
+@timed('render_card', threshold_ms=500)
 def render_student_card_side(
     template_obj,
     student_like,

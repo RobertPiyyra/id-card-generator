@@ -1261,7 +1261,7 @@ def delete_all_students_by_template(template_id):
                 p_path = os.path.join(UPLOAD_FOLDER, student.photo_filename)
                 if os.path.exists(p_path):
                     try: os.remove(p_path)
-                    except: pass
+                    except Exception: pass
             
             if student.generated_filename:
                 base_name = os.path.splitext(student.generated_filename)[0]
@@ -1269,7 +1269,7 @@ def delete_all_students_by_template(template_id):
                     g_path = os.path.join(GENERATED_FOLDER, base_name + ext)
                     if os.path.exists(g_path):
                         try: os.remove(g_path)
-                        except: pass
+                        except Exception: pass
             
             db.session.delete(student)
 
@@ -1279,7 +1279,7 @@ def delete_all_students_by_template(template_id):
             
             pos_file = os.path.join(GENERATED_FOLDER, f"positions_template_{template_id}.txt")
             if os.path.exists(pos_file): os.remove(pos_file)
-        except: pass
+        except Exception: pass
 
         db.session.commit()
         
@@ -1641,7 +1641,7 @@ def index():
                 L_COLOR = tuple(font_settings.get("label_font_color", [0,0,0]))
                 V_COLOR = tuple(font_settings.get("value_font_color", [0,0,0]))
                 C_COLOR = tuple(font_settings.get("colon_font_color", list(L_COLOR)))
-            except:
+            except Exception:
                 L_COLOR = V_COLOR = (0,0,0)
                 C_COLOR = L_COLOR
 

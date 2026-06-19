@@ -1,0 +1,129 @@
+{% extends "enterprise/base.html" %}
+
+{% block title %}Access Policies{% endblock %}
+{% block header_title %}Access Policies{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+        <h4 class="mb-0 d-flex align-items-center gap-2">
+            <i class="fas fa-user-lock text-primary"></i> Access Policies
+        </h4>
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#policyModal">
+            <i class="fas fa-plus me-1"></i><span class="d-none d-sm-inline">Add</span> Policy
+        </button>
+    </div>
+
+    <div class="card">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th>Role</th>
+                            <th>Resource</th>
+                            <th class="d-none d-sm-table-cell">Action</th>
+                            <th>Allowed</th>
+                            <th class="d-none d-md-table-cell">Created</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for p in policies %}
+                        <tr>
+                            <td><span class="badge bg-primary">{{ p.role }}</span></td>
+                            <td>{{ p.resource }}</td>
+                            <td class="d-none d-sm-table-cell"><code class="small">{{ p.action }}</code></td>
+                            <td>
+                                {% if p.allowed %}
+                                <span class="badge bg-success"><i class="fas fa-check"></i></span>
+                                {% else %}
+                                <span class="badge bg-danger"><i class="fas fa-times"></i></span>
+                                {% endif %}
+                            </td>
+                            <td class="d-none d-md-table-cell text-muted small">{{ p.created_at.strftime('%Y-%m-%d') if p.created_at else '' }}</td>
+                        </tr>
+                        {% endfor %}
+                        {% if not policies %}
+                        <tr><td colspan="5" class="text-center text-muted py-4">No access policies defined</td></tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Policy Modal -->
+<div class="modal fade" id="policyModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h6 class="modal-title fw-semibold">Add Access Policy</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="policy-form">
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Role</label>
+                        <select class="form-select" name="role">
+                            <option value="super_admin">Super Admin</option>
+                            <option value="school_admin">School Admin</option>
+                            <option value="teacher">Teacher</option>
+                            <option value="viewer">Viewer</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Resource</label>
+                        <input type="text" class="form-control" name="resource" placeholder="e.g., students, templates">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Action</label>
+                        <select class="form-select" name="action">
+                            <option value="create">Create</option>
+                            <option value="read">Read</option>
+                            <option value="update">Update</option>
+                            <option value="delete">Delete</option>
+                            <option value="export">Export</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold d-block">Permission</label>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="radio" name="allowed" value="true" id="allowed_yes" checked>
+                            <label class="form-check-label small" for="allowed_yes">Allow</label>
+                        </div>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="radio" name="allowed" value="false" id="allowed_no">
+                            <label class="form-check-label small" for="allowed_no">Deny</label>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="btn-create-policy">Save</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.getElementById('btn-create-policy').addEventListener('click', function() {
+    const form = document.getElementById('policy-form');
+    const data = {
+        role: form.querySelector('[name=role]').value,
+        resource: form.querySelector('[name=resource]').value,
+        action: form.querySelector('[name=action]').value,
+        allowed: form.querySelector('[name=allowed]:checked').value === 'true',
+    };
+    if (!data.resource) { showToast('Resource is required', 'warning'); return; }
+    csrfFetch('/enterprise/admin/access-policies', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(data),
+    }).then(r => r.json()).then(d => {
+        if(d.success) { showToast('Policy created!', 'success'); location.reload(); }
+        else showToast(d.message || 'Failed', 'error');
+    }).catch(() => showToast('Error creating policy', 'error'));
+});
+</script>
+{% endblock %}

@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 
 auth_bp = Blueprint("auth", __name__)
 
+from app.extensions import limiter
 
 @auth_bp.route("/login", methods=["GET", "POST"])
 @limiter.limit("5 per minute")
@@ -61,8 +62,8 @@ def login():
     return render_template("login.html")
 
 
-@auth_bp.route("/student_login", methods=["GET", "POST"])
 @limiter.limit("10 per minute")
+@auth_bp.route("/student_login", methods=["GET", "POST"])
 def student_login():
     templates = get_templates()
     error = None
@@ -179,6 +180,7 @@ def register():
     return render_template("register.html", templates=templates, error=error)
 
 
+@limiter.limit("3 per minute")
 @auth_bp.route("/forgot_password", methods=["GET", "POST"])
 def forgot_password():
     if request.method == "POST":
@@ -545,8 +547,9 @@ def admin_reset_student_password(student_id):
             flash("Student not found", "error")
             return redirect(url_for("auth.admin_student_credentials"))
         
-        # Generate a random password
-        new_password = ''.join(random.choices(string.ascii_letters + string.digits, k=12))
+        import secrets
+        alphabet = string.ascii_letters + string.digits
+        new_password = ''.join(secrets.choice(alphabet) for _ in range(16))
         hashed_password = generate_password_hash(new_password, method='pbkdf2:sha256')
         
         student.password = hashed_password

@@ -269,7 +269,7 @@ def auto_crop_face_photo(photo_path, target_width=260, target_height=313):
         try:
             image_open = getattr(Image, "open_original", Image.open)
             return _fallback_center_crop(image_open(photo_path), photo_path, target_width, target_height)
-        except:
+        except Exception:
             return False
 
 

@@ -21,7 +21,7 @@ def create_app(config_object=None):
         _db = legacy_db
 
         # Register Blueprints
-        from app.routes import auth_bp, api_bp, dashboard_bp, corel_bp, editor_bp, verify_bp
+        from app.routes import auth_bp, api_bp, dashboard_bp, corel_bp, editor_bp, verify_bp, enterprise_bp
         from app.legacy_app import student_bp
         _app.register_blueprint(auth_bp)
         _app.register_blueprint(api_bp)
@@ -30,6 +30,7 @@ def create_app(config_object=None):
         _app.register_blueprint(editor_bp)
         _app.register_blueprint(student_bp)
         _app.register_blueprint(verify_bp)
+        _app.register_blueprint(enterprise_bp, url_prefix='/enterprise')
 
     if config_object:
         _app.config.from_object(config_object)

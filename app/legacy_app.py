@@ -9,11 +9,12 @@ import threading
 from flask_login import current_user
 from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
-from datetime import datetime,timezone, UTC
+from datetime import datetime, timezone
 import hashlib
 import logging
 import re
 import smtplib
+import ssl
 from urllib.parse import urlparse
 
 import requests
@@ -83,7 +84,7 @@ from utils import (
 from cloudinary_config import upload_image
 from models import db, Student, Template, TemplateField, ActivityLog, NotificationPreference, NotificationLog, KeyboardLanguagePreference, AdminUser, TemplateVersion, TemplateWorkflow, ImmutableAuditEvent, BulkJob, BulkJobItem, ImportMapping
 from app.services.template_lifecycle_service import create_template_version_snapshot, log_immutable_audit_event, get_session_actor
-from notifications import (
+from app.services.notification_service import (
     notify_deadline_approaching, notify_card_ready, notify_generation_error,
     check_and_notify_approaching_deadlines
 )
@@ -95,9 +96,6 @@ from flask_limiter.errors import RateLimitExceeded
 # Initialize Thread Executor (limit workers to prevent memory overload)
 max_workers = min(32, os.cpu_count() * 2)
 executor = ThreadPoolExecutor(max_workers=max_workers)
-# In-memory dictionary to track job progress
-# Structure: { 'task_id': { 'state': 'PENDING', 'current': 0, 'total': 0, 'status': '' } }
-jobs = {}
 
 
 # Modular service imports for refactored photo and render pipelines
@@ -131,6 +129,12 @@ from app.services.photo_service import (
     _prepare_student_photo_image_bytes,
     _prepare_camera_student_photo_bytes
 )
+from app.services.bulk_job_service import (
+    _set_bulk_job_state,
+    _get_bulk_job_state,
+    _list_bulk_job_states,
+    _publish_bulk_job_errors,
+)
 
 
 def _cleanup_lost_bulk_jobs():
@@ -154,13 +158,19 @@ def _cleanup_lost_bulk_jobs():
 
 _cleanup_lost_bulk_jobs()
 
-import logging
 from logging.handlers import RotatingFileHandler
 import warnings
 import time
 from types import SimpleNamespace
 warnings.filterwarnings("ignore", message="SymbolDatabase.GetPrototype() is deprecated")
 logger = logging.getLogger(__name__)
+
+# Configure structured JSON logging
+try:
+    from app.logging_config import setup_logging
+    setup_logging(os.environ.get("LOG_LEVEL", "INFO"))
+except ImportError:
+    pass  # python-json-logger not installed yet
 
 def fit_loaded_font_to_single_line(draw, font_loader, display_text, max_width, start_size, language="english", min_size=6):
     """Shrink a font until the text fits on one line; wrapping is reserved for address fields."""
@@ -358,10 +368,18 @@ from PIL import Image, ImageOps
 # ================== App Config ==================
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
 app = Flask(__name__, root_path=PROJECT_ROOT)
-app.config.from_object(Config)
-app.secret_key = app.config["SECRET_KEY"]
+app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024  # 16MB upload limit
 
-logger = logging.getLogger(__name__)
+from app.config import get_config
+app.config.from_object(get_config())
+app.secret_key = app.config["SECRET_KEY"]
+if not app.secret_key:
+    raise RuntimeError(
+        "SECRET_KEY is not set. Set it in your .env file or environment. "
+        "Generate one with: python -c \"import secrets; print(secrets.token_hex(32))\""
+    )
+
+
 
 # When running locally, keep templates auto-reloading so HTML changes (e.g. i18n/RTL tweaks)
 # take effect without needing debug mode.
@@ -378,6 +396,67 @@ limiter.init_app(app)
 csrf.init_app(app)
 
 scheduler = configure_notification_scheduler(check_and_notify_approaching_deadlines)
+
+# Production middleware (request ID, security headers, CORS, CSRF exemptions, auth context)
+try:
+    from app.middleware import init_middleware
+    init_middleware(app)
+except Exception as exc:
+    logger.warning("Middleware initialization failed: %s", exc)
+
+# Sentry error tracking
+try:
+    from app.sentry_config import init_sentry
+    init_sentry(app)
+except Exception as exc:
+    logger.warning("Sentry initialization failed: %s", exc)
+
+# Observability (metrics, health checks, timing, slow query logging)
+try:
+    from app.observability import init_observability
+    init_observability(app)
+except Exception as exc:
+    logger.warning("Observability initialization failed: %s", exc)
+
+# Performance optimizations (caching, lazy loading, connection pooling)
+try:
+    from app.performance import init_performance
+    init_performance(app)
+except Exception as exc:
+    logger.warning("Performance initialization failed: %s", exc)
+
+# Celery event-driven task queue
+try:
+    from app.celery_config import make_celery
+    celery_app = make_celery(app)
+    app.extensions["celery"] = celery_app
+    logger.info("Celery initialized")
+except Exception as exc:
+    logger.warning("Celery initialization failed (tasks will use fallback): %s", exc)
+
+# Real-time collaboration (WebSocket)
+try:
+    from app.services.collaboration import init_socketio
+    socketio = init_socketio(app)
+    if socketio:
+        app.extensions["socketio"] = socketio
+        logger.info("SocketIO initialized")
+except Exception as exc:
+    logger.warning("SocketIO initialization failed: %s", exc)
+
+# Multi-tenant middleware
+try:
+    from app.services.tenant import init_tenant_middleware
+    init_tenant_middleware(app)
+except Exception as exc:
+    logger.warning("Tenant middleware initialization failed: %s", exc)
+
+# GraphQL API
+try:
+    from app.api.graphql import init_graphql_view
+    init_graphql_view(app)
+except Exception as exc:
+    logger.warning("GraphQL initialization failed: %s", exc)
 
 if not app.debug:
     # Create logs directory if it doesn't exist
@@ -530,6 +609,26 @@ def handle_bad_request_error(e):
             "error": f"Bad request: {error_desc}"
         }), 400
     return "400 - Bad Request", 400
+@app.errorhandler(413)
+def handle_payload_too_large(e):
+    """Handle file uploads exceeding MAX_CONTENT_LENGTH."""
+    logger.warning("413 Payload Too Large: %s", request.path)
+    if request.is_json or request.path.startswith('/api'):
+        return jsonify({"success": False, "error": "File too large. Maximum upload size is 16MB."}), 413
+    from flask import flash, redirect, request as req
+    flash("File too large. Maximum upload size is 16MB.", "error")
+    return redirect(req.referrer or '/')
+
+@app.errorhandler(422)
+def handle_unprocessable_entity(e):
+    """Handle validation errors."""
+    logger.warning("422 Unprocessable Entity: %s - %s", request.path, str(e))
+    if request.is_json or request.path.startswith('/api'):
+        return jsonify({"success": False, "error": str(e) or "Validation failed"}), 422
+    from flask import flash, redirect, request as req
+    flash(str(e) or "Validation failed. Please check your input.", "error")
+    return redirect(req.referrer or '/')
+
 
 @app.errorhandler(404)
 def not_found_error(error):
@@ -579,7 +678,6 @@ def rgb_to_hex(rgb_list):
             pass
     return '#000000'
 
-logger = logging.getLogger(__name__)
 
 # ================== Email Config ==================
 EMAIL_FROM = Config.EMAIL_FROM
@@ -1418,7 +1516,7 @@ def migrate_database():
                     # For PostgreSQL
                     conn.execute(text("ALTER TABLE templates ALTER COLUMN filename DROP NOT NULL"))
                     logger.info("Removed NOT NULL constraint from templates.filename")
-                except:
+                except Exception:
                     # SQLite doesn't support this easily, skip
                     pass
                 
@@ -2550,25 +2648,8 @@ def _write_binary_file_atomic(path, payload):
     os.replace(tmp_path, path)
     return path
 
-# Ensure logger is defined
-logger = logging.getLogger(__name__)
 
-import socket
-import smtplib
-from email.mime.text import MIMEText
-import logging
 
-# Ensure logger is defined
-logger = logging.getLogger(__name__)
-
-import socket
-import smtplib
-import ssl
-from email.mime.text import MIMEText
-import logging
-
-# Ensure logger is defined
-logger = logging.getLogger(__name__)
 
 def send_email(to, subject, body):
     msg = MIMEText(body)
@@ -2614,7 +2695,7 @@ def send_email(to, subject, body):
         if server:
             try:
                 server.quit()
-            except:
+            except Exception:
                 pass
 # ================== Landing Page Routes ==================
 
@@ -2641,7 +2722,9 @@ def require_login():
         'auth.login', 'auth.register', 'auth.forgot_password', 
         'auth.reset_password', 'dashboard.landing_page', 
         'student.student_login', 'api.verify_student', 'api.health',
-        'static'
+        'dashboard.index', 'dashboard.favicon',  # Student pages
+        'static',
+        'api.manage_template_fields',  # Form fields for student card generation
     }
 
     if request.endpoint in public_endpoints:
@@ -2654,10 +2737,11 @@ def require_login():
 
     # Check if this request is destined for any of the admin blueprints or path patterns
     is_admin = (
-        request.blueprint in {'editor', 'corel', 'dashboard'} or
+        request.blueprint in {'editor', 'corel', 'enterprise'} or
         request.path.startswith('/admin') or
         request.path.startswith('/editor') or
         request.path.startswith('/corel') or
+        request.path.startswith('/enterprise') or
         request.path in {
             "/upload_template", "/delete_all", "/upload_font", "/update_font",
             "/update_photo_position", "/delete_student", "/export_csv", "/download_template",
@@ -3174,14 +3258,14 @@ def update_template_settings_route():
                         try:
                             h = color.lstrip('#')
                             return [int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)]
-                        except:
+                        except Exception:
                             return default
                     elif ',' in color:
                         try:
                             parts = color.split(',')
                             if len(parts) >= 3:
                                 return [int(parts[0].strip()), int(parts[1].strip()), int(parts[2].strip())]
-                        except:
+                        except Exception:
                             return default
                 return default
             
@@ -3243,7 +3327,7 @@ def update_template_settings_route():
                     if len(c) >= 3:
                         try:
                             return [int(x) for x in c[:3]]
-                        except:
+                        except Exception:
                             pass
                     return [0, 0, 0]
                     
@@ -3257,14 +3341,14 @@ def update_template_settings_route():
                         try:
                             h = c.lstrip('#')
                             return [int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)]
-                        except:
+                        except Exception:
                             return [0, 0, 0]
                     # Handle "r,g,b" string
                     try:
                         parts = c.split(',')
                         if len(parts) >= 3:
                             return [int(parts[0].strip()), int(parts[1].strip()), int(parts[2].strip())]
-                    except:
+                    except Exception:
                         pass
                 
                 return [0, 0, 0]
@@ -3895,7 +3979,7 @@ def admin_preview_card():
             L_COLOR = tuple(font_settings.get("label_font_color", [0,0,0]))
             V_COLOR = tuple(font_settings.get("value_font_color", [0,0,0]))
             C_COLOR = tuple(font_settings.get("colon_font_color", list(L_COLOR)))
-        except:
+        except Exception:
             L_COLOR = V_COLOR = (0, 0, 0)
             C_COLOR = L_COLOR
 
@@ -3980,7 +4064,7 @@ def admin_preview_card():
                         'val': sample_val,
                         'order': field.display_order
                     })
-            except: pass
+            except Exception: pass
 
         all_fields.sort(key=lambda x: int(x.get('order') or 0))
         
@@ -4689,88 +4773,6 @@ def _format_bulk_generation_error(exc):
 
     return message
 
-
-def _set_bulk_job_state(task_id, **updates):
-    task = jobs.setdefault(task_id, {"task_id": task_id})
-    task.update(updates)
-    try:
-        _redis_set(
-            _redis_cache_key("bulk_job", task_id),
-            json.dumps(task, default=str).encode("utf-8"),
-            ttl=86400,
-        )
-    except Exception as exc:
-        logger.warning("Failed to publish bulk job state for %s: %s", task_id, exc)
-
-    # Persist to disk
-    try:
-        os.makedirs("instance", exist_ok=True)
-        filepath = os.path.join("instance", "bulk_jobs.json")
-        disk_jobs = {}
-        if os.path.exists(filepath):
-            try:
-                with open(filepath, "r", encoding="utf-8") as f:
-                    disk_jobs = json.load(f)
-            except Exception:
-                pass
-        disk_jobs[task_id] = task
-        with open(filepath, "w", encoding="utf-8") as f:
-            json.dump(disk_jobs, f, default=str)
-    except Exception as e:
-        logger.warning(f"Failed to persist bulk job state to JSON file: {e}")
-
-
-def _get_bulk_job_state(task_id):
-    cached = _redis_get(_redis_cache_key("bulk_job", task_id))
-    if cached:
-        try:
-            if isinstance(cached, bytes):
-                cached = cached.decode("utf-8")
-            return json.loads(cached)
-        except Exception as exc:
-            logger.warning("Failed to decode cached bulk job state for %s: %s", task_id, exc)
-
-    # Fallback to local JSON file
-    try:
-        filepath = os.path.join("instance", "bulk_jobs.json")
-        if os.path.exists(filepath):
-            with open(filepath, "r", encoding="utf-8") as f:
-                disk_jobs = json.load(f)
-                if task_id in disk_jobs:
-                    jobs[task_id] = disk_jobs[task_id]
-                    return disk_jobs[task_id]
-    except Exception as e:
-        logger.warning(f"Failed to read bulk job state from JSON file: {e}")
-
-    return jobs.get(task_id)
-
-
-def _list_bulk_job_states(limit=100):
-    aggregated = {}
-
-    try:
-        filepath = os.path.join("instance", "bulk_jobs.json")
-        if os.path.exists(filepath):
-            with open(filepath, "r", encoding="utf-8") as f:
-                disk_jobs = json.load(f) or {}
-                if isinstance(disk_jobs, dict):
-                    aggregated.update(disk_jobs)
-    except Exception as e:
-        logger.warning(f"Failed to read bulk job list from JSON file: {e}")
-
-    try:
-        aggregated.update(jobs or {})
-    except Exception:
-        pass
-
-    rows = []
-    for task_id, payload in aggregated.items():
-        if not isinstance(payload, dict):
-            continue
-        row = dict(payload)
-        row.setdefault("task_id", task_id)
-        rows.append(row)
-
     def _sort_key(item):
         for k in ("updated_at", "started_at", "created_at"):
             v = item.get(k)
@@ -4780,17 +4782,6 @@ def _list_bulk_job_states(limit=100):
 
     rows.sort(key=_sort_key, reverse=True)
     return rows[: max(1, int(limit or 100))]
-
-
-def _publish_bulk_job_errors(task_id, errors):
-    _set_bulk_job_state(
-        task_id,
-        errors=list(errors[:10]),
-        error_count=len(errors),
-        first_error=(errors[0] if errors else None),
-    )
-
-
 def _apply_batch_rules_for_row(template_obj, row_data, custom_data):
     rules = (getattr(template_obj, "batch_rules", None) or {})
     if not isinstance(rules, dict):
@@ -5625,8 +5616,17 @@ with app.app_context():
     verify_fonts_available() # Add this line
     migrate_photo_settings()
     repair_student_photo_url_recursion()
+    from app.observability import verify_startup_dependencies
+    verify_startup_dependencies(app)
+
 
 if __name__ == "__main__":
     import os
     port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port, debug=False)
+    try:
+        app.run(host="0.0.0.0", port=port, debug=False)
+    except OSError as e:
+        logger.error(f"Failed to start server: {e}")
+        if "Address already in use" in str(e):
+            logger.error(f"Port {port} is already in use. Stop the other process or use a different port.")
+        raise

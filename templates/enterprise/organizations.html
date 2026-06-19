@@ -1,0 +1,116 @@
+{% extends "enterprise/base.html" %}
+
+{% block title %}Organization Management{% endblock %}
+{% block header_title %}Organizations{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+        <h4 class="mb-0 d-flex align-items-center gap-2">
+            <i class="fas fa-building text-primary"></i> Organizations
+        </h4>
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#orgModal">
+            <i class="fas fa-plus me-1"></i><span class="d-none d-sm-inline">New</span> Organization
+        </button>
+    </div>
+
+    <div class="row g-3">
+        {% for org in organizations %}
+        <div class="col-xl-4 col-lg-6 col-md-6">
+            <div class="card h-100">
+                <div class="card-body">
+                    <div class="d-flex align-items-center mb-3">
+                        <div class="rounded-circle d-flex align-items-center justify-content-center me-3 flex-shrink-0"
+                             style="width:48px;height:48px;background:{{ org.primary_color }}20;color:{{ org.primary_color }}">
+                            <i class="fas fa-building fa-lg"></i>
+                        </div>
+                        <div class="min-width-0">
+                            <h6 class="mb-0 text-truncate">{{ org.name }}</h6>
+                            <small class="text-muted">{{ org.slug }}</small>
+                        </div>
+                    </div>
+                    <div class="row text-center g-2 mb-3">
+                        <div class="col-4">
+                            <p class="mb-0 fw-bold">{{ org.branches.count() }}</p>
+                            <small class="text-muted" style="font-size:0.7rem">Branches</small>
+                        </div>
+                        <div class="col-4">
+                            <p class="mb-0 fw-bold">{{ org.departments.count() }}</p>
+                            <small class="text-muted" style="font-size:0.7rem">Depts</small>
+                        </div>
+                        <div class="col-4">
+                            <p class="mb-0 fw-bold">{{ org.api_keys.count() }}</p>
+                            <small class="text-muted" style="font-size:0.7rem">API Keys</small>
+                        </div>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span class="badge {% if org.is_active %}bg-success{% else %}bg-secondary{% endif %}">
+                            {{ 'Active' if org.is_active else 'Inactive' }}
+                        </span>
+                        <small class="text-muted">Max {{ org.max_users }} users</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+        {% if not organizations %}
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body text-center py-5">
+                    <i class="fas fa-building fa-3x text-muted mb-3"></i>
+                    <h6>No Organizations</h6>
+                    <p class="text-muted small mb-0">Create your first organization to get started with multi-tenant features.</p>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Create Org Modal -->
+<div class="modal fade" id="orgModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h6 class="modal-title fw-semibold">Create Organization</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="org-form">
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Organization Name</label>
+                        <input type="text" class="form-control" name="name" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Slug</label>
+                        <input type="text" class="form-control" name="slug" placeholder="auto-generated">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="btn-create-org">Create</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.getElementById('btn-create-org').addEventListener('click', function() {
+    const form = document.getElementById('org-form');
+    const data = {
+        name: form.querySelector('[name=name]').value,
+        slug: form.querySelector('[name=slug]').value,
+    };
+    if (!data.name) { showToast('Name is required', 'warning'); return; }
+    csrfFetch('/enterprise/admin/organizations', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(data),
+    }).then(r => r.json()).then(d => {
+        if(d.success) { showToast('Organization created!', 'success'); location.reload(); }
+        else showToast(d.message || 'Failed to create', 'error');
+    }).catch(() => showToast('Error creating organization', 'error'));
+});
+</script>
+{% endblock %}

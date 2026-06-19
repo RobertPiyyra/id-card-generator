@@ -1,0 +1,148 @@
+{% extends "enterprise/base.html" %}
+
+{% block title %}OCR - ID Document Scanner{% endblock %}
+{% block header_title %}OCR Scanner{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <h4 class="mb-4 d-flex align-items-center gap-2">
+        <i class="fas fa-scanner text-primary"></i> ID Document Scanner
+    </h4>
+
+    <div class="row g-3 mb-4">
+        <div class="col-lg-5">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h6 class="mb-0 fw-semibold">Scan Document</h6>
+                </div>
+                <div class="card-body">
+                    <form id="ocr-form" enctype="multipart/form-data">
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold">Upload ID Card Image</label>
+                            <input type="file" class="form-control" name="image" accept="image/*" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold">Link to Student (optional)</label>
+                            <input type="number" class="form-control" name="student_id" placeholder="Student ID">
+                        </div>
+                        <button type="submit" class="btn btn-primary" id="btn-ocr-submit">
+                            <i class="fas fa-magic me-1"></i>Extract Text
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-7">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h6 class="mb-0 fw-semibold">Extraction Results</h6>
+                </div>
+                <div class="card-body" id="ocr-results">
+                    <div class="text-center text-muted py-5">
+                        <i class="fas fa-image fa-2x mb-2"></i>
+                        <p class="mb-0">Upload an image to extract text</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent OCR Results -->
+    <div class="card">
+        <div class="card-header">
+            <h6 class="mb-0 fw-semibold">Recent Scans</h6>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th class="d-none d-md-table-cell">Student</th>
+                            <th>Fields</th>
+                            <th class="d-none d-sm-table-cell">Confidence</th>
+                            <th class="d-none d-lg-table-cell">Model</th>
+                            <th class="d-none d-md-table-cell">Verified</th>
+                            <th>Time</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for r in results %}
+                        <tr>
+                            <td>{{ r.id }}</td>
+                            <td class="d-none d-md-table-cell">{{ r.student_id or '-' }}</td>
+                            <td>
+                                {% for k, v in (r.extracted_fields or {}).items() %}
+                                <span class="badge bg-secondary me-1">{{ k }}</span>
+                                {% endfor %}
+                            </td>
+                            <td class="d-none d-sm-table-cell">
+                                <span class="badge {% if r.confidence_score > 70 %}bg-success{% elif r.confidence_score > 40 %}bg-warning{% else %}bg-danger{% endif %}">
+                                    {{ r.confidence_score }}%
+                                </span>
+                            </td>
+                            <td class="d-none d-lg-table-cell text-muted small">{{ r.model_used }}</td>
+                            <td class="d-none d-md-table-cell">
+                                {% if r.verified %}
+                                <span class="badge bg-success"><i class="fas fa-check"></i></span>
+                                {% else %}
+                                <span class="badge bg-secondary">-</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-muted small">{{ r.created_at[:16] if r.created_at else '' }}</td>
+                        </tr>
+                        {% endfor %}
+                        {% if not results %}
+                        <tr><td colspan="7" class="text-center text-muted py-4">No OCR scans yet</td></tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.getElementById('ocr-form').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const formData = new FormData(this);
+    const resultsDiv = document.getElementById('ocr-results');
+    const btn = document.getElementById('btn-ocr-submit');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Processing...';
+    resultsDiv.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary"></div><p class="mt-2 text-muted">Processing image...</p></div>';
+
+    csrfFetch('/enterprise/admin/ocr/scan', { method: 'POST', body: formData })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                let html = '<div class="row g-3"><div class="col-md-6">';
+                html += '<h6 class="fw-semibold">Extracted Text</h6>';
+                html += '<pre class="bg-light p-3 rounded small" style="max-height:200px;overflow:auto;white-space:pre-wrap">' + (data.text || 'No text found') + '</pre>';
+                html += '</div><div class="col-md-6">';
+                html += '<h6 class="fw-semibold">Parsed Fields</h6>';
+                html += '<table class="table table-sm">';
+                for (const [k, v] of Object.entries(data.fields || {})) {
+                    html += '<tr><td class="fw-semibold">' + k + '</td><td>' + v + '</td></tr>';
+                }
+                html += '</table>';
+                html += '<p class="text-muted small mb-0">Confidence: ' + data.confidence + '% | Model: ' + data.model + ' | Time: ' + data.processing_time_ms + 'ms</p>';
+                html += '</div></div>';
+                resultsDiv.innerHTML = html;
+                showToast('Text extracted successfully!', 'success');
+            } else {
+                resultsDiv.innerHTML = '<div class="text-center text-danger py-4"><i class="fas fa-times-circle fa-2x mb-2"></i><p>' + (data.message || 'OCR failed') + '</p></div>';
+                showToast(data.message || 'OCR failed', 'error');
+            }
+        })
+        .catch(err => {
+            resultsDiv.innerHTML = '<div class="text-center text-danger py-4"><i class="fas fa-times-circle fa-2x mb-2"></i><p>Error: ' + err.message + '</p></div>';
+            showToast('Error processing image', 'error');
+        })
+        .finally(() => {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-magic me-1"></i>Extract Text';
+        });
+});
+</script>
+{% endblock %}

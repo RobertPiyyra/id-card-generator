@@ -1,6 +1,6 @@
 import unittest
 
-from corel_routes import (
+from app.routes.corel_routes import (
     DEFAULT_EXPORT_MODE,
     LAYOUT_DPI,
     PRINT_DPI,

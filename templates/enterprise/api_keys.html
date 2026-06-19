@@ -1,0 +1,182 @@
+{% extends "enterprise/base.html" %}
+
+{% block title %}API Keys{% endblock %}
+{% block header_title %}API Key Management{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+        <h4 class="mb-0 d-flex align-items-center gap-2">
+            <i class="fas fa-key text-primary"></i> API Keys
+        </h4>
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#keyModal">
+            <i class="fas fa-plus me-1"></i><span class="d-none d-sm-inline">Create</span> Key
+        </button>
+    </div>
+
+    <div class="card">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th class="d-none d-md-table-cell">Prefix</th>
+                            <th class="d-none d-lg-table-cell">Scopes</th>
+                            <th class="d-none d-sm-table-cell">Requests</th>
+                            <th class="d-none d-md-table-cell">Last Used</th>
+                            <th>Status</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for key in keys %}
+                        <tr>
+                            <td><strong class="text-truncate d-inline-block" style="max-width:140px">{{ key.name }}</strong></td>
+                            <td class="d-none d-md-table-cell"><code class="small">{{ key.key_prefix }}...</code></td>
+                            <td class="d-none d-lg-table-cell">
+                                {% for scope in (key.scopes or {}).keys() %}
+                                <span class="badge bg-secondary">{{ scope }}</span>
+                                {% endfor %}
+                            </td>
+                            <td class="d-none d-sm-table-cell">{{ key.request_count }}</td>
+                            <td class="d-none d-md-table-cell text-muted small">
+                                {{ key.last_used_at.strftime('%Y-%m-%d %H:%M') if key.last_used_at else 'Never' }}
+                            </td>
+                            <td>
+                                {% if key.is_active %}
+                                <span class="badge bg-success">Active</span>
+                                {% else %}
+                                <span class="badge bg-secondary">Inactive</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <button class="btn btn-sm btn-outline-danger btn-del-key" data-id="{{ key.id }}">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                        {% if not keys %}
+                        <tr><td colspan="7" class="text-center text-muted py-4">No API keys created</td></tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- API Docs -->
+    <div class="card mt-4">
+        <div class="card-header">
+            <h6 class="mb-0 fw-semibold"><i class="fas fa-book me-2 text-info"></i>API Documentation</h6>
+        </div>
+        <div class="card-body">
+            <p class="text-muted small">Use your API key to access the REST API. Include the key in the <code>X-API-Key</code> header.</p>
+            <pre class="bg-dark text-light p-3 rounded small mb-0"><code># List students
+curl -H "X-API-Key: your-key-here" \
+  /enterprise/admin/api/search/students?q=john
+
+# Get analytics
+curl -H "X-API-Key: your-key-here" \
+  /enterprise/admin/api/analytics/stats</code></pre>
+        </div>
+    </div>
+</div>
+
+<!-- Create Key Modal -->
+<div class="modal fade" id="keyModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h6 class="modal-title fw-semibold">Create API Key</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="key-form">
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Name</label>
+                        <input type="text" class="form-control" name="name" required placeholder="e.g., Integration Key">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Scopes</label>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="scope_read" id="scope_read" checked>
+                            <label class="form-check-label small" for="scope_read">Read</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="scope_write" id="scope_write">
+                            <label class="form-check-label small" for="scope_write">Write</label>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="btn-create-key">Create</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Key Created Modal -->
+<div class="modal fade" id="keyCreatedModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h6 class="modal-title fw-semibold">API Key Created</h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-warning small">
+                    <i class="fas fa-exclamation-triangle me-2"></i>Copy this key now. It won't be shown again!
+                </div>
+                <div class="input-group">
+                    <input type="text" class="form-control" id="new-api-key" readonly>
+                    <button class="btn btn-outline-secondary" onclick="navigator.clipboard.writeText(document.getElementById('new-api-key').value); showToast('Copied!', 'success')">
+                        <i class="fas fa-copy"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.getElementById('btn-create-key').addEventListener('click', function() {
+    const form = document.getElementById('key-form');
+    const name = form.querySelector('[name=name]').value;
+    if (!name) { showToast('Name is required', 'warning'); return; }
+    const data = {
+        name: name,
+        scopes: {
+            read: form.querySelector('#scope_read').checked,
+            write: form.querySelector('#scope_write').checked,
+        }
+    };
+    csrfFetch('/enterprise/admin/api-keys', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(data),
+    }).then(r => r.json()).then(d => {
+        if(d.success) {
+            new bootstrap.Modal(document.getElementById('keyCreatedModal')).show();
+            document.getElementById('new-api-key').value = d.key;
+        } else {
+            showToast(d.message || 'Failed to create key', 'error');
+        }
+    }).catch(() => showToast('Error creating key', 'error'));
+});
+
+document.querySelectorAll('.btn-del-key').forEach(btn => {
+    btn.addEventListener('click', function() {
+        if (confirm('Delete this API key?')) {
+            csrfFetch('/enterprise/admin/api-keys/' + this.dataset.id, {method:'DELETE'})
+                .then(r => r.json()).then(d => {
+                    if(d.success) { showToast('Key deleted', 'success'); location.reload(); }
+                    else showToast('Failed to delete', 'error');
+                });
+        }
+    });
+});
+</script>
+{% endblock %}

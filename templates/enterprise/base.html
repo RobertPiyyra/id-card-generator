@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>{% block title %}ID Card Generator{% endblock %}</title>
+    <link rel="icon" href="data:,">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --sidebar-width: 260px;
+            --header-height: 60px;
+            --primary: #2563eb;
+            --primary-hover: #1d4ed8;
+            --bg: #f0f4ff;
+            --bg-secondary: #e8edff;
+            --card-bg: #ffffff;
+            --text: #1e293b;
+            --text-secondary: #64748b;
+            --border: #e2e8f0;
+            --sidebar-bg: #0f172a;
+            --sidebar-text: #94a3b8;
+            --sidebar-active: #1e293b;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --info: #06b6d4;
+            --shadow-sm: 0 1px 3px rgba(0,0,0,0.08);
+            --shadow-md: 0 4px 12px rgba(0,0,0,0.1);
+            --shadow-lg: 0 8px 24px rgba(0,0,0,0.12);
+            --radius-sm: 8px;
+            --radius-md: 12px;
+            --radius-lg: 16px;
+        }
+
+        [data-theme="dark"] {
+            --bg: #0f172a;
+            --bg-secondary: #1e293b;
+            --card-bg: #1e293b;
+            --text: #e2e8f0;
+            --text-secondary: #94a3b8;
+            --border: #334155;
+            --sidebar-bg: #020617;
+            --sidebar-active: #1e293b;
+            --shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
+            --shadow-md: 0 4px 12px rgba(0,0,0,0.4);
+            --shadow-lg: 0 8px 24px rgba(0,0,0,0.5);
+        }
+
+        * { box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            margin: 0;
+            transition: background 0.3s, color 0.3s;
+        }
+
+        /* ===== Sidebar ===== */
+        .sidebar {
+            position: fixed; left: 0; top: 0; bottom: 0; width: var(--sidebar-width);
+            background: var(--sidebar-bg); color: var(--sidebar-text); z-index: 100;
+            overflow-y: auto; overflow-x: hidden;
+            transition: transform 0.3s ease, width 0.3s ease;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255,255,255,0.1) transparent;
+        }
+        .sidebar::-webkit-scrollbar { width: 4px; }
+        .sidebar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 4px; }
+
+        .sidebar .brand {
+            padding: 20px; font-size: 1.1rem; font-weight: 700;
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+            display: flex; align-items: center; white-space: nowrap;
+        }
+        .sidebar .brand i { color: var(--primary); margin-right: 10px; font-size: 1.3rem; }
+        .sidebar .brand .brand-text { transition: opacity 0.3s; }
+
+        .sidebar nav { padding: 8px 0; }
+        .sidebar nav a {
+            display: flex; align-items: center; padding: 10px 20px;
+            color: var(--sidebar-text); text-decoration: none; font-size: 0.875rem;
+            transition: all 0.2s; gap: 10px; white-space: nowrap;
+            border-left: 3px solid transparent;
+        }
+        .sidebar nav a:hover { background: rgba(255,255,255,0.05); color: #fff; }
+        .sidebar nav a.active {
+            background: var(--sidebar-active); color: #fff;
+            border-left-color: var(--primary);
+        }
+        .sidebar nav a i { width: 20px; text-align: center; font-size: 0.95rem; }
+        .sidebar .section-title {
+            padding: 16px 20px 6px; font-size: 0.65rem; text-transform: uppercase;
+            color: #475569; letter-spacing: 1.5px; font-weight: 600;
+        }
+
+        /* ===== Main Layout ===== */
+        .main { margin-left: var(--sidebar-width); min-height: 100vh; transition: margin-left 0.3s; }
+
+        /* ===== Header ===== */
+        .header {
+            height: var(--header-height); background: var(--card-bg);
+            border-bottom: 1px solid var(--border);
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 0 24px;
+            position: sticky; top: 0; z-index: 50;
+            box-shadow: var(--shadow-sm);
+        }
+        .header .header-left { display: flex; align-items: center; gap: 12px; }
+        .header .menu-btn {
+            display: none; background: none; border: none; font-size: 1.3rem;
+            cursor: pointer; color: var(--text); padding: 4px;
+        }
+        .header h5 { margin: 0; font-weight: 600; font-size: 1.1rem; }
+        .header .header-right { display: flex; align-items: center; gap: 12px; }
+        .header .theme-toggle {
+            background: var(--bg-secondary); border: 1px solid var(--border);
+            border-radius: 20px; padding: 6px 12px; cursor: pointer;
+            color: var(--text); font-size: 0.85rem; display: flex; align-items: center; gap: 6px;
+            transition: all 0.2s;
+        }
+        .header .theme-toggle:hover { background: var(--border); }
+        .header .role-badge {
+            background: var(--primary); color: #fff;
+            padding: 4px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: 600;
+        }
+
+        /* ===== Content ===== */
+        .content { padding: 24px; }
+
+        /* ===== Cards ===== */
+        .card {
+            background: var(--card-bg); border: 1px solid var(--border);
+            border-radius: var(--radius-md); box-shadow: var(--shadow-sm);
+            transition: box-shadow 0.2s;
+        }
+        .card:hover { box-shadow: var(--shadow-md); }
+        .card-header {
+            background: var(--card-bg); border-bottom: 1px solid var(--border);
+            border-radius: var(--radius-md) var(--radius-md) 0 0 !important;
+            padding: 16px 20px;
+        }
+
+        /* ===== Tables ===== */
+        .table th {
+            background: var(--bg-secondary); font-weight: 600; font-size: 0.8rem;
+            text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-secondary);
+            border-bottom: 2px solid var(--border);
+        }
+        .table td { vertical-align: middle; font-size: 0.9rem; }
+        .table-responsive { border-radius: var(--radius-md); }
+
+        /* ===== Buttons ===== */
+        .btn-primary { background: var(--primary); border-color: var(--primary); }
+        .btn-primary:hover { background: var(--primary-hover); border-color: var(--primary-hover); }
+
+        /* ===== Toast Notifications ===== */
+        .toast-container {
+            position: fixed; top: 70px; right: 20px; z-index: 9999;
+            display: flex; flex-direction: column; gap: 8px;
+        }
+        .toast-notification {
+            background: var(--card-bg); border: 1px solid var(--border);
+            border-radius: var(--radius-md); padding: 14px 20px;
+            box-shadow: var(--shadow-lg);
+            display: flex; align-items: center; gap: 10px;
+            min-width: 300px; max-width: 420px;
+            animation: toastSlideIn 0.3s ease;
+            font-size: 0.9rem;
+        }
+        .toast-notification.toast-out { animation: toastSlideOut 0.3s ease forwards; }
+        .toast-notification.success { border-left: 4px solid var(--success); }
+        .toast-notification.error { border-left: 4px solid var(--danger); }
+        .toast-notification.warning { border-left: 4px solid var(--warning); }
+        .toast-notification.info { border-left: 4px solid var(--info); }
+        @keyframes toastSlideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        @keyframes toastSlideOut { from { transform: translateX(0); opacity: 1; } to { transform: translateX(100%); opacity: 0; } }
+
+        /* ===== Progress Bar ===== */
+        .progress-track {
+            position: fixed; top: 0; left: 0; width: 100%; height: 3px;
+            z-index: 10000; display: none;
+        }
+        .progress-track.active { display: block; }
+        .progress-bar-animated {
+            height: 100%; background: var(--primary);
+            animation: progressPulse 1.5s ease-in-out infinite;
+        }
+        @keyframes progressPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+        /* ===== Overlay for mobile ===== */
+        .sidebar-overlay {
+            display: none; position: fixed; inset: 0;
+            background: rgba(0,0,0,0.5); z-index: 99;
+        }
+        .sidebar-overlay.active { display: block; }
+
+        /* ===== Responsive ===== */
+        @media (max-width: 991px) {
+            .sidebar { width: 240px; }
+            .main { margin-left: 240px; }
+        }
+
+        @media (max-width: 768px) {
+            .sidebar { transform: translateX(-100%); width: 260px; }
+            .sidebar.open { transform: translateX(0); }
+            .main { margin-left: 0; }
+            .header .menu-btn { display: block; }
+            .content { padding: 16px; }
+            .header { padding: 0 16px; }
+            .header h5 { font-size: 0.95rem; }
+            .toast-container { right: 10px; left: 10px; }
+            .toast-notification { min-width: auto; max-width: 100%; }
+        }
+
+        @media (max-width: 575px) {
+            .content { padding: 12px; }
+            .card-header { padding: 12px 16px; }
+            .header .role-badge { display: none; }
+        }
+
+        {% block extra_css %}{% endblock %}
+    </style>
+</head>
+<body>
+    <!-- Progress Bar -->
+    <div class="progress-track" id="progressTrack"><div class="progress-bar-animated"></div></div>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <!-- Mobile Overlay -->
+    <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+
+    <!-- Sidebar -->
+    <div class="sidebar" id="sidebar">
+        <div class="brand">
+            <i class="fas fa-id-card"></i>
+            <span class="brand-text">ID Card Pro</span>
+        </div>
+        <nav>
+            <a href="/enterprise/admin/analytics" class="{% if 'analytics' in request.path %}active{% endif %}">
+                <i class="fas fa-chart-line"></i> <span>Analytics</span>
+            </a>
+            <a href="/enterprise/admin/security" class="{% if 'security' in request.path %}active{% endif %}">
+                <i class="fas fa-shield-alt"></i> <span>Security</span>
+            </a>
+            <a href="/enterprise/admin/monitoring" class="{% if 'monitoring' in request.path %}active{% endif %}">
+                <i class="fas fa-heartbeat"></i> <span>Monitoring</span>
+            </a>
+            <div class="section-title">Data</div>
+            <a href="/enterprise/admin/reports" class="{% if 'reports' in request.path %}active{% endif %}">
+                <i class="fas fa-file-export"></i> <span>Reports</span>
+            </a>
+            <a href="/enterprise/admin/archive" class="{% if 'archive' in request.path %}active{% endif %}">
+                <i class="fas fa-archive"></i> <span>Archive</span>
+            </a>
+            <a href="/enterprise/admin/ocr" class="{% if 'ocr' in request.path %}active{% endif %}">
+                <i class="fas fa-scanner"></i> <span>OCR Scanner</span>
+            </a>
+            <div class="section-title">Integration</div>
+            <a href="/enterprise/admin/api-keys" class="{% if 'api-keys' in request.path %}active{% endif %}">
+                <i class="fas fa-key"></i> <span>API Keys</span>
+            </a>
+            <a href="/enterprise/admin/webhooks" class="{% if 'webhooks' in request.path %}active{% endif %}">
+                <i class="fas fa-plug"></i> <span>Webhooks</span>
+            </a>
+            <div class="section-title">Organization</div>
+            <a href="/enterprise/admin/organizations" class="{% if 'organizations' in request.path %}active{% endif %}">
+                <i class="fas fa-building"></i> <span>Organizations</span>
+            </a>
+            <a href="/enterprise/admin/access-policies" class="{% if 'access-policies' in request.path %}active{% endif %}">
+                <i class="fas fa-user-lock"></i> <span>Access Policies</span>
+            </a>
+            <div class="section-title">System</div>
+            <a href="/admin"><i class="fas fa-arrow-left"></i> <span>Back to Admin</span></a>
+        </nav>
+    </div>
+
+    <!-- Main -->
+    <div class="main">
+        <div class="header">
+            <div class="header-left">
+                <button class="menu-btn" onclick="toggleSidebar()">
+                    <i class="fas fa-bars"></i>
+                </button>
+                <h5>{% block header_title %}Dashboard{% endblock %}</h5>
+            </div>
+            <div class="header-right">
+                <button class="theme-toggle" onclick="toggleTheme()" id="themeToggleBtn">
+                    <i class="fas fa-moon" id="themeIcon"></i>
+                    <span id="themeText">Dark</span>
+                </button>
+                <span class="role-badge">{{ session.get('admin_role', 'Admin') }}</span>
+                <a href="/logout" class="btn btn-sm btn-outline-secondary" title="Logout">
+                    <i class="fas fa-sign-out-alt"></i>
+                </a>
+            </div>
+        </div>
+        <div class="content">
+            {% block content %}{% endblock %}
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+    // ===== CSRF Helper =====
+    function getCSRFToken() {
+        return document.querySelector('meta[name="csrf-token"]')?.content || '';
+    }
+    function csrfFetch(url, opts = {}) {
+        const method = (opts.method || 'GET').toUpperCase();
+        const needsToken = !['GET', 'HEAD', 'OPTIONS'].includes(method);
+        const headers = new Headers(opts.headers || {});
+        if (needsToken && !headers.has('X-CSRFToken')) {
+            headers.set('X-CSRFToken', getCSRFToken());
+        }
+        if (opts.body instanceof FormData) {
+            return fetch(url, { ...opts, headers });
+        }
+        if (opts.body && typeof opts.body === 'object' && !(opts.body instanceof Blob) && !headers.has('Content-Type')) {
+            headers.set('Content-Type', 'application/json');
+        }
+        return fetch(url, { ...opts, headers });
+    }
+
+    // ===== Sidebar Toggle =====
+    function toggleSidebar() {
+        document.getElementById('sidebar').classList.toggle('open');
+        document.getElementById('sidebarOverlay').classList.toggle('active');
+    }
+
+    // ===== Dark Mode =====
+    function toggleTheme() {
+        const html = document.documentElement;
+        const isDark = html.getAttribute('data-theme') === 'dark';
+        html.setAttribute('data-theme', isDark ? 'light' : 'dark');
+        document.getElementById('themeIcon').className = isDark ? 'fas fa-moon' : 'fas fa-sun';
+        document.getElementById('themeText').textContent = isDark ? 'Dark' : 'Light';
+        localStorage.setItem('theme', isDark ? 'light' : 'dark');
+    }
+    // Restore theme preference
+    (function() {
+        const saved = localStorage.getItem('theme');
+        if (saved === 'dark') {
+            document.documentElement.setAttribute('data-theme', 'dark');
+            document.getElementById('themeIcon').className = 'fas fa-sun';
+            document.getElementById('themeText').textContent = 'Light';
+        }
+    })();
+
+    // ===== Toast Notifications =====
+    function showToast(message, type = 'info', duration = 4000) {
+        const container = document.getElementById('toastContainer');
+        const toast = document.createElement('div');
+        toast.className = `toast-notification ${type}`;
+        const icons = { success: 'fa-check-circle', error: 'fa-times-circle', warning: 'fa-exclamation-triangle', info: 'fa-info-circle' };
+        toast.innerHTML = `<i class="fas ${icons[type] || icons.info}" style="color: var(--${type === 'error' ? 'danger' : type})"></i><span>${message}</span>`;
+        container.appendChild(toast);
+        setTimeout(() => {
+            toast.classList.add('toast-out');
+            setTimeout(() => toast.remove(), 300);
+        }, duration);
+    }
+
+    // ===== Progress Bar =====
+    function showProgress() { document.getElementById('progressTrack').classList.add('active'); }
+    function hideProgress() { document.getElementById('progressTrack').classList.remove('active'); }
+
+    // ===== Auto-show toasts from Flask flash messages =====
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    document.addEventListener('DOMContentLoaded', function() {
+        {% for category, message in messages %}
+        showToast("{{ message|replace('"', '\\"') }}", "{{ category }}");
+        {% endfor %}
+    });
+    {% endif %}
+    {% endwith %}
+    </script>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,139 @@
+{% extends "enterprise/base.html" %}
+
+{% block title %}Data Archive{% endblock %}
+{% block header_title %}Data Archive{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <h4 class="mb-4 d-flex align-items-center gap-2">
+        <i class="fas fa-archive text-primary"></i> Data Archive
+    </h4>
+
+    <div class="row g-3 mb-4">
+        <div class="col-lg-6">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h6 class="mb-0 fw-semibold">Create Archive</h6>
+                </div>
+                <div class="card-body">
+                    <form id="archive-form">
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold">Entity Type</label>
+                            <select class="form-select" name="entity_type">
+                                <option value="student">Students</option>
+                                <option value="activity">Activity Logs</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold">Archive records older than</label>
+                            <div class="input-group">
+                                <input type="number" class="form-control" name="days" value="365" min="30">
+                                <span class="input-group-text">days</span>
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-archive me-1"></i>Archive Data
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-6">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h6 class="mb-0 fw-semibold">Storage Info</h6>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted small">Archives are stored as compressed JSON files in the instance/archives directory.</p>
+                    <p class="text-muted small mb-0">Archived data can be restored at any time.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h6 class="mb-0 fw-semibold">Archive History</h6>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th class="d-none d-md-table-cell">Type</th>
+                            <th>Records</th>
+                            <th class="d-none d-sm-table-cell">Size</th>
+                            <th class="d-none d-md-table-cell">Created</th>
+                            <th>Status</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for a in archives %}
+                        <tr>
+                            <td><strong class="text-truncate d-inline-block" style="max-width:150px">{{ a.name }}</strong></td>
+                            <td class="d-none d-md-table-cell"><span class="badge bg-secondary">{{ a.entity_type }}</span></td>
+                            <td>{{ a.record_count }}</td>
+                            <td class="d-none d-sm-table-cell text-muted small">{{ (a.file_size_bytes / 1024)|round(1) }} KB</td>
+                            <td class="d-none d-md-table-cell text-muted small">{{ a.created_at[:16] if a.created_at else '' }}</td>
+                            <td>
+                                {% if a.restored_at %}
+                                <span class="badge bg-info">Restored</span>
+                                {% else %}
+                                <span class="badge bg-success">Archived</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if not a.restored_at %}
+                                <button class="btn btn-sm btn-outline-primary btn-restore" data-id="{{ a.id }}">
+                                    <i class="fas fa-undo me-1"></i>Restore
+                                </button>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                        {% if not archives %}
+                        <tr><td colspan="7" class="text-center text-muted py-4">No archives created</td></tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.getElementById('archive-form').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const data = {
+        entity_type: this.querySelector('[name=entity_type]').value,
+        days: parseInt(this.querySelector('[name=days]').value),
+    };
+    showProgress();
+    csrfFetch('/enterprise/admin/archive', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(data),
+    }).then(r => r.json()).then(d => {
+        hideProgress();
+        if(d.success) { showToast('Archived ' + d.archived + ' records!', 'success'); location.reload(); }
+        else showToast('Error: ' + (d.message || 'Unknown error'), 'error');
+    }).catch(() => { hideProgress(); showToast('Error archiving data', 'error'); });
+});
+
+document.querySelectorAll('.btn-restore').forEach(btn => {
+    btn.addEventListener('click', function() {
+        if (confirm('Restore this archive?')) {
+            showProgress();
+            csrfFetch('/enterprise/admin/archive/' + this.dataset.id + '/restore', {method:'POST'})
+                .then(r => r.json()).then(d => {
+                    hideProgress();
+                    if(d.success) { showToast('Restored ' + d.restored + ' records!', 'success'); location.reload(); }
+                    else showToast('Error restoring', 'error');
+                })
+                .catch(() => { hideProgress(); showToast('Error restoring', 'error'); });
+        }
+    });
+});
+</script>
+{% endblock %}

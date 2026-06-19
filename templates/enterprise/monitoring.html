@@ -1,0 +1,190 @@
+{% extends "enterprise/base.html" %}
+
+{% block title %}System Monitoring{% endblock %}
+{% block header_title %}System Health & Monitoring{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+        <h4 class="mb-0 d-flex align-items-center gap-2">
+            <i class="fas fa-heartbeat text-danger"></i> System Health
+        </h4>
+        <div class="d-flex gap-2">
+            <button class="btn btn-sm btn-outline-primary" id="btn-collect-metrics">
+                <i class="fas fa-sync-alt me-1"></i>Collect Now
+            </button>
+            <a href="/enterprise/admin/analytics" class="btn btn-sm btn-outline-secondary">
+                <i class="fas fa-chart-line me-1"></i>Analytics
+            </a>
+        </div>
+    </div>
+
+    <!-- Health Status -->
+    {% set status_colors = {'healthy': ('success', 'check-circle'), 'warning': ('warning', 'exclamation-triangle'), 'critical': ('danger', 'times-circle')} %}
+    {% set sc = status_colors.get(health.status, ('secondary', 'question-circle')) %}
+    <div class="alert alert-{{ sc[0] }} d-flex align-items-center mb-4">
+        <i class="fas fa-{{ sc[1] }} fa-2x me-3"></i>
+        <div>
+            <h6 class="mb-0 fw-semibold">System Status: {{ health.status|upper }}</h6>
+            {% if health.issues %}
+            <ul class="mb-0 mt-1 small">
+                {% for issue in health.issues %}<li>{{ issue }}</li>{% endfor %}
+            </ul>
+            {% else %}
+            <p class="mb-0 text-muted small">All systems operational</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Metrics Cards -->
+    <div class="row g-3 mb-4">
+        {% if metrics.cpu_percent %}
+        <div class="col-xl-3 col-lg-6 col-sm-6">
+            <div class="card h-100">
+                <div class="card-body text-center">
+                    <p class="text-muted mb-1 small text-uppercase" style="font-size:0.7rem">CPU Usage</p>
+                    <h3 class="{% if metrics.cpu_percent.value > 80 %}text-danger{% elif metrics.cpu_percent.value > 60 %}text-warning{% else %}text-success{% endif %}">
+                        {{ metrics.cpu_percent.value }}%
+                    </h3>
+                    <div class="progress mt-2" style="height: 6px;">
+                        <div class="progress-bar {% if metrics.cpu_percent.value > 80 %}bg-danger{% elif metrics.cpu_percent.value > 60 %}bg-warning{% else %}bg-success{% endif %}"
+                             style="width: {{ metrics.cpu_percent.value }}%"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+        {% if metrics.memory_percent %}
+        <div class="col-xl-3 col-lg-6 col-sm-6">
+            <div class="card h-100">
+                <div class="card-body text-center">
+                    <p class="text-muted mb-1 small text-uppercase" style="font-size:0.7rem">Memory Usage</p>
+                    <h3 class="{% if metrics.memory_percent.value > 80 %}text-danger{% elif metrics.memory_percent.value > 60 %}text-warning{% else %}text-success{% endif %}">
+                        {{ metrics.memory_percent.value }}%
+                    </h3>
+                    <p class="text-muted small mb-1">{{ metrics.memory_used_mb.value }} MB used</p>
+                    <div class="progress mt-1" style="height: 6px;">
+                        <div class="progress-bar {% if metrics.memory_percent.value > 80 %}bg-danger{% elif metrics.memory_percent.value > 60 %}bg-warning{% else %}bg-success{% endif %}"
+                             style="width: {{ metrics.memory_percent.value }}%"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+        {% if metrics.disk_percent %}
+        <div class="col-xl-3 col-lg-6 col-sm-6">
+            <div class="card h-100">
+                <div class="card-body text-center">
+                    <p class="text-muted mb-1 small text-uppercase" style="font-size:0.7rem">Disk Usage</p>
+                    <h3 class="{% if metrics.disk_percent.value > 85 %}text-danger{% elif metrics.disk_percent.value > 70 %}text-warning{% else %}text-success{% endif %}">
+                        {{ metrics.disk_percent.value }}%
+                    </h3>
+                    <p class="text-muted small mb-0">{{ metrics.disk_free_gb.value }} GB free</p>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+        {% if metrics.process_count %}
+        <div class="col-xl-3 col-lg-6 col-sm-6">
+            <div class="card h-100">
+                <div class="card-body text-center">
+                    <p class="text-muted mb-1 small text-uppercase" style="font-size:0.7rem">Processes</p>
+                    <h3>{{ metrics.process_count.value|int }}</h3>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Metric Charts -->
+    <div class="row g-3">
+        <div class="col-lg-6">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h6 class="mb-0 fw-semibold">CPU History (24h)</h6>
+                </div>
+                <div class="card-body">
+                    <canvas id="cpuChart" height="120"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-6">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h6 class="mb-0 fw-semibold">Memory History (24h)</h6>
+                </div>
+                <div class="card-body">
+                    <canvas id="memChart" height="120"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const chartDefaults = {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: { y: { min: 0, max: 100 } }
+    };
+
+    fetch('/enterprise/admin/api/monitoring/metrics/cpu_percent?hours=24')
+        .then(r => r.json())
+        .then(data => {
+            if (data.length > 0) {
+                new Chart(document.getElementById('cpuChart'), {
+                    type: 'line',
+                    data: {
+                        labels: data.map(d => d.timestamp?.substring(11, 16) || ''),
+                        datasets: [{
+                            label: 'CPU %', data: data.map(d => d.value),
+                            borderColor: '#2563eb', backgroundColor: 'rgba(37,99,235,0.08)',
+                            tension: 0.3, fill: true,
+                        }]
+                    },
+                    options: chartDefaults
+                });
+            }
+        });
+
+    fetch('/enterprise/admin/api/monitoring/metrics/memory_percent?hours=24')
+        .then(r => r.json())
+        .then(data => {
+            if (data.length > 0) {
+                new Chart(document.getElementById('memChart'), {
+                    type: 'line',
+                    data: {
+                        labels: data.map(d => d.timestamp?.substring(11, 16) || ''),
+                        datasets: [{
+                            label: 'Memory %', data: data.map(d => d.value),
+                            borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.08)',
+                            tension: 0.3, fill: true,
+                        }]
+                    },
+                    options: chartDefaults
+                });
+            }
+        });
+
+    document.getElementById('btn-collect-metrics').addEventListener('click', function() {
+        const btn = this;
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Collecting...';
+        csrfFetch('/enterprise/admin/api/monitoring/collect', {method:'POST'})
+            .then(r => r.json())
+            .then(data => {
+                if(data.success) {
+                    showToast('Metrics collected successfully', 'success');
+                    setTimeout(() => location.reload(), 1000);
+                } else {
+                    showToast('Failed to collect metrics', 'error');
+                }
+            })
+            .catch(() => showToast('Error collecting metrics', 'error'))
+            .finally(() => { btn.disabled = false; btn.innerHTML = '<i class="fas fa-sync-alt me-1"></i>Collect Now'; });
+    });
+});
+</script>
+{% endblock %}

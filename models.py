@@ -351,3 +351,254 @@ class DisasterRecoverySnapshot(db.Model):
     payload_json = db.Column(MutableDict.as_mutable(JSON), nullable=False, default=dict)
     created_by = db.Column(db.String(255), nullable=True)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+
+
+# ================== Enterprise Extension Models ==================
+
+class Organization(db.Model):
+    __tablename__ = 'organizations'
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(255), nullable=False, unique=True)
+    slug = db.Column(db.String(100), nullable=False, unique=True)
+    logo_url = db.Column(db.String(1024))
+    primary_color = db.Column(db.String(7), default='#2563eb')
+    dark_mode_default = db.Column(db.Boolean, default=False)
+    max_users = db.Column(db.Integer, default=10)
+    max_templates = db.Column(db.Integer, default=50)
+    max_cards_per_month = db.Column(db.Integer, default=10000)
+    features_json = db.Column(MutableDict.as_mutable(JSON), default=dict)
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+    branches = relationship('Branch', backref='organization', lazy='dynamic', cascade='all, delete-orphan')
+    departments = relationship('Department', backref='organization', lazy='dynamic', cascade='all, delete-orphan')
+    api_keys = relationship('ApiKey', backref='organization', lazy='dynamic', cascade='all, delete-orphan')
+    access_policies = relationship('AccessPolicy', backref='organization', lazy='dynamic', cascade='all, delete-orphan')
+
+
+class Branch(db.Model):
+    __tablename__ = 'branches'
+
+    id = db.Column(db.Integer, primary_key=True)
+    organization_id = db.Column(db.Integer, ForeignKey('organizations.id', ondelete='CASCADE'), nullable=False, index=True)
+    name = db.Column(db.String(255), nullable=False)
+    code = db.Column(db.String(20))
+    address = db.Column(db.Text)
+    phone = db.Column(db.String(50))
+    email = db.Column(db.String(255))
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+    departments = relationship('Department', backref='branch', lazy='dynamic', cascade='all, delete-orphan')
+
+
+class Department(db.Model):
+    __tablename__ = 'departments'
+
+    id = db.Column(db.Integer, primary_key=True)
+    organization_id = db.Column(db.Integer, ForeignKey('organizations.id', ondelete='CASCADE'), nullable=False, index=True)
+    branch_id = db.Column(db.Integer, ForeignKey('branches.id', ondelete='SET NULL'), nullable=True, index=True)
+    parent_id = db.Column(db.Integer, ForeignKey('departments.id', ondelete='SET NULL'), nullable=True, index=True)
+    name = db.Column(db.String(255), nullable=False)
+    code = db.Column(db.String(20))
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+    children = relationship('Department', backref=backref('parent', remote_side=[id]), lazy='dynamic')
+
+
+class LoginHistory(db.Model):
+    __tablename__ = 'login_history'
+
+    id = db.Column(db.Integer, primary_key=True)
+    admin_id = db.Column(db.Integer, ForeignKey('admin_users.id', ondelete='SET NULL'), nullable=True, index=True)
+    username = db.Column(db.String(100), nullable=False, index=True)
+    ip_address = db.Column(db.String(64))
+    user_agent = db.Column(db.String(512))
+    device_type = db.Column(db.String(50))
+    browser = db.Column(db.String(100))
+    os = db.Column(db.String(100))
+    country = db.Column(db.String(100))
+    login_success = db.Column(db.Boolean, default=True)
+    failure_reason = db.Column(db.String(255))
+    session_token = db.Column(db.String(255), index=True)
+    logged_out_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+
+    admin = relationship('AdminUser', backref=backref('login_history', lazy='dynamic'))
+
+
+class UserSession(db.Model):
+    __tablename__ = 'user_sessions'
+
+    id = db.Column(db.Integer, primary_key=True)
+    admin_id = db.Column(db.Integer, ForeignKey('admin_users.id', ondelete='CASCADE'), nullable=False, index=True)
+    session_token = db.Column(db.String(255), nullable=False, unique=True, index=True)
+    ip_address = db.Column(db.String(64))
+    user_agent = db.Column(db.String(512))
+    device_fingerprint = db.Column(db.String(128))
+    two_factor_verified = db.Column(db.Boolean, default=False)
+    is_active = db.Column(db.Boolean, default=True)
+    expires_at = db.Column(db.DateTime, nullable=False)
+    last_activity_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+    admin = relationship('AdminUser', backref=backref('sessions', lazy='dynamic', cascade='all, delete-orphan'))
+
+
+class TwoFactorBackupCode(db.Model):
+    __tablename__ = 'two_factor_backup_codes'
+
+    id = db.Column(db.Integer, primary_key=True)
+    admin_id = db.Column(db.Integer, ForeignKey('admin_users.id', ondelete='CASCADE'), nullable=False, index=True)
+    code_hash = db.Column(db.String(255), nullable=False)
+    used = db.Column(db.Boolean, default=False)
+    used_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+    admin = relationship('AdminUser', backref=backref('backup_codes', lazy='dynamic', cascade='all, delete-orphan'))
+
+
+class ApiKey(db.Model):
+    __tablename__ = 'api_keys'
+
+    id = db.Column(db.Integer, primary_key=True)
+    organization_id = db.Column(db.Integer, ForeignKey('organizations.id', ondelete='CASCADE'), nullable=False, index=True)
+    name = db.Column(db.String(100), nullable=False)
+    key_prefix = db.Column(db.String(8), nullable=False, index=True)
+    key_hash = db.Column(db.String(255), nullable=False, unique=True)
+    scopes = db.Column(MutableDict.as_mutable(JSON), default=dict)
+    rate_limit = db.Column(db.Integer, default=1000)
+    request_count = db.Column(db.Integer, default=0)
+    last_used_at = db.Column(db.DateTime, nullable=True)
+    expires_at = db.Column(db.DateTime, nullable=True)
+    is_active = db.Column(db.Boolean, default=True)
+    created_by = db.Column(db.String(255))
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+    logs = relationship('ApiKeyLog', backref='api_key', lazy='dynamic', cascade='all, delete-orphan')
+
+
+class ApiKeyLog(db.Model):
+    __tablename__ = 'api_key_logs'
+
+    id = db.Column(db.Integer, primary_key=True)
+    api_key_id = db.Column(db.Integer, ForeignKey('api_keys.id', ondelete='CASCADE'), nullable=False, index=True)
+    method = db.Column(db.String(10))
+    path = db.Column(db.String(512))
+    status_code = db.Column(db.Integer)
+    ip_address = db.Column(db.String(64))
+    response_time_ms = db.Column(db.Float)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+
+
+class WebhookEndpoint(db.Model):
+    __tablename__ = 'webhook_endpoints'
+
+    id = db.Column(db.Integer, primary_key=True)
+    organization_id = db.Column(db.Integer, ForeignKey('organizations.id', ondelete='CASCADE'), nullable=False, index=True)
+    name = db.Column(db.String(100), nullable=False)
+    url = db.Column(db.String(512), nullable=False)
+    secret = db.Column(db.String(255))
+    events = db.Column(MutableDict.as_mutable(JSON), default=list)
+    is_active = db.Column(db.Boolean, default=True)
+    last_triggered_at = db.Column(db.DateTime, nullable=True)
+    last_status_code = db.Column(db.Integer, nullable=True)
+    failure_count = db.Column(db.Integer, default=0)
+    created_by = db.Column(db.String(255))
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+    deliveries = relationship('WebhookDelivery', backref='webhook', lazy='dynamic', cascade='all, delete-orphan')
+
+
+class WebhookDelivery(db.Model):
+    __tablename__ = 'webhook_deliveries'
+
+    id = db.Column(db.Integer, primary_key=True)
+    webhook_id = db.Column(db.Integer, ForeignKey('webhook_endpoints.id', ondelete='CASCADE'), nullable=False, index=True)
+    event_type = db.Column(db.String(100), nullable=False)
+    payload_json = db.Column(MutableDict.as_mutable(JSON), default=dict)
+    status_code = db.Column(db.Integer, nullable=True)
+    response_body = db.Column(db.Text)
+    retry_count = db.Column(db.Integer, default=0)
+    delivered = db.Column(db.Boolean, default=False)
+    error_message = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+
+
+class AccessPolicy(db.Model):
+    __tablename__ = 'access_policies'
+
+    id = db.Column(db.Integer, primary_key=True)
+    organization_id = db.Column(db.Integer, ForeignKey('organizations.id', ondelete='CASCADE'), nullable=False, index=True)
+    role = db.Column(db.String(50), nullable=False)
+    resource = db.Column(db.String(100), nullable=False)
+    action = db.Column(db.String(50), nullable=False)
+    allowed = db.Column(db.Boolean, default=True)
+    conditions_json = db.Column(MutableDict.as_mutable(JSON), default=dict)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+class SystemMetric(db.Model):
+    __tablename__ = 'system_metrics'
+
+    id = db.Column(db.Integer, primary_key=True)
+    metric_name = db.Column(db.String(100), nullable=False, index=True)
+    metric_value = db.Column(db.Float, nullable=False)
+    metric_unit = db.Column(db.String(30))
+    labels_json = db.Column(MutableDict.as_mutable(JSON), default=dict)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+
+
+class DataArchive(db.Model):
+    __tablename__ = 'data_archives'
+
+    id = db.Column(db.Integer, primary_key=True)
+    archive_name = db.Column(db.String(200), nullable=False)
+    entity_type = db.Column(db.String(80), nullable=False)
+    entity_ids_json = db.Column(MutableDict.as_mutable(JSON), default=list)
+    file_path = db.Column(db.String(512))
+    file_size_bytes = db.Column(db.Integer, default=0)
+    record_count = db.Column(db.Integer, default=0)
+    compressed = db.Column(db.Boolean, default=True)
+    restored_at = db.Column(db.DateTime, nullable=True)
+    created_by = db.Column(db.String(255))
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+
+
+class ScheduledTask(db.Model):
+    __tablename__ = 'scheduled_tasks'
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(200), nullable=False)
+    task_type = db.Column(db.String(80), nullable=False)
+    cron_expression = db.Column(db.String(100))
+    params_json = db.Column(MutableDict.as_mutable(JSON), default=dict)
+    is_active = db.Column(db.Boolean, default=True)
+    last_run_at = db.Column(db.DateTime, nullable=True)
+    last_run_status = db.Column(db.String(20))
+    last_run_output = db.Column(db.Text)
+    run_count = db.Column(db.Integer, default=0)
+    fail_count = db.Column(db.Integer, default=0)
+    next_run_at = db.Column(db.DateTime, nullable=True)
+    created_by = db.Column(db.String(255))
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+class OcrResult(db.Model):
+    __tablename__ = 'ocr_results'
+
+    id = db.Column(db.Integer, primary_key=True)
+    student_id = db.Column(db.Integer, ForeignKey('students.id', ondelete='SET NULL'), nullable=True, index=True)
+    source_image_url = db.Column(db.String(1024))
+    extracted_text = db.Column(db.Text)
+    extracted_fields = db.Column(MutableDict.as_mutable(JSON), default=dict)
+    confidence_score = db.Column(db.Float, default=0.0)
+    processing_time_ms = db.Column(db.Float)
+    model_used = db.Column(db.String(100))
+    verified = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+
+    student = relationship('Student', backref=backref('ocr_results', lazy='dynamic'))

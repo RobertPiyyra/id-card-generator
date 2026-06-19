@@ -71,6 +71,34 @@ media/
 # =========================
 .env
 .env.*
+.envrc
+*.pem
+*.key
+*.crt
+*.p12
+secrets/
+
+# =========================
+# Backup / Editor artifacts
+# =========================
+*.bak
+*.swp
+*.swo
+*~
+
+# =========================
+# Node / Frontend
+# =========================
+node_modules/
+dist/
+
+# =========================
+# Testing / Coverage
+# =========================
+coverage/
+htmlcov/
+.coverage
+.tox/
 
 # =========================
 # Testing

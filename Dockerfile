@@ -1,27 +1,37 @@
-FROM python:3.11-slim
+# ===========================================
+# Production Dockerfile — ID Card Generator
+# ===========================================
+FROM python:3.11-slim AS base
 
-ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1
+# System dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    libpq-dev \
+    tesseract-ocr \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc \
-    g++ \
-    libgl1 \
-    libglib2.0-0 \
-    libsm6 \
-    libxext6 \
-    libxrender1 \
-    libgomp1 \
-    && rm -rf /var/lib/apt/lists/*
+# Install Python dependencies
+COPY requirements.lock .
+RUN pip install --no-cache-dir -r requirements.lock
 
-COPY requirements.txt ./
-RUN pip install --upgrade pip && pip install -r requirements.txt
-
+# Copy application code
 COPY . .
 
-EXPOSE 8080
+# Create non-root user
+RUN useradd --create-home appuser && chown -R appuser:appuser /app
+USER appuser
 
-CMD ["sh", "-c", "gunicorn app:app --workers=1 --threads=2 --timeout=300 --graceful-timeout=300 --keep-alive=5 --bind 0.0.0.0:${PORT:-8080}"]
+# Environment
+ENV FLASK_ENV=production
+ENV PYTHONUNBUFFERED=1
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:5000/api/health')" || exit 1
+
+EXPOSE 5000
+
+# Run with gunicorn in production
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "4", "--threads", "2", "--timeout", "120", "app:create_app()"]

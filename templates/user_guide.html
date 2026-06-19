@@ -690,6 +690,18 @@
                     <li><a href="#preview-verify">13. Preview and Verification</a></li>
                     <li><a href="#advanced-features">14. Advanced Styling & Corel Integration</a></li>
                     <li><a href="#troubleshooting">15. Troubleshooting</a></li>
+                    <li><a href="#enterprise-overview">16. Enterprise Dashboard Overview</a></li>
+                    <li><a href="#enterprise-analytics">17. Analytics Dashboard</a></li>
+                    <li><a href="#enterprise-security">18. Security Dashboard</a></li>
+                    <li><a href="#enterprise-monitoring">19. System Health & Monitoring</a></li>
+                    <li><a href="#enterprise-apikeys">20. API Key Management</a></li>
+                    <li><a href="#enterprise-webhooks">21. Webhook Management</a></li>
+                    <li><a href="#enterprise-reports">22. Export Center</a></li>
+                    <li><a href="#enterprise-archive">23. Data Archive</a></li>
+                    <li><a href="#enterprise-ocr">24. OCR Document Scanner</a></li>
+                    <li><a href="#enterprise-orgs">25. Organization Management</a></li>
+                    <li><a href="#enterprise-policies">26. Access Policies</a></li>
+                    <li><a href="#enterprise-navigation">27. Navigation & UI Tips</a></li>
                 </ol>
             </aside>
 
@@ -1040,6 +1052,406 @@
                             </tbody>
                         </table>
                     </div>
+                </article>
+
+                <!-- ==================== ENTERPRISE FEATURES ==================== -->
+                <article id="enterprise-overview" class="card" style="border: 2px solid var(--primary);">
+                    <h2><i class="fas fa-building" style="color: var(--primary);"></i> 16. Enterprise Dashboard Overview</h2>
+                    <p>The <strong>Enterprise Dashboard</strong> is accessible from the admin panel sidebar at <code>/enterprise/admin/analytics</code>. It provides a comprehensive suite of advanced tools for monitoring, security, automation, and multi-tenant organization management. Only administrators can access these pages — students are automatically redirected to login.</p>
+
+                    <div class="note"><strong>Access:</strong> Navigate to the Enterprise section from any admin page sidebar. All enterprise pages feature a dark/light mode toggle, responsive sidebar navigation, and toast notifications for user feedback.</div>
+
+                    <h3>Key Capabilities</h3>
+                    <div class="tech-grid">
+                        <div class="tech-card">
+                            <i class="fas fa-chart-line"></i>
+                            <h4>Analytics</h4>
+                            <p>Real-time stats, charts, activity feeds</p>
+                        </div>
+                        <div class="tech-card">
+                            <i class="fas fa-shield-alt"></i>
+                            <h4>Security</h4>
+                            <p>2FA, login history, session management</p>
+                        </div>
+                        <div class="tech-card">
+                            <i class="fas fa-heartbeat"></i>
+                            <h4>Monitoring</h4>
+                            <p>CPU, memory, disk, process tracking</p>
+                        </div>
+                        <div class="tech-card">
+                            <i class="fas fa-key"></i>
+                            <h4>API Keys</h4>
+                            <p>REST API access with scoped permissions</p>
+                        </div>
+                        <div class="tech-card">
+                            <i class="fas fa-plug"></i>
+                            <h4>Webhooks</h4>
+                            <p>Event-driven notifications to external systems</p>
+                        </div>
+                        <div class="tech-card">
+                            <i class="fas fa-file-export"></i>
+                            <h4>Reports</h4>
+                            <p>Excel/CSV exports for students, activity, bulk jobs</p>
+                        </div>
+                        <div class="tech-card">
+                            <i class="fas fa-archive"></i>
+                            <h4>Archive</h4>
+                            <p>Data archiving and restoration for old records</p>
+                        </div>
+                        <div class="tech-card">
+                            <i class="fas fa-scanner"></i>
+                            <h4>OCR Scanner</h4>
+                            <p>AI text extraction from ID card images</p>
+                        </div>
+                        <div class="tech-card">
+                            <i class="fas fa-sitemap"></i>
+                            <h4>Organizations</h4>
+                            <p>Multi-tenant orgs, branches, departments</p>
+                        </div>
+                        <div class="tech-card">
+                            <i class="fas fa-user-lock"></i>
+                            <h4>Access Policies</h4>
+                            <p>Fine-grained role-based permissions</p>
+                        </div>
+                    </div>
+                </article>
+
+                <!-- Analytics -->
+                <article id="enterprise-analytics" class="card">
+                    <h2><i class="fas fa-chart-bar"></i> 17. Analytics Dashboard</h2>
+                    <p>The analytics page provides real-time insights into system usage with interactive Chart.js charts and live data refreshes.</p>
+
+                    <h3>KPI Metrics</h3>
+                    <ul>
+                        <li><strong>Total Templates:</strong> Count of all ID card templates in the system</li>
+                        <li><strong>Total Students:</strong> Registered students across all schools</li>
+                        <li><strong>Cards Generated:</strong> Students with completed photo/card rendering</li>
+                        <li><strong>Active Templates:</strong> Templates currently in use (have generated cards)</li>
+                    </ul>
+
+                    <h3>Charts</h3>
+                    <ul>
+                        <li><strong>Student Registrations:</strong> Line chart showing daily registration trends over the selected time range (7/30/90 days)</li>
+                        <li><strong>School Distribution:</strong> Doughnut chart showing student count per school for resource planning</li>
+                        <li><strong>QR Verifications:</strong> Bar chart of daily QR code scans showing card verification activity</li>
+                        <li><strong>Bulk Job Status:</strong> Progress bar and stats showing completed, running, and failed bulk generation jobs</li>
+                    </ul>
+
+                    <h3>Recent Activity Feed</h3>
+                    <p>Shows the last 15 admin actions including who performed what action on which target, with timestamps. Click "View All" to access the full activity log.</p>
+
+                    <div class="good"><strong>Tip:</strong> Use the time range selector (top-right) to filter all analytics data. The refresh button fetches the latest data from the server without page reload.</div>
+                </article>
+
+                <!-- Security -->
+                <article id="enterprise-security" class="card">
+                    <h2><i class="fas fa-shield-virus"></i> 18. Security Dashboard</h2>
+                    <p>Comprehensive security monitoring and management for your admin accounts.</p>
+
+                    <h3>Security Overview Cards</h3>
+                    <ul>
+                        <li><strong>Total Logins (30d):</strong> All login attempts in the last 30 days</li>
+                        <li><strong>Failed Attempts:</strong> Count of failed login attempts (click filter to investigate)</li>
+                        <li><strong>Unique IPs:</strong> Number of distinct IP addresses used for logins</li>
+                        <li><strong>Success Rate:</strong> Percentage of successful login attempts</li>
+                    </ul>
+
+                    <h3>Two-Factor Authentication (2FA)</h3>
+                    <ol>
+                        <li>Click <strong>"Setup 2FA"</strong> to generate a TOTP secret and QR code</li>
+                        <li>Scan the QR code with Google Authenticator or any TOTP app</li>
+                        <li>Enter the 6-digit code to verify and enable 2FA</li>
+                        <li><strong>Save the 8 backup codes</strong> — they are shown once and allow account recovery if you lose your authenticator device</li>
+                    </ol>
+                    <div class="warn"><strong>Important:</strong> Store backup codes in a secure location. They are the only way to regain access if your authenticator device is lost.</div>
+
+                    <h3>Active Sessions</h3>
+                    <p>View all currently active admin sessions with IP address, user agent, and status. Click <strong>"Revoke All"</strong> to force-logout all sessions (useful if you suspect unauthorized access).</p>
+
+                    <h3>Login History</h3>
+                    <p>Searchable table of recent login attempts showing username, IP, device, browser, status (success/failure), and timestamp. Use the search box to filter by username, or check "Failed" to show only failed attempts for security investigation.</p>
+
+                    <h3>Top Failed Logins</h3>
+                    <p>Shows the most common usernames targeted by failed login attempts, helping identify potential brute-force attacks.</p>
+                </article>
+
+                <!-- Monitoring -->
+                <article id="enterprise-monitoring" class="card">
+                    <h2><i class="fas fa-desktop"></i> 19. System Health & Monitoring</h2>
+                    <p>Real-time server health monitoring with historical trend charts.</p>
+
+                    <h3>Health Status</h3>
+                    <ul>
+                        <li><span style="color:var(--success)"><i class="fas fa-check-circle"></i> HEALTHY:</span> All metrics within normal ranges</li>
+                        <li><span style="color:var(--warning)"><i class="fas fa-exclamation-triangle"></i> WARNING:</span> One or more metrics approaching critical thresholds</li>
+                        <li><span style="color:var(--danger)"><i class="fas fa-times-circle"></i> CRITICAL:</span> Immediate attention required</li>
+                    </ul>
+
+                    <h3>Live Metrics</h3>
+                    <div class="table-wrapper">
+                        <table>
+                            <thead><tr><th>Metric</th><th>Warning</th><th>Critical</th><th>Description</th></tr></thead>
+                            <tbody>
+                                <tr><td>CPU Usage</td><td>> 60%</td><td>> 80%</td><td>Processor utilization with color-coded progress bar</td></tr>
+                                <tr><td>Memory Usage</td><td>> 60%</td><td>> 80%</td><td>RAM usage with MB consumed displayed</td></tr>
+                                <tr><td>Disk Usage</td><td>> 70%</td><td>> 85%</td><td>Storage usage with free space shown</td></tr>
+                                <tr><td>Process Count</td><td>—</td><td>—</td><td>Total running server processes</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <h3>Historical Charts</h3>
+                    <p>24-hour trend lines for CPU and Memory usage. Data is collected automatically and can be manually refreshed using the <strong>"Collect Now"</strong> button.</p>
+
+                    <div class="note"><strong>Note:</strong> System metrics require the <code>psutil</code> Python library. The page functions gracefully even without it, showing only available data.</div>
+                </article>
+
+                <!-- API Keys -->
+                <article id="enterprise-apikeys" class="card">
+                    <h2><i class="fas fa-key"></i> 20. API Key Management</h2>
+                    <p>Generate and manage API keys for programmatic access to the ID Card system.</p>
+
+                    <h3>Creating an API Key</h3>
+                    <ol>
+                        <li>Click <strong>"Create Key"</strong> and provide a descriptive name</li>
+                        <li>Select scopes: <strong>Read</strong> (view data) and/or <strong>Write</strong> (modify data)</li>
+                        <li>Click Create — the <strong>full key is shown once</strong> in a modal</li>
+                        <li>Copy the key immediately and store it securely</li>
+                    </ol>
+                    <div class="warn"><strong>Security:</strong> API keys are hashed before storage. The full key cannot be retrieved after creation — only the first 8 characters (prefix) are stored for identification.</div>
+
+                    <h3>Available API Endpoints</h3>
+                    <div class="table-wrapper">
+                        <table>
+                            <thead><tr><th>Endpoint</th><th>Method</th><th>Description</th></tr></thead>
+                            <tbody>
+                                <tr><td><code>/enterprise/admin/api/search/students?q=john</code></td><td>GET</td><td>Search students by name/class/school</td></tr>
+                                <tr><td><code>/enterprise/admin/api/search/templates?q=id</code></td><td>GET</td><td>Search templates by name/orientation</td></tr>
+                                <tr><td><code>/enterprise/admin/api/analytics/stats</code></td><td>GET</td><td>Get dashboard statistics (JSON)</td></tr>
+                                <tr><td><code>/enterprise/admin/api/analytics/recent?limit=20</code></td><td>GET</td><td>Get recent activity feed (JSON)</td></tr>
+                                <tr><td><code>/enterprise/admin/api/monitoring/health</code></td><td>GET</td><td>Get system health status (JSON)</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <h3>Usage Example</h3>
+                    <pre><code>curl -H "X-API-Key: your-key-here" \
+  https://your-site.com/enterprise/admin/api/search/students?q=john</code></pre>
+
+                    <p>Each API call is logged with method, path, status code, and response time. Use the request count column to track API usage.</p>
+                </article>
+
+                <!-- Webhooks -->
+                <article id="enterprise-webhooks" class="card">
+                    <h2><i class="fas fa-plug"></i> 21. Webhook Management</h2>
+                    <p>Register webhook URLs to receive real-time event notifications from the ID Card system.</p>
+
+                    <h3>Supported Events</h3>
+                    <ul>
+                        <li><code>student.created</code> — Fired when a new student is added</li>
+                        <li><code>card.generated</code> — Fired when a card is generated for a student</li>
+                        <li><code>bulk_job.completed</code> — Fired when a bulk generation job finishes</li>
+                        <li><code>bulk_job.failed</code> — Fired when a bulk generation job fails</li>
+                        <li><code>webhook.test</code> — Test event sent via the "Test" button</li>
+                    </ul>
+
+                    <h3>Creating a Webhook</h3>
+                    <ol>
+                        <li>Click <strong>"Add Webhook"</strong></li>
+                        <li>Enter a name and the destination URL (must be HTTPS)</li>
+                        <li>Select which events should trigger this webhook</li>
+                        <li>Click Save</li>
+                    </ol>
+
+                    <h3>Webhook Payload</h3>
+                    <p>Each webhook POST request includes an HMAC-SHA256 signature header for verification. The payload contains the event type, timestamp, and relevant data.</p>
+                    <pre><code>{
+  "event": "student.created",
+  "timestamp": "2026-06-17T14:30:00Z",
+  "data": { "student_id": 42, "name": "John Doe" }
+}</code></pre>
+
+                    <h3>Testing & Debugging</h3>
+                    <ul>
+                        <li>Click the <i class="fas fa-paper-plane"></i> <strong>Test</strong> button to send a test event</li>
+                        <li>Failure count is shown on the webhook card — investigate if failures exceed 0</li>
+                        <li>Each delivery attempt is logged with status code and response time</li>
+                    </ul>
+                </article>
+
+                <!-- Reports -->
+                <article id="enterprise-reports" class="card">
+                    <h2><i class="fas fa-file-export"></i> 22. Export Center</h2>
+                    <p>Generate and download reports in Excel (.xlsx) or CSV format.</p>
+
+                    <h3>Available Reports</h3>
+                    <div class="table-wrapper">
+                        <table>
+                            <thead><tr><th>Report</th><th>Format</th><th>Filters</th><th>Description</th></tr></thead>
+                            <tbody>
+                                <tr>
+                                    <td><strong>Student Report</strong></td>
+                                    <td>Excel / CSV</td>
+                                    <td>School filter</td>
+                                    <td>All student data with photos, cards, and details</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Activity Report</strong></td>
+                                    <td>Excel / CSV</td>
+                                    <td>Days (7/30/90)</td>
+                                    <td>Admin activity logs and audit trail</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Bulk Job Report</strong></td>
+                                    <td>Excel / CSV</td>
+                                    <td>—</td>
+                                    <td>Bulk generation job history and status</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="good"><strong>Tip:</strong> For large student databases, CSV format is faster to generate and smaller in size. Excel format is better for formatted viewing.</div>
+                </article>
+
+                <!-- Archive -->
+                <article id="enterprise-archive" class="card">
+                    <h2><i class="fas fa-archive"></i> 23. Data Archive</h2>
+                    <p>Archive old records to compressed files to improve database performance while preserving data for future restoration.</p>
+
+                    <h3>How It Works</h3>
+                    <ol>
+                        <li>Select entity type: <strong>Students</strong> or <strong>Activity Logs</strong></li>
+                        <li>Set the age threshold (e.g., "365 days" will archive records older than 1 year)</li>
+                        <li>Click <strong>"Archive Data"</strong> — old records are exported to compressed JSON</li>
+                        <li>Archived records appear in the Archive History table below</li>
+                    </ol>
+
+                    <h3>Entity-Specific Behavior</h3>
+                    <ul>
+                        <li><strong>Students:</strong> Records are archived but NOT deleted (safe archive). Original data remains in the database.</li>
+                        <li><strong>Activity Logs:</strong> Records are archived AND deleted from the database. This helps keep the activity log table small and fast.</li>
+                    </ul>
+
+                    <h3>Restoring Archives</h3>
+                    <p>Click <strong>"Restore"</strong> on any non-restored archive to re-import the data. The system will add the archived records back to the database.</p>
+
+                    <div class="note"><strong>Storage:</strong> Archives are saved as compressed JSON files in the <code>instance/archives/</code> directory. The file size is shown in the history table.</div>
+                </article>
+
+                <!-- OCR -->
+                <article id="enterprise-ocr" class="card">
+                    <h2><i class="fas fa-scanner"></i> 24. OCR Document Scanner</h2>
+                    <p>AI-powered Optical Character Recognition to extract text from uploaded ID card images.</p>
+
+                    <h3>How to Use</h3>
+                    <ol>
+                        <li>Click <strong>"Choose File"</strong> and select an ID card image (JPG, PNG)</li>
+                        <li>Optionally link to a student by entering their Student ID</li>
+                        <li>Click <strong>"Extract Text"</strong> — the system processes the image</li>
+                        <li>View extracted text and parsed fields (name, DOB, phone, class, etc.) in the results panel</li>
+                    </ol>
+
+                    <h3>Extraction Features</h3>
+                    <ul>
+                        <li><strong>Multi-engine:</strong> Uses pytesseract (Tesseract OCR) as primary, with easyocr as fallback</li>
+                        <li><strong>Field Parsing:</strong> Automatically extracts common fields like name, date of birth, phone number, and class</li>
+                        <li><strong>Confidence Score:</strong> Each extraction includes a confidence percentage (green >70%, yellow 40-70%, red <40%)</li>
+                        <li><strong>Student Linking:</strong> Results can be linked to existing student records for data auto-fill</li>
+                    </ul>
+
+                    <div class="note"><strong>Requirements:</strong> OCR functionality requires pytesseract and Tesseract OCR engine installed on the server, or easyocr as a fallback. Results vary based on image quality and text clarity.</div>
+                </article>
+
+                <!-- Organizations -->
+                <article id="enterprise-orgs" class="card">
+                    <h2><i class="fas fa-building"></i> 25. Organization Management</h2>
+                    <p>Multi-tenant organization management for running multiple schools or institutions from a single system.</p>
+
+                    <h3>Organization Hierarchy</h3>
+                    <pre><code>Organization (e.g., "Education Trust")
+├── Branch (e.g., "North Campus")
+│   ├── Department (e.g., "Science")
+│   └── Department (e.g., "Arts")
+├── Branch (e.g., "South Campus")
+│   └── Department (e.g., "Commerce")
+└── API Keys (scoped to organization)</code></pre>
+
+                    <h3>Managing Organizations</h3>
+                    <ul>
+                        <li>Click <strong>"New Organization"</strong> to create an org with a name and URL slug</li>
+                        <li>Each org shows branch count, department count, and API key usage at a glance</li>
+                        <li>Active/Inactive status toggle for disabling org access</li>
+                        <li>Max user limit per organization for license management</li>
+                    </ul>
+
+                    <h3>Branches & Departments</h3>
+                    <p>Create branches under each organization with contact details (address, phone, email). Departments can be nested under branches with hierarchical parent-child relationships.</p>
+
+                    <div class="good"><strong>Use Case:</strong> Perfect for school chains, coaching networks, or any multi-location organization that needs separate data silos with centralized management.</div>
+                </article>
+
+                <!-- Access Policies -->
+                <article id="enterprise-policies" class="card">
+                    <h2><i class="fas fa-user-lock"></i> 26. Access Policies</h2>
+                    <p>Fine-grained role-based access control for managing what different user roles can do.</p>
+
+                    <h3>Policy Structure</h3>
+                    <div class="table-wrapper">
+                        <table>
+                            <thead><tr><th>Field</th><th>Description</th><th>Example</th></tr></thead>
+                            <tbody>
+                                <tr><td><strong>Role</strong></td><td>User role this policy applies to</td><td>super_admin, school_admin, teacher, viewer</td></tr>
+                                <tr><td><strong>Resource</strong></td><td>The module or data type</td><td>students, templates, reports</td></tr>
+                                <tr><td><strong>Action</strong></td><td>CRUD operation</td><td>create, read, update, delete, export</td></tr>
+                                <tr><td><strong>Allowed</strong></td><td>Whether to permit or deny</td><td>true (allow) / false (deny)</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <h3>Policy Evaluation</h3>
+                    <ul>
+                        <li>Deny policies take precedence over allow policies (deny-by-default security)</li>
+                        <li>Super admin role bypasses all policy checks</li>
+                        <li>Policies are evaluated on every API request and page load</li>
+                    </ul>
+
+                    <div class="note"><strong>Default:</strong> Without any policies defined, all admin users have full access. Define policies only when you need to restrict specific roles.</div>
+                </article>
+
+                <!-- Navigation -->
+                <article id="enterprise-navigation" class="card">
+                    <h2><i class="fas fa-compass"></i> 27. Enterprise Navigation & UI</h2>
+                    <p>Tips for navigating the enterprise dashboard efficiently.</p>
+
+                    <h3>Sidebar Navigation</h3>
+                    <p>The left sidebar groups all enterprise features into sections:</p>
+                    <ul>
+                        <li><strong>Core:</strong> Analytics, Security, Monitoring</li>
+                        <li><strong>Data:</strong> Reports, Archive, OCR Scanner</li>
+                        <li><strong>Integration:</strong> API Keys, Webhooks</li>
+                        <li><strong>Organization:</strong> Organizations, Access Policies</li>
+                        <li><strong>System:</strong> Back to main Admin panel</li>
+                    </ul>
+
+                    <h3>Dark Mode</h3>
+                    <p>Click the <strong>"Dark"</strong> / <strong>"Light"</strong> toggle in the top-right header to switch themes. Your preference is saved automatically and persists across sessions.</p>
+
+                    <h3>Notifications & Feedback</h3>
+                    <ul>
+                        <li><strong>Toasts:</strong> Slide in from the right for success/error/warning/info messages (auto-dismiss after 4 seconds)</li>
+                        <li><strong>Progress Bar:</strong> Appears at the top during long operations</li>
+                        <li><strong>Spinners:</strong> Buttons show loading spinners during async operations</li>
+                    </ul>
+
+                    <h3>Mobile Usage</h3>
+                    <p>On mobile devices (&lt; 768px):</p>
+                    <ul>
+                        <li>Sidebar collapses — tap the <i class="fas fa-bars"></i> hamburger menu to open</li>
+                        <li>Tables hide less important columns automatically</li>
+                        <li>Cards stack vertically for easy scrolling</li>
+                        <li>Toasts expand to full width for readability</li>
+                    </ul>
                 </article>
             </section>
         </div>

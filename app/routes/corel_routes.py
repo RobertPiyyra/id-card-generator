@@ -4777,7 +4777,7 @@ def download_compiled_vector_pdf(template_id):
                 try:
                     c.drawImage(bg_image_reader, card_x, card_bottom_y, width=card_w_pt, height=card_h_pt)
                 except Exception as e:
-                    print(f"Draw BG Error: {e}")
+                    logger.error(f"Draw BG Error: {e}")
 
             _draw_custom_editor_objects_pdf(
                 c,

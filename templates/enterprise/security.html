@@ -1,0 +1,273 @@
+{% extends "enterprise/base.html" %}
+
+{% block title %}Security Dashboard{% endblock %}
+{% block header_title %}Security Dashboard{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <h4 class="mb-4 d-flex align-items-center gap-2">
+        <i class="fas fa-shield-alt text-primary"></i> Security Overview
+    </h4>
+
+    <!-- Security Overview Cards -->
+    <div class="row g-3 mb-4">
+        <div class="col-xl-3 col-lg-6 col-sm-6">
+            <div class="card h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <p class="text-muted mb-1 small text-uppercase" style="font-size:0.7rem">Total Logins (30d)</p>
+                            <h3 class="mb-0">{{ analytics.total_logins }}</h3>
+                        </div>
+                        <i class="fas fa-sign-in-alt text-primary opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-3 col-lg-6 col-sm-6">
+            <div class="card h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <p class="text-muted mb-1 small text-uppercase" style="font-size:0.7rem">Failed Attempts</p>
+                            <h3 class="mb-0 text-danger">{{ analytics.failed }}</h3>
+                        </div>
+                        <i class="fas fa-times-circle text-danger opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-3 col-lg-6 col-sm-6">
+            <div class="card h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <p class="text-muted mb-1 small text-uppercase" style="font-size:0.7rem">Unique IPs</p>
+                            <h3 class="mb-0">{{ analytics.unique_ips }}</h3>
+                        </div>
+                        <i class="fas fa-globe text-info opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-3 col-lg-6 col-sm-6">
+            <div class="card h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <p class="text-muted mb-1 small text-uppercase" style="font-size:0.7rem">Success Rate</p>
+                            <h3 class="mb-0 text-success">{{ analytics.success_rate }}%</h3>
+                        </div>
+                        <i class="fas fa-check-circle text-success opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-3 mb-4">
+        <!-- 2FA Status -->
+        <div class="col-lg-4 col-md-6">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h6 class="mb-0 fw-semibold"><i class="fas fa-key me-2 text-primary"></i>Two-Factor Auth</h6>
+                </div>
+                <div class="card-body">
+                    <div id="2fa-status-container" class="text-center py-3">
+                        <div class="spinner-border spinner-border-sm text-primary"></div>
+                    </div>
+                    <div id="2fa-actions" class="d-none mt-2">
+                        <button class="btn btn-primary w-100 mb-2" id="btn-setup-2fa">
+                            <i class="fas fa-qrcode me-1"></i>Setup 2FA
+                        </button>
+                        <button class="btn btn-outline-danger w-100" id="btn-disable-2fa">
+                            <i class="fas fa-times me-1"></i>Disable 2FA
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Active Sessions -->
+        <div class="col-lg-4 col-md-6">
+            <div class="card h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0 fw-semibold"><i class="fas fa-desktop me-2 text-info"></i>Active Sessions</h6>
+                    <button class="btn btn-sm btn-outline-danger" id="btn-revoke-all">Revoke All</button>
+                </div>
+                <div class="card-body" id="sessions-container">
+                    <div class="text-center py-3"><div class="spinner-border spinner-border-sm text-primary"></div></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Top Failed Logins -->
+        <div class="col-lg-4 col-md-12">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h6 class="mb-0 fw-semibold"><i class="fas fa-exclamation-triangle me-2 text-warning"></i>Top Failed Logins</h6>
+                </div>
+                <div class="card-body">
+                    {% if analytics.top_failed_usernames %}
+                    <div class="list-group list-group-flush">
+                        {% for item in analytics.top_failed_usernames[:5] %}
+                        <div class="list-group-item d-flex justify-content-between align-items-center px-0">
+                            <span class="text-truncate" style="max-width:70%">{{ item.username }}</span>
+                            <span class="badge bg-danger rounded-pill">{{ item.count }}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <p class="text-muted text-center mb-0 py-3">No failed logins in period</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Login History -->
+    <div class="card">
+        <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+            <h6 class="mb-0 fw-semibold"><i class="fas fa-history me-2 text-secondary"></i>Login History</h6>
+            <div class="d-flex gap-2 align-items-center">
+                <input type="text" class="form-control form-control-sm" id="login-search"
+                       placeholder="Search..." style="width:160px">
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="failed-only">
+                    <label class="form-check-label small" for="failed-only">Failed</label>
+                </div>
+            </div>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0" id="login-history-table">
+                    <thead>
+                        <tr>
+                            <th>Username</th>
+                            <th class="d-none d-lg-table-cell">IP Address</th>
+                            <th class="d-none d-md-table-cell">Device</th>
+                            <th class="d-none d-lg-table-cell">Browser</th>
+                            <th>Status</th>
+                            <th class="d-none d-sm-table-cell">Time</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for h in login_history[:20] %}
+                        <tr class="{% if not h.login_success %}table-danger{% endif %}">
+                            <td><strong class="text-truncate d-inline-block" style="max-width:120px">{{ h.username }}</strong></td>
+                            <td class="d-none d-lg-table-cell text-muted small">{{ h.ip_address or '-' }}</td>
+                            <td class="d-none d-md-table-cell"><span class="badge bg-secondary">{{ h.device_type }}</span></td>
+                            <td class="d-none d-lg-table-cell text-muted small">{{ h.browser }}</td>
+                            <td>
+                                {% if h.login_success %}
+                                <span class="badge bg-success"><i class="fas fa-check"></i></span>
+                                {% else %}
+                                <span class="badge bg-danger" title="{{ h.failure_reason or '' }}"><i class="fas fa-times"></i></span>
+                                {% endif %}
+                            </td>
+                            <td class="d-none d-sm-table-cell text-muted small">{{ h.created_at.strftime('%Y-%m-%d %H:%M') if h.created_at else '' }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Load 2FA status
+    csrfFetch('/enterprise/admin/security/2fa/status')
+        .then(r => r.json())
+        .then(data => {
+            const c = document.getElementById('2fa-status-container');
+            const a = document.getElementById('2fa-actions');
+            if (data.enabled) {
+                c.innerHTML = '<div class="text-success"><i class="fas fa-check-circle fa-2x mb-2"></i><p class="mb-0 fw-semibold">2FA Enabled</p></div>';
+                a.classList.remove('d-none');
+                document.getElementById('btn-disable-2fa').classList.remove('d-none');
+                document.getElementById('btn-setup-2fa').classList.add('d-none');
+            } else {
+                c.innerHTML = '<div class="text-warning"><i class="fas fa-exclamation-triangle fa-2x mb-2"></i><p class="mb-0 fw-semibold">2FA Not Enabled</p></div>';
+                a.classList.remove('d-none');
+                document.getElementById('btn-setup-2fa').classList.remove('d-none');
+                document.getElementById('btn-disable-2fa').classList.add('d-none');
+            }
+        })
+        .catch(() => { document.getElementById('2fa-status-container').innerHTML = '<p class="text-muted">Unable to load</p>'; });
+
+    // Setup 2FA
+    document.getElementById('btn-setup-2fa')?.addEventListener('click', function() {
+        csrfFetch('/enterprise/admin/security/2fa/setup', {method:'POST'})
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    showToast('2FA configured! Save your backup codes.', 'success', 6000);
+                    location.reload();
+                }
+            });
+    });
+
+    // Disable 2FA
+    document.getElementById('btn-disable-2fa')?.addEventListener('click', function() {
+        if (confirm('Disable 2FA? This will reduce your account security.')) {
+            csrfFetch('/enterprise/admin/security/2fa/disable', {method:'POST'})
+                .then(r => r.json())
+                .then(data => { if(data.success) location.reload(); });
+        }
+    });
+
+    // Revoke all sessions
+    document.getElementById('btn-revoke-all')?.addEventListener('click', function() {
+        if (confirm('Revoke all active sessions? You will need to log in again.')) {
+            csrfFetch('/enterprise/admin/security/sessions/revoke-all', {method:'POST'})
+                .then(r => r.json())
+                .then(data => { if(data.success) { showToast('All sessions revoked', 'success'); location.reload(); }});
+        }
+    });
+
+    // Load sessions
+    csrfFetch('/enterprise/admin/security/sessions')
+        .then(r => r.json())
+        .then(data => {
+            const c = document.getElementById('sessions-container');
+            if (data.sessions && data.sessions.length > 0) {
+                let html = '<div class="list-group list-group-flush">';
+                data.sessions.forEach(s => {
+                    html += `<div class="list-group-item px-0">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <strong class="small">${s.ip_address || 'Unknown IP'}</strong>
+                                <br><small class="text-muted text-truncate d-inline-block" style="max-width:180px">${(s.user_agent || '').substring(0, 60)}</small>
+                            </div>
+                            <span class="badge ${s.is_active ? 'bg-success' : 'bg-secondary'}">${s.is_active ? 'Active' : 'Expired'}</span>
+                        </div>
+                    </div>`;
+                });
+                html += '</div>';
+                c.innerHTML = html;
+            } else {
+                c.innerHTML = '<p class="text-muted text-center mb-0 py-3">No active sessions</p>';
+            }
+        })
+        .catch(() => { document.getElementById('sessions-container').innerHTML = '<p class="text-muted text-center">Unable to load</p>'; });
+
+    // Login history search
+    document.getElementById('login-search')?.addEventListener('input', function() {
+        const q = this.value.toLowerCase();
+        document.querySelectorAll('#login-history-table tbody tr').forEach(tr => {
+            tr.style.display = tr.textContent.toLowerCase().includes(q) ? '' : 'none';
+        });
+    });
+
+    // Failed only filter
+    document.getElementById('failed-only')?.addEventListener('change', function() {
+        document.querySelectorAll('#login-history-table tbody tr').forEach(tr => {
+            if (this.checked && !tr.classList.contains('table-danger')) tr.style.display = 'none';
+            else tr.style.display = '';
+        });
+    });
+});
+</script>
+{% endblock %}

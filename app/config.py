@@ -53,6 +53,31 @@ class DevelopmentConfig(Config):
 
 class ProductionConfig(Config):
     SESSION_COOKIE_SECURE = True
+    TEMPLATES_AUTO_RELOAD = False
+    PREFERRED_URL_SCHEME = "https"
+
+    # CORS
+    CORS_ORIGINS = os.environ.get("CORS_ORIGINS", "").strip()
+
+    # Sentry
+    SENTRY_DSN = os.environ.get("SENTRY_DSN", "").strip()
+    SENTRY_ENVIRONMENT = os.environ.get("SENTRY_ENVIRONMENT", "production")
+    SENTRY_TRACES_SAMPLE_RATE = float(os.environ.get("SENTRY_TRACES_SAMPLE_RATE", "0.1"))
+
+    # Session
+    SESSION_COOKIE_HTTPONLY = True
+    SESSION_COOKIE_SAMESITE = "Lax"
+    PERMANENT_SESSION_LIFETIME = int(os.environ.get("SESSION_LIFETIME", "3600"))
+
+    # SQLAlchemy production tuning
+    SQLALCHEMY_ENGINE_OPTIONS = {
+        "pool_pre_ping": True,
+        "pool_recycle": 300,
+        "pool_size": int(os.environ.get("DB_POOL_SIZE", "10")),
+        "max_overflow": int(os.environ.get("DB_MAX_OVERFLOW", "20")),
+        "pool_timeout": int(os.environ.get("DB_POOL_TIMEOUT", "30")),
+    }
+
 
 
 def get_config():

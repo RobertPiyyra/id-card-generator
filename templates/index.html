@@ -1000,10 +1000,17 @@
                 Welcome, {{ session.get('student_email', 'User') }}
             </span>
             
+            {% if session.get('admin') %}
             <a href="/admin" class="nav-btn btn-primary">
                 <i class="fas fa-user-cog"></i>
                 <span>Admin Panel</span>
             </a>
+            {% else %}
+            <a href="/login" class="nav-btn btn-primary">
+                <i class="fas fa-sign-in-alt"></i>
+                <span>Admin Login</span>
+            </a>
+            {% endif %}
             
             <button class="nav-btn btn-outline" id="themeToggle">
                 <i class="fas fa-moon"></i>
@@ -1913,17 +1920,25 @@
                 }
                 if (!templateId) return;
                 
+                const container = elements.dynamicFieldsContainer;
+                if (!container) return;
+                
                 try {
                     const response = await fetch(`/admin/template/${templateId}/form-fields`);
+                    if (!response.ok) {
+                        console.error('Form fields API error:', response.status, response.statusText);
+                        container.innerHTML = `<div class="note" style="margin-top:12px"><i class="fas fa-exclamation-triangle"></i> Could not load additional fields (Error ${response.status}). Please try again or contact support.</div>`;
+                        return;
+                    }
                     const fields = await response.json();
                     
-                    elements.dynamicFieldsContainer.innerHTML = '';
+                    container.innerHTML = '';
                     
                     if (fields.length > 0) {
                         const header = document.createElement('h3');
                         header.className = 'section-title mt-3';
                         header.innerHTML = `<i class="fas fa-list"></i> ${I18n.t('additional_info')}`;
-                        elements.dynamicFieldsContainer.appendChild(header);
+                        container.appendChild(header);
                         
                         fields.forEach(field => {
                             const group = document.createElement('div');
@@ -1940,7 +1955,7 @@
                             if (field.field_type === 'select') {
                                 input = document.createElement('select');
                                 input.innerHTML = `<option value="">${I18n.t('select_option')}</option>`;
-                                field.field_options?.forEach(option => {
+                                (field.field_options || []).forEach(option => {
                                     input.innerHTML += `<option value="${option}">${option}</option>`;
                                 });
                             } else if (field.field_type === 'textarea') {
@@ -1961,7 +1976,7 @@
                             input.setAttribute('dir', rtl ? 'rtl' : 'ltr');
                             
                             group.appendChild(input);
-                            elements.dynamicFieldsContainer.appendChild(group);
+                            container.appendChild(group);
                         });
                     }
                 } catch (error) {
