@@ -2775,9 +2775,17 @@
         }
 
         function openPremiumSection(sectionId, clickedBtn) {
-            document.querySelectorAll('#templateLifecyclePanel .premium-pane').forEach((pane) => {
-                pane.style.display = pane.id === sectionId ? 'block' : 'none';
-            });
+            if (sectionId === 'premium-ai') {
+                document.getElementById('templateLifecyclePanel').style.display = 'none';
+                document.querySelectorAll('.template-settings-pane').forEach((p) => p.style.display = 'none');
+                document.getElementById('aiStudioPane').style.display = 'block';
+            } else {
+                document.getElementById('templateLifecyclePanel').style.display = 'block';
+                document.getElementById('aiStudioPane').style.display = 'none';
+                document.querySelectorAll('#templateLifecyclePanel .premium-pane').forEach((pane) => {
+                    pane.style.display = pane.id === sectionId ? 'block' : 'none';
+                });
+            }
             document.querySelectorAll('.premium-subtab-btn').forEach((btn) => btn.classList.remove('active'));
             if (clickedBtn) clickedBtn.classList.add('active');
         }
@@ -3399,6 +3407,122 @@
         </div>
     </div>
 
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         AI DESIGN STUDIO MODALS
+         ═══════════════════════════════════════════════════════════════ -->
+
+    <!-- AI Layout Analyzer Modal -->
+    <div id="aiAnalyzerModal" class="modal-custom" style="display:none; position:fixed; z-index:1000; left:0; top:0; width:100%; height:100%; overflow:auto; background-color:rgba(0,0,0,0.5); align-items:center; justify-content:center;">
+        <div class="modal-custom-content" style="background-color: var(--section-bg); color: var(--text-color); margin:auto; padding:30px; border-radius:var(--border-radius); max-width:600px; width:90%; position:relative; box-shadow:var(--shadow); border: 1px solid rgba(99,102,241,0.3);">
+            <span class="close-custom" onclick="closeAiAnalyzerModal()" style="position:absolute; right:20px; top:15px; font-size:28px; font-weight:bold; cursor:pointer; color:var(--text-color); opacity:0.6;">&times;</span>
+            <h3 style="margin-top:0; color:#6366f1; display:flex; align-items:center; gap:10px;"><i class="fas fa-crosshairs"></i> AI Layout Analyzer</h3>
+            <p style="font-size:0.85rem; opacity:0.75; margin-bottom:18px;">Upload a sample card or template image. AI will detect photo regions, text fields, QR codes, and suggest a complete layout.</p>
+            <form id="aiAnalyzerForm" enctype="multipart/form-data">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                <div style="margin-bottom:14px;">
+                    <label style="font-weight:600; font-size:0.85rem;"><i class="fas fa-image"></i> Template Image</label>
+                    <input type="file" name="image" accept="image/*,.pdf" required style="margin-top:4px; width:100%; padding:8px; border:2px dashed rgba(99,102,241,0.3); border-radius:8px; background:rgba(99,102,241,0.04);">
+                </div>
+                <div style="margin-bottom:14px;">
+                    <label style="font-weight:600; font-size:0.85rem;"><i class="fas fa-clone"></i> Side</label>
+                    <select name="side" style="margin-top:4px; width:100%; padding:8px; border-radius:6px; border:1px solid rgba(0,0,0,0.15); background:var(--section-bg); color:var(--text-color);">
+                        <option value="front">Front</option>
+                        <option value="back">Back</option>
+                    </select>
+                </div>
+                <button type="button" class="btn" style="width:100%; background:#6366f1; margin-top:4px;" onclick="submitAiAnalyzer()"><span id="aiAnalyzeBtnText"><i class="fas fa-wand-magic-sparkles"></i> Analyze Layout</span></button>
+            </form>
+            <div id="aiAnalyzerLoading" style="display:none; text-align:center; padding:20px; color:#6366f1;">
+                <i class="fas fa-spinner fa-spin fa-2x"></i><p style="margin-top:10px;">Analyzing template...</p>
+            </div>
+            <div id="aiAnalyzerResults" style="display:none; margin-top:16px;"></div>
+            <div id="aiAnalyzerError" style="display:none; margin-top:12px; padding:10px; border-radius:8px; background:var(--error-bg); color:var(--error-text); font-size:0.82rem;"></div>
+        </div>
+    </div>
+
+    <!-- AI Design Assistant Modal -->
+    <div id="aiDesignModal" class="modal-custom" style="display:none; position:fixed; z-index:1000; left:0; top:0; width:100%; height:100%; overflow:auto; background-color:rgba(0,0,0,0.5); align-items:center; justify-content:center;">
+        <div class="modal-custom-content" style="background-color: var(--section-bg); color: var(--text-color); margin:auto; padding:30px; border-radius:var(--border-radius); max-width:600px; width:90%; position:relative; box-shadow:var(--shadow); border: 1px solid rgba(139,92,246,0.3); max-height:85vh; display:flex; flex-direction:column;">
+            <span class="close-custom" onclick="closeAiDesignModal()" style="position:absolute; right:20px; top:15px; font-size:28px; font-weight:bold; cursor:pointer; color:var(--text-color); opacity:0.6;">&times;</span>
+            <h3 style="margin-top:0; color:#8b5cf6; display:flex; align-items:center; gap:10px;"><i class="fas fa-pen-fancy"></i> AI Design Assistant</h3>
+            <p style="font-size:0.85rem; opacity:0.75; margin-bottom:18px;">Describe your ideal ID card design in plain English. AI will generate a complete layout configuration.</p>
+            <div style="margin-bottom:14px;">
+                <label style="font-weight:600; font-size:0.85rem;"><i class="fas fa-comment-dots"></i> Design Prompt</label>
+                <textarea id="aiDesignPrompt" rows="4" placeholder="e.g. Modern blue ID card with photo on left, name and class on top right, school logo in top left, QR code bottom right, clean minimalist style..." style="margin-top:4px; width:100%; padding:10px; border-radius:8px; border:1px solid rgba(139,92,246,0.3); background:rgba(139,92,246,0.04); color:var(--text-color); resize:vertical; font-size:0.85rem;"></textarea>
+            </div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:14px;">
+                <div>
+                    <label style="font-weight:600; font-size:0.85rem;">Width (px)</label>
+                    <input type="number" id="aiDesignWidth" value="1015" style="margin-top:4px; width:100%; padding:8px; border-radius:6px; border:1px solid rgba(0,0,0,0.15); background:var(--section-bg); color:var(--text-color);">
+                </div>
+                <div>
+                    <label style="font-weight:600; font-size:0.85rem;">Height (px)</label>
+                    <input type="number" id="aiDesignHeight" value="661" style="margin-top:4px; width:100%; padding:8px; border-radius:6px; border:1px solid rgba(0,0,0,0.15); background:var(--section-bg); color:var(--text-color);">
+                </div>
+            </div>
+            <button type="button" class="btn" style="width:100%; background:#8b5cf6; margin-top:4px; flex-shrink:0;" onclick="submitAiDesign()"><span id="aiDesignBtnText"><i class="fas fa-magic"></i> Generate Design</span></button>
+            <div id="aiDesignLoading" style="display:none; text-align:center; padding:20px; color:#8b5cf6;">
+                <i class="fas fa-spinner fa-spin fa-2x"></i><p style="margin-top:10px;">Generating design...</p>
+            </div>
+            <div id="aiDesignResults" style="display:none; margin-top:16px; overflow-y:auto; flex:1;"></div>
+            <div id="aiDesignError" style="display:none; margin-top:12px; padding:10px; border-radius:8px; background:var(--error-bg); color:var(--error-text); font-size:0.82rem; flex-shrink:0;"></div>
+        </div>
+    </div>
+
+    <!-- AI Color Harmony Modal -->
+    <div id="aiColorModal" class="modal-custom" style="display:none; position:fixed; z-index:1000; left:0; top:0; width:100%; height:100%; overflow:auto; background-color:rgba(0,0,0,0.5); align-items:center; justify-content:center;">
+        <div class="modal-custom-content" style="background-color: var(--section-bg); color: var(--text-color); margin:auto; padding:30px; border-radius:var(--border-radius); max-width:550px; width:90%; position:relative; box-shadow:var(--shadow); border: 1px solid rgba(236,72,153,0.3);">
+            <span class="close-custom" onclick="closeAiColorModal()" style="position:absolute; right:20px; top:15px; font-size:28px; font-weight:bold; cursor:pointer; color:var(--text-color); opacity:0.6;">&times;</span>
+            <h3 style="margin-top:0; color:#ec4899; display:flex; align-items:center; gap:10px;"><i class="fas fa-palette"></i> AI Color Harmony</h3>
+            <p style="font-size:0.85rem; opacity:0.75; margin-bottom:18px;">Pick a base color and get a harmonious palette with WCAG-compliant contrast suggestions.</p>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:14px;">
+                <div>
+                    <label style="font-weight:600; font-size:0.85rem;"><i class="fas fa-fill-drip"></i> Base Color</label>
+                    <input type="color" id="aiColorBase" value="#6366f1" style="margin-top:4px; width:100%; height:40px; border:2px solid rgba(236,72,153,0.3); border-radius:8px; cursor:pointer;">
+                </div>
+                <div>
+                    <label style="font-weight:600; font-size:0.85rem;"><i class="fas fa-layer-group"></i> Scheme</label>
+                    <select id="aiColorScheme" style="margin-top:4px; width:100%; padding:10px; border-radius:6px; border:1px solid rgba(0,0,0,0.15); background:var(--section-bg); color:var(--text-color);">
+                        <option value="complementary">Complementary</option>
+                        <option value="triadic">Triadic</option>
+                        <option value="analogous">Analogous</option>
+                        <option value="split-complementary">Split Complementary</option>
+                    </select>
+                </div>
+            </div>
+            <div style="margin-bottom:14px;">
+                <label style="font-weight:600; font-size:0.85rem;">Number of Colors</label>
+                <input type="number" id="aiColorCount" value="5" min="3" max="10" style="margin-top:4px; width:100%; padding:8px; border-radius:6px; border:1px solid rgba(0,0,0,0.15); background:var(--section-bg); color:var(--text-color);">
+            </div>
+            <div style="margin-bottom:14px;">
+                <label style="font-weight:600; font-size:0.85rem;">Background Color (for contrast)</label>
+                <input type="color" id="aiColorBg" value="#ffffff" style="margin-top:4px; width:100%; height:36px; border:1px solid rgba(0,0,0,0.15); border-radius:6px; cursor:pointer;">
+            </div>
+            <button type="button" class="btn" style="width:100%; background:#ec4899; margin-top:4px;" onclick="submitAiColorPalette()"><span id="aiColorBtnText"><i class="fas fa-swatchbook"></i> Generate Palette</span></button>
+            <div id="aiColorLoading" style="display:none; text-align:center; padding:20px; color:#ec4899;">
+                <i class="fas fa-spinner fa-spin fa-2x"></i><p style="margin-top:10px;">Generating palette...</p>
+            </div>
+            <div id="aiColorResults" style="display:none; margin-top:16px;"></div>
+            <div id="aiColorError" style="display:none; margin-top:12px; padding:10px; border-radius:8px; background:var(--error-bg); color:var(--error-text); font-size:0.82rem;"></div>
+        </div>
+    </div>
+
+    <!-- AI Design Validator Modal -->
+    <div id="aiValidatorModal" class="modal-custom" style="display:none; position:fixed; z-index:1000; left:0; top:0; width:100%; height:100%; overflow:auto; background-color:rgba(0,0,0,0.5); align-items:center; justify-content:center;">
+        <div class="modal-custom-content" style="background-color: var(--section-bg); color: var(--text-color); margin:auto; padding:30px; border-radius:var(--border-radius); max-width:600px; width:90%; position:relative; box-shadow:var(--shadow); border: 1px solid rgba(245,158,11,0.3); max-height:85vh; display:flex; flex-direction:column;">
+            <span class="close-custom" onclick="closeAiValidatorModal()" style="position:absolute; right:20px; top:15px; font-size:28px; font-weight:bold; cursor:pointer; color:var(--text-color); opacity:0.6;">&times;</span>
+            <h3 style="margin-top:0; color:#f59e0b; display:flex; align-items:center; gap:10px;"><i class="fas fa-clipboard-check"></i> AI Design Validator</h3>
+            <p style="font-size:0.85rem; opacity:0.75; margin-bottom:18px;">Check your current layout for overlapping fields, contrast ratios, safe margins, and WCAG&nbsp;2.1 compliance.</p>
+            <button type="button" class="btn" style="width:100%; background:#f59e0b; margin-top:4px; flex-shrink:0;" onclick="submitAiValidate()"><span id="aiValidateBtnText"><i class="fas fa-check-double"></i> Validate Current Design</span></button>
+            <div id="aiValidateLoading" style="display:none; text-align:center; padding:20px; color:#f59e0b;">
+                <i class="fas fa-spinner fa-spin fa-2x"></i><p style="margin-top:10px;">Validating design...</p>
+            </div>
+            <div id="aiValidateResults" style="display:none; margin-top:16px; overflow-y:auto; flex:1;"></div>
+            <div id="aiValidateError" style="display:none; margin-top:12px; padding:10px; border-radius:8px; background:var(--error-bg); color:var(--error-text); font-size:0.82rem; flex-shrink:0;"></div>
+        </div>
+    </div>
+
     <script>
         function showCorelPreview() {
             const templateId = document.getElementById('previewTemplate').value;
@@ -3811,4 +3935,346 @@
             }
             return String(val);
         }
+
+        // ═══════════════════════════════════════════════════════════════
+        // AI DESIGN STUDIO — JavaScript Functions
+        // ═══════════════════════════════════════════════════════════════
+
+        function aiGetCSRF() {
+            const meta = document.querySelector('meta[name="csrf-token"]');
+            return meta ? meta.getAttribute('content') : '';
+        }
+
+        function aiResetView(loadingId, resultsId, errorId) {
+            document.getElementById(loadingId).style.display = 'none';
+            document.getElementById(resultsId).style.display = 'none';
+            document.getElementById(errorId).style.display = 'none';
+        }
+
+        function aiSetLoading(loadingId, btnTextId) {
+            document.getElementById(loadingId).style.display = 'block';
+            if (btnTextId) document.getElementById(btnTextId).innerHTML = '<i class="fas fa-spinner fa-spin"></i> Working...';
+        }
+
+        function aiClearLoading(loadingId, btnTextId, originalText) {
+            document.getElementById(loadingId).style.display = 'none';
+            if (btnTextId && originalText) document.getElementById(btnTextId).innerHTML = originalText;
+        }
+
+        function aiSetError(errorId, msg) {
+            const el = document.getElementById(errorId);
+            el.textContent = msg;
+            el.style.display = 'block';
+        }
+
+        function aiRenderSwatches(containerId, colors, clickHandler) {
+            const container = document.getElementById(containerId);
+            if (!container) return;
+            let html = '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">';
+            colors.forEach((c, i) => {
+                const hex = typeof c === 'string' ? c : c.hex || c.color || '#000000';
+                const label = typeof c === 'object' ? (c.name || c.label || hex) : hex;
+                html += `<div style="text-align:center;cursor:${clickHandler?'pointer':'default'};" ${clickHandler?`onclick="${clickHandler}('${hex}')"` : ''}>`;
+                html += `<div style="width:48px;height:48px;border-radius:8px;background:${hex};border:1px solid rgba(0,0,0,0.15);box-shadow:0 2px 4px rgba(0,0,0,0.1);"></div>`;
+                html += `<div style="font-size:0.65rem;margin-top:3px;font-family:monospace;">${hex}</div>`;
+                html += `</div>`;
+            });
+            html += '</div>';
+            container.innerHTML = html;
+        }
+
+        function aiRenderChecklist(containerId, items) {
+            const container = document.getElementById(containerId);
+            if (!container) return;
+            let html = '<div style="display:flex;flex-direction:column;gap:6px;margin-top:8px;">';
+            items.forEach((item) => {
+                const icon = item.status === 'ok' ? '<i class="fas fa-check-circle" style="color:#059669;"></i>' :
+                             item.status === 'warn' ? '<i class="fas fa-exclamation-triangle" style="color:#d97706;"></i>' :
+                             '<i class="fas fa-times-circle" style="color:#dc2626;"></i>';
+                const color = item.status === 'ok' ? '#059669' : item.status === 'warn' ? '#d97706' : '#dc2626';
+                html += `<div style="display:flex;align-items:flex-start;gap:8px;padding:6px 8px;background:rgba(0,0,0,0.03);border-radius:6px;border-left:3px solid ${color};">`;
+                html += `${icon}<span style="font-size:0.82rem;">${item.label}</span>`;
+                html += `</div>`;
+            });
+            html += '</div>';
+            container.innerHTML = html;
+        }
+
+        // ── AI Layout Analyzer ──
+
+        function openAiLayoutAnalyzer() {
+            aiResetView('aiAnalyzerLoading', 'aiAnalyzerResults', 'aiAnalyzerError');
+            document.getElementById('aiAnalyzerModal').style.display = 'flex';
+        }
+
+        function closeAiAnalyzerModal() {
+            document.getElementById('aiAnalyzerModal').style.display = 'none';
+        }
+
+        async function submitAiAnalyzer() {
+            const form = document.getElementById('aiAnalyzerForm');
+            const formData = new FormData(form);
+            aiSetLoading('aiAnalyzerLoading', 'aiAnalyzeBtnText');
+            const origBtnText = '<i class="fas fa-wand-magic-sparkles"></i> Analyze Layout';
+            try {
+                const resp = await fetch('/api/ai/analyze-layout', {
+                    method: 'POST',
+                    headers: { 'X-CSRFToken': aiGetCSRF() },
+                    body: formData,
+                });
+                const data = await resp.json();
+                aiClearLoading('aiAnalyzerLoading', 'aiAnalyzeBtnText', origBtnText);
+                if (!data.success) { aiSetError('aiAnalyzerError', data.error || 'Analysis failed.'); return; }
+                const r = data.regions;
+                let html = '<div style="display:flex;flex-direction:column;gap:10px;">';
+                if (r.photo) {
+                    html += `<div style="padding:8px;background:rgba(99,102,241,0.06);border-radius:6px;font-size:0.82rem;"><i class="fas fa-user-circle" style="color:#6366f1;"></i> <strong>Photo:</strong> x:${r.photo.x} y:${r.photo.y} w:${r.photo.width} h:${r.photo.height} (${Math.round(r.photo.confidence*100)}%)</div>`;
+                }
+                if (r.text && r.text.length) {
+                    html += `<div style="padding:8px;background:rgba(16,185,129,0.06);border-radius:6px;font-size:0.82rem;"><i class="fas fa-font" style="color:#10b981;"></i> <strong>Text Regions:</strong> ${r.text.length} detected`;
+                    r.text.forEach((t, i) => { html += `<div style="margin-top:2px;padding-left:16px;">#${i+1}: x:${t.x} y:${t.y} ${t.suggested_field_name ? '('+t.suggested_field_name+')' : ''}</div>`; });
+                    html += '</div>';
+                }
+                if (r.qr) {
+                    html += `<div style="padding:8px;background:rgba(139,92,246,0.06);border-radius:6px;font-size:0.82rem;"><i class="fas fa-qrcode" style="color:#8b5cf6;"></i> <strong>QR:</strong> x:${r.qr.x} y:${r.qr.y} ${r.qr.width}x${r.qr.height}</div>`;
+                }
+                if (r.logo) {
+                    html += `<div style="padding:8px;background:rgba(236,72,153,0.06);border-radius:6px;font-size:0.82rem;"><i class="fas fa-image" style="color:#ec4899;"></i> <strong>Logo:</strong> x:${r.logo.x} y:${r.logo.y}</div>`;
+                }
+                if (data.color_palette && data.color_palette.length) {
+                    html += '<div style="padding:8px;background:rgba(0,0,0,0.03);border-radius:6px;font-size:0.82rem;"><i class="fas fa-palette"></i> <strong>Colors:</strong></div>';
+                    html += '<div id="aiAnalyzeSwatches"></div>';
+                }
+                html += `<button class="btn" style="width:100%;background:#6366f1;margin-top:8px;" onclick="applyAiLayout()"><i class="fas fa-check"></i> Apply to Layout</button>`;
+                html += '</div>';
+                const resultsEl = document.getElementById('aiAnalyzerResults');
+                resultsEl.innerHTML = html;
+                resultsEl.style.display = 'block';
+                if (data.color_palette) aiRenderSwatches('aiAnalyzeSwatches', data.color_palette);
+                window._aiLastAnalysis = data;
+            } catch (err) {
+                aiClearLoading('aiAnalyzerLoading', 'aiAnalyzeBtnText', origBtnText);
+                aiSetError('aiAnalyzerError', 'Network error: ' + err.message);
+            }
+        }
+
+        function applyAiLayout() {
+            const data = window._aiLastAnalysis;
+            if (!data || !data.regions) { showNotification('No analysis data available.', 'error'); return; }
+            const r = data.regions;
+            if (r.photo) {
+                const px = document.getElementById('photoX'), py = document.getElementById('photoY');
+                const pw = document.getElementById('photoW'), ph = document.getElementById('photoH');
+                if (px) px.value = r.photo.x;
+                if (py) py.value = r.photo.y;
+                if (pw) pw.value = r.photo.width;
+                if (ph) ph.value = r.photo.height;
+            }
+            if (r.qr) {
+                const qx = document.getElementById('qrX'), qy = document.getElementById('qrY'), qs = document.getElementById('qrS');
+                if (qx) qx.value = r.qr.x;
+                if (qy) qy.value = r.qr.y;
+                if (qs) qs.value = Math.max(r.qr.width, r.qr.height);
+            }
+            showNotification('AI layout applied! Review and save.', 'success');
+            closeAiAnalyzerModal();
+            updateAdminPreview();
+        }
+
+        // ── AI Design Assistant ──
+
+        function openAiDesignAssistant() {
+            aiResetView('aiDesignLoading', 'aiDesignResults', 'aiDesignError');
+            document.getElementById('aiDesignModal').style.display = 'flex';
+        }
+
+        function closeAiDesignModal() {
+            document.getElementById('aiDesignModal').style.display = 'none';
+        }
+
+        async function submitAiDesign() {
+            const prompt = document.getElementById('aiDesignPrompt').value.trim();
+            if (!prompt) { aiSetError('aiDesignError', 'Please enter a design prompt.'); return; }
+            aiSetLoading('aiDesignLoading', 'aiDesignBtnText');
+            const origBtnText = '<i class="fas fa-magic"></i> Generate Design';
+            try {
+                const resp = await fetch('/api/ai/design-from-prompt', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': aiGetCSRF() },
+                    body: JSON.stringify({
+                        prompt: prompt,
+                        card_width: parseInt(document.getElementById('aiDesignWidth').value) || 1015,
+                        card_height: parseInt(document.getElementById('aiDesignHeight').value) || 661,
+                    }),
+                });
+                const data = await resp.json();
+                aiClearLoading('aiDesignLoading', 'aiDesignBtnText', origBtnText);
+                if (!data.success) { aiSetError('aiDesignError', data.error || 'Design generation failed.'); return; }
+                const layout = data.layout;
+                let html = '<div style="display:flex;flex-direction:column;gap:10px;">';
+                if (layout.style) html += `<div style="font-size:0.85rem;"><strong>Style:</strong> ${layout.style}</div>`;
+                if (layout.photo_position) html += `<div style="font-size:0.85rem;"><strong>Photo:</strong> ${layout.photo_position}</div>`;
+                if (layout.fields && layout.fields.length) {
+                    html += '<div style="font-size:0.85rem;"><strong>Fields:</strong></div>';
+                    layout.fields.forEach((f) => {
+                        html += `<div style="padding:4px 8px;background:rgba(139,92,246,0.06);border-radius:4px;font-size:0.78rem;margin-top:2px;">${f.name || f.label || 'Field'}: x:${f.x} y:${f.y} ${f.font_size ? 'size:'+f.font_size : ''}</div>`;
+                    });
+                }
+                if (layout.colors) {
+                    html += '<div id="aiDesignSwatches" style="margin-top:6px;"></div>';
+                }
+                html += `<button class="btn" style="width:100%;background:#8b5cf6;margin-top:8px;" onclick="applyAiDesign()"><i class="fas fa-check"></i> Apply Design</button>`;
+                html += `<details style="margin-top:6px;font-size:0.75rem;"><summary style="cursor:pointer;opacity:0.7;">View raw JSON</summary><pre style="max-height:200px;overflow:auto;background:rgba(0,0,0,0.05);padding:8px;border-radius:6px;margin-top:4px;">${JSON.stringify(layout, null, 2)}</pre></details>`;
+                html += '</div>';
+                const resultsEl = document.getElementById('aiDesignResults');
+                resultsEl.innerHTML = html;
+                resultsEl.style.display = 'block';
+                if (layout.colors) aiRenderSwatches('aiDesignSwatches', layout.colors);
+                window._aiLastDesign = data;
+            } catch (err) {
+                aiClearLoading('aiDesignLoading', 'aiDesignBtnText', origBtnText);
+                aiSetError('aiDesignError', 'Network error: ' + err.message);
+            }
+        }
+
+        function applyAiDesign() {
+            const data = window._aiLastDesign;
+            if (!data || !data.layout) { showNotification('No design data.', 'error'); return; }
+            const layout = data.layout;
+            if (layout.fields && layout.fields.length) {
+                const layoutConfig = { fields: layout.fields };
+                const layoutInput = document.getElementById('layoutConfigJson') || document.querySelector('textarea[name="layout_config"]');
+                if (layoutInput) { layoutInput.value = JSON.stringify(layoutConfig); }
+            }
+            showNotification('AI design applied! Review and save.', 'success');
+            closeAiDesignModal();
+            updateAdminPreview();
+        }
+
+        // ── AI Color Harmony ──
+
+        function openAiColorHarmony() {
+            aiResetView('aiColorLoading', 'aiColorResults', 'aiColorError');
+            document.getElementById('aiColorModal').style.display = 'flex';
+        }
+
+        function closeAiColorModal() {
+            document.getElementById('aiColorModal').style.display = 'none';
+        }
+
+        async function submitAiColorPalette() {
+            const baseColor = document.getElementById('aiColorBase').value;
+            const scheme = document.getElementById('aiColorScheme').value;
+            const nColors = parseInt(document.getElementById('aiColorCount').value) || 5;
+            const bgColor = document.getElementById('aiColorBg').value;
+            aiSetLoading('aiColorLoading', 'aiColorBtnText');
+            const origBtnText = '<i class="fas fa-swatchbook"></i> Generate Palette';
+            try {
+                const resp = await fetch('/api/ai/color-palette', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': aiGetCSRF() },
+                    body: JSON.stringify({ base_color: baseColor, scheme: scheme, n_colors: nColors, background_color: bgColor }),
+                });
+                const data = await resp.json();
+                aiClearLoading('aiColorLoading', 'aiColorBtnText', origBtnText);
+                if (!data.success) { aiSetError('aiColorError', data.error || 'Color generation failed.'); return; }
+                let html = '<div style="display:flex;flex-direction:column;gap:10px;">';
+                html += `<div style="font-size:0.82rem;opacity:0.7;">Scheme: <strong>${data.scheme}</strong> · Base: <strong>${data.base_color}</strong></div>`;
+                html += '<div id="aiColorSwatches"></div>';
+                if (data.font_suggestions && Object.keys(data.font_suggestions).length) {
+                    const fs = data.font_suggestions;
+                    html += '<div style="margin-top:8px;padding:8px;background:rgba(0,0,0,0.03);border-radius:6px;font-size:0.82rem;">';
+                    html += '<strong><i class="fas fa-font"></i> Font Suggestions:</strong>';
+                    if (fs.primary) html += `<div>Primary: <span style="color:${fs.primary};font-weight:700;">${fs.primary}</span></div>`;
+                    if (fs.secondary) html += `<div>Secondary: <span style="color:${fs.secondary};font-weight:700;">${fs.secondary}</span></div>`;
+                    if (fs.accent) html += `<div>Accent: <span style="color:${fs.accent};font-weight:700;">${fs.accent}</span></div>`;
+                    html += '</div>';
+                }
+                html += `<button class="btn" style="width:100%;background:#ec4899;margin-top:8px;" onclick="applyAiColors()"><i class="fas fa-check"></i> Apply Colors</button>`;
+                html += '</div>';
+                const resultsEl = document.getElementById('aiColorResults');
+                resultsEl.innerHTML = html;
+                resultsEl.style.display = 'block';
+                aiRenderSwatches('aiColorSwatches', data.colors, 'aiApplySingleColor');
+                window._aiLastColors = data;
+            } catch (err) {
+                aiClearLoading('aiColorLoading', 'aiColorBtnText', origBtnText);
+                aiSetError('aiColorError', 'Network error: ' + err.message);
+            }
+        }
+
+        function aiApplySingleColor(hex) {
+            const el = document.getElementById('aiColorBase');
+            if (el) el.value = hex;
+        }
+
+        function applyAiColors() {
+            const data = window._aiLastColors;
+            if (!data || !data.colors || !data.colors.length) { showNotification('No color data.', 'error'); return; }
+            const colors = data.colors;
+            const labelColor = document.getElementById('labelFontColor') || document.getElementById('labelColor');
+            const valueColor = document.getElementById('valueFontColor') || document.getElementById('valueColor');
+            const colonColor = document.getElementById('colonFontColor') || document.getElementById('colonColor');
+            if (labelColor && colors[0]) labelColor.value = typeof colors[0] === 'string' ? colors[0] : colors[0].hex || colors[0].color || '#000000';
+            if (valueColor && colors[1]) valueColor.value = typeof colors[1] === 'string' ? colors[1] : colors[1].hex || colors[1].color || '#000000';
+            if (colonColor && colors[2]) colonColor.value = typeof colors[2] === 'string' ? colors[2] : colors[2].hex || colors[2].color || '#000000';
+            showNotification('AI colors applied! Review and save.', 'success');
+            closeAiColorModal();
+            updateAdminPreview();
+        }
+
+        // ── AI Design Validator ──
+
+        function runAiDesignValidation() {
+            aiResetView('aiValidateLoading', 'aiValidateResults', 'aiValidateError');
+            document.getElementById('aiValidatorModal').style.display = 'flex';
+            submitAiValidate();
+        }
+
+        function closeAiValidatorModal() {
+            document.getElementById('aiValidatorModal').style.display = 'none';
+        }
+
+        async function submitAiValidate() {
+            aiSetLoading('aiValidateLoading', 'aiValidateBtnText');
+            const origBtnText = '<i class="fas fa-check-double"></i> Validate Current Design';
+            let layoutConfig = {};
+            try {
+                const layoutInput = document.getElementById('layoutConfigJson') || document.querySelector('textarea[name="layout_config"]');
+                if (layoutInput && layoutInput.value.trim()) layoutConfig = JSON.parse(layoutInput.value);
+            } catch (e) { /* use empty config */ }
+            try {
+                const resp = await fetch('/api/ai/validate-design', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': aiGetCSRF() },
+                    body: JSON.stringify({ layout_config: layoutConfig }),
+                });
+                const data = await resp.json();
+                aiClearLoading('aiValidateLoading', 'aiValidateBtnText', origBtnText);
+                if (!data.success) { aiSetError('aiValidateError', data.error || 'Validation failed.'); return; }
+                const v = data.validation;
+                let html = '<div style="display:flex;flex-direction:column;gap:10px;">';
+                if (v.overall_score !== undefined) {
+                    const scoreColor = v.overall_score >= 80 ? '#059669' : v.overall_score >= 50 ? '#d97706' : '#dc2626';
+                    html += `<div style="text-align:center;padding:12px;background:${scoreColor}15;border-radius:8px;border:2px solid ${scoreColor}30;">`;
+                    html += `<div style="font-size:2rem;font-weight:800;color:${scoreColor};">${v.overall_score}</div>`;
+                    html += `<div style="font-size:0.8rem;opacity:0.7;">Design Score / 100</div></div>`;
+                }
+                if (v.checks && v.checks.length) {
+                    html += '<div id="aiValidateChecklist"></div>';
+                }
+                if (v.summary) {
+                    html += `<div style="padding:8px;background:rgba(0,0,0,0.03);border-radius:6px;font-size:0.82rem;">${v.summary}</div>`;
+                }
+                html += '</div>';
+                const resultsEl = document.getElementById('aiValidateResults');
+                resultsEl.innerHTML = html;
+                resultsEl.style.display = 'block';
+                if (v.checks) aiRenderChecklist('aiValidateChecklist', v.checks);
+            } catch (err) {
+                aiClearLoading('aiValidateLoading', 'aiValidateBtnText', origBtnText);
+                aiSetError('aiValidateError', 'Network error: ' + err.message);
+            }
+        }
+
     </script>

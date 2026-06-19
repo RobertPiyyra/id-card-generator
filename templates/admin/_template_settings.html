@@ -1,3 +1,22 @@
+        /* AI Studio */
+        .ai-summary-box {
+            margin-top: 8px;
+            padding: 10px 12px;
+            border-radius: 8px;
+            font-size: 0.78rem;
+            line-height: 1.45;
+            background: rgba(99,102,241,0.06);
+            border: 1px solid rgba(99,102,241,0.15);
+            color: #374151;
+        }
+        .ai-summary-box .ai-status-ok { color: #059669; font-weight: 700; }
+        .ai-summary-box .ai-status-warn { color: #d97706; font-weight: 700; }
+        .ai-summary-box .ai-status-fail { color: #dc2626; font-weight: 700; }
+        .ai-dot-pulse {
+            display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+            background: #6366f1; margin-right: 6px;
+            animation: pulse 1.2s ease-in-out infinite;
+        }
 <div class="section full-width template-settings-section">
     <h3 style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
         <span><i class="fas fa-text-height"></i> Template-Specific Settings</span>
@@ -221,7 +240,7 @@
                         <button type="button" class="premium-subtab-btn" onclick="openPremiumSection('premium-branding', this)">White Label</button>
                         <button type="button" class="premium-subtab-btn" onclick="openPremiumSection('premium-import', this)">Import Mapping</button>
                         <button type="button" class="premium-subtab-btn" onclick="openPremiumSection('premium-dr', this)">Recovery</button>
-                        <button type="button" class="premium-subtab-btn" onclick="openPremiumSection('premium-analytics', this)">Analytics</button>
+                        <button type="button" class="premium-subtab-btn" onclick="openPremiumSection('premium-ai', this)"><i class="fas fa-robot" style="margin-right:4px;color:#8b5cf6;"></i>AI Studio</button>
                     </div>
                     <div id="premium-workflow"></div>
                     <div class="lifecycle-row">
@@ -1056,5 +1075,57 @@
                 <li>No fonts uploaded yet</li>
             {% endif %}
         </ul>
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     AI Design STUDIO PANEL
+     ═══════════════════════════════════════════════════════════════ -->
+<div class="section full-width ai-studio-pane" id="aiStudioPane" style="display:none;">
+    <h3><i class="fas fa-robot" style="color:#8b5cf6;"></i> AI Design Studio</h3>
+    <small style="display:block;margin-bottom:16px;color:#888;">Intelligent layout analysis, color harmony, auto-design, and WCAG compliance.</small>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;">
+
+        <!-- Layout Analyzer -->
+        <div class="card" style="border-left:4px solid #6366f1;">
+            <div class="card-header">
+                <span class="card-title"><i class="fas fa-crosshairs"></i> Layout Analyzer</span>
+                <button class="btn btn-sm" style="background:#6366f1;padding:6px 14px;font-size:0.8rem;" onclick="openAiLayoutAnalyzer()"><i class="fas fa-wand-magic-sparkles"></i> Analyze</button>
+            </div>
+            <p style="font-size:0.82rem;color:#666;margin-top:6px;">Upload a sample card or template image and AI will detect photo areas, text fields, QR positions, and suggest a layout configuration.</p>
+            <div id="aiAnalyzerSummary" class="ai-summary-box" style="display:none;"></div>
+        </div>
+
+        <!-- Design Assistant -->
+        <div class="card" style="border-left:4px solid #8b5cf6;">
+            <div class="card-header">
+                <span class="card-title"><i class="fas fa-pen-fancy"></i> Design Assistant</span>
+                <button class="btn btn-sm" style="background:#8b5cf6;padding:6px 14px;font-size:0.8rem;" onclick="openAiDesignAssistant()"><i class="fas fa-magic"></i> Generate</button>
+            </div>
+            <p style="font-size:0.82rem;color:#666;margin-top:6px;">Describe your ideal ID card in plain English and AI will generate a complete layout configuration ready to apply.</p>
+            <div id="aiDesignSummary" class="ai-summary-box" style="display:none;"></div>
+        </div>
+
+        <!-- Color Harmony -->
+        <div class="card" style="border-left:4px solid #ec4899;">
+            <div class="card-header">
+                <span class="card-title"><i class="fas fa-palette"></i> Color Harmony</span>
+                <button class="btn btn-sm" style="background:#ec4899;padding:6px 14px;font-size:0.8rem;" onclick="openAiColorHarmony()"><i class="fas fa-swatchbook"></i> Suggest</button>
+            </div>
+            <p style="font-size:0.82rem;color:#666;margin-top:6px;">Pick a base color and get a harmonious palette with WCAG-compliant text/background contrast suggestions.</p>
+            <div id="aiColorSummary" class="ai-summary-box" style="display:none;"></div>
+        </div>
+
+        <!-- Design Validator -->
+        <div class="card" style="border-left:4px solid #f59e0b;">
+            <div class="card-header">
+                <span class="card-title"><i class="fas fa-clipboard-check"></i> Design Validator</span>
+                <button class="btn btn-sm" style="background:#f59e0b;padding:6px 14px;font-size:0.8rem;" onclick="runAiDesignValidation()"><i class="fas fa-check-double"></i> Validate</button>
+            </div>
+            <p style="font-size:0.82rem;color:#666;margin-top:6px;">Check your current layout for overlapping fields, contrast ratios, safe margins, and WCAG&nbsp;2.1 compliance.</p>
+            <div id="aiValidatorSummary" class="ai-summary-box" style="display:none;"></div>
+        </div>
+
     </div>
 </div>

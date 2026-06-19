@@ -672,6 +672,7 @@
         <button class="panel-tab"        data-panel="fields"  onclick="switchTab('fields')"><i class="fa-solid fa-font me-1"></i> Fields</button>
         <button class="panel-tab"        data-panel="objects" onclick="switchTab('objects')"><i class="fa-solid fa-shapes me-1"></i> Elements</button>
         <button class="panel-tab"        data-panel="layers"  onclick="switchTab('layers')"><i class="fa-solid fa-layer-group me-1"></i> Layers</button>
+        <button class="panel-tab" data-panel="ai" onclick="switchTab('ai')"><i class="fa-solid fa-robot me-1" style="color:#8b5cf6;"></i> AI</button>
       </div>
 
       <div class="side-body">
@@ -977,6 +978,21 @@
               <div id="layersList" class="layer-list"></div>
           </div>
         </div><!-- /#panel-layers -->
+
+        <!-- ── AI ── -->
+        <div class="panel-section" id="panel-ai">
+          <div class="cardx fields">
+            <h6><i class="fa-solid fa-robot me-1" style="color:#8b5cf6;"></i> AI Design Assistant</h6>
+            <button class="btn btn-soft btn-sm w-100 mb-2" style="border-color:#8b5cf6; color:#8b5cf6;" onclick="openEditorAiAnalyzer()"><i class="fa-solid fa-crosshairs me-1"></i> Analyze Current Template</button>
+            <div id="edAiAnalyzeResult" class="small text-muted" style="min-height:20px;"></div>
+            <button class="btn btn-soft btn-sm w-100 mb-2" style="border-color:#8b5cf6; color:#8b5cf6;" onclick="openEditorAiDesigner()"><i class="fa-solid fa-pen-fancy me-1"></i> Generate Layout from Prompt</button>
+            <div id="edAiDesignResult" class="small text-muted" style="min-height:20px;"></div>
+            <button class="btn btn-soft btn-sm w-100 mb-2" style="border-color:#8b5cf6; color:#8b5cf6;" onclick="openEditorAiColors()"><i class="fa-solid fa-palette me-1"></i> Smart Color Suggestions</button>
+            <div id="edAiColorResult" class="small text-muted" style="min-height:20px;"></div>
+            <button class="btn btn-soft btn-sm w-100 mb-2" style="border-color:#8b5cf6; color:#8b5cf6;" onclick="openEditorAiValidator()"><i class="fa-solid fa-clipboard-check me-1"></i> Validate Design (WCAG)</button>
+            <div id="edAiValidateResult" class="small text-muted" style="min-height:20px;"></div>
+          </div>
+        </div><!-- /#panel-ai -->
 
       </div><!-- /.side-body -->
 
@@ -4800,6 +4816,350 @@
       canvas.on('selection:created', _autoTabOnSelect);
       canvas.on('selection:updated', _autoTabOnSelect);
     }
+
+    // ═══════════════════════════════════════════════════════════════
+    // AI DESIGN STUDIO — Visual Editor Functions
+    // ═══════════════════════════════════════════════════════════════
+
+    function edAiGetCSRF() {
+      const meta = document.querySelector('meta[name="csrf-token"]');
+      return meta ? meta.getAttribute('content') : '';
+    }
+
+    function edAiShowResponse(containerId, html) {
+      const el = document.getElementById(containerId);
+      if (el) { el.innerHTML = html; el.style.display = 'block'; }
+    }
+
+    function edAiRenderSwatches(containerId, colors) {
+      const container = document.getElementById(containerId);
+      if (!container) return;
+      let h = '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;">';
+      colors.forEach((c) => {
+        const hex = typeof c === 'string' ? c : (c.hex || c.color || '#000000');
+        h += '<div style="text-align:center;">';
+        h += '<div style="width:40px;height:40px;border-radius:6px;background:' + hex + ';border:1px solid #ddd;"></div>';
+        h += '<div style="font-size:0.6rem;font-family:monospace;margin-top:2px;">' + hex + '</div>';
+        h += '</div>';
+      });
+      h += '</div>';
+      container.innerHTML = h;
+    }
+
+    function edAiRenderChecklist(containerId, items) {
+      const container = document.getElementById(containerId);
+      if (!container) return;
+      let h = '<div style="display:flex;flex-direction:column;gap:4px;margin-top:8px;">';
+      items.forEach((item) => {
+        const icon = item.status === 'ok' ? '<i class="fa-solid fa-check" style="color:#059669;"></i>' :
+                     item.status === 'warn' ? '<i class="fa-solid fa-exclamation" style="color:#d97706;"></i>' :
+                     '<i class="fa-solid fa-xmark" style="color:#dc2626;"></i>';
+        const color = item.status === 'ok' ? '#059669' : item.status === 'warn' ? '#d97706' : '#dc2626';
+        h += '<div style="display:flex;align-items:flex-start;gap:6px;padding:4px 6px;border-radius:4px;border-left:3px solid ' + color + ';font-size:0.78rem;background:rgba(0,0,0,0.02);">' + icon + ' ' + item.label + '</div>';
+      });
+      h += '</div>';
+      container.innerHTML = h;
+    }
+
+    // ── AI Analyzer (inline in panel) --
+
+    function openEditorAiAnalyzer() {
+      const resultEl = document.getElementById('edAiAnalyzeResult');
+      resultEl.innerHTML = '<span class="text-muted"><i class="fa-solid fa-spinner fa-spin"></i> Analyzing template...</span>';
+      resultEl.style.display = 'block';
+
+      const templateId = (window._currTemplateId || (document.querySelector('#saveBtn') && document.querySelector('#saveBtn').dataset && document.querySelector('#saveBtn').dataset.templateId) || '');
+
+      const formData = new FormData();
+      formData.append('side', (typeof currentEditorSide !== 'undefined' && currentEditorSide === 'back') ? 'back' : 'front');
+
+      const imgEl = document.getElementById('templateImage');
+      if (imgEl && imgEl.src) {
+        fetch(imgEl.src).then(r => r.blob()).then(blob => {
+          formData.append('image', blob, 'template.png');
+          submitEditorAiAnalyze(formData);
+        }).catch(() => {
+          formData.append('template_id', templateId);
+          submitEditorAiAnalyze(formData);
+        });
+      } else {
+        canvas.toBlob(function(blob) {
+          if (blob) {
+            formData.append('image', blob, 'canvas.png');
+          } else {
+            formData.append('template_id', templateId);
+          }
+          submitEditorAiAnalyze(formData);
+        }, 'image/png', 0.9);
+      }
+    }
+
+    async function submitEditorAiAnalyze(formData) {
+      try {
+        const resp = await fetch('/api/ai/analyze-layout', {
+          method: 'POST',
+          headers: { 'X-CSRFToken': edAiGetCSRF() },
+          body: formData,
+        });
+        const data = await resp.json();
+        if (!data.success) {
+          edAiShowResponse('edAiAnalyzeResult', '<span class="text-danger">' + (data.error || 'Analysis failed') + '</span>');
+          return;
+        }
+        const r = data.regions;
+        let html = '<div style="display:flex;flex-direction:column;gap:6px;margin-top:6px;">';
+        if (r.photo) html += '<div style="font-size:0.78rem;"><i class="fa-solid fa-user-circle" style="color:#6366f1;"></i> <strong>Photo:</strong> x:' + r.photo.x + ' y:' + r.photo.y + ' ' + r.photo.width + 'x' + r.photo.height + ' (' + Math.round((r.photo.confidence||0)*100) + '%)</div>';
+        if (r.text && r.text.length) {
+          html += '<div style="font-size:0.78rem;"><i class="fa-solid fa-font" style="color:#10b981;"></i> <strong>Text regions:</strong> ' + r.text.length + '</div>';
+          r.text.forEach((t, i) => { html += '<div style="font-size:0.72rem;padding-left:16px;">#' + (i+1) + ': x:' + t.x + ' y:' + t.y + (t.suggested_field_name ? ' (' + t.suggested_field_name + ')' : '') + '</div>'; });
+        }
+        if (r.qr) html += '<div style="font-size:0.78rem;"><i class="fa-solid fa-qrcode" style="color:#8b5cf6;"></i> <strong>QR:</strong> x:' + r.qr.x + ' y:' + r.qr.y + '</div>';
+        if (r.logo) html += '<div style="font-size:0.78rem;"><i class="fa-solid fa-image" style="color:#ec4899;"></i> <strong>Logo:</strong> x:' + r.logo.x + ' y:' + r.logo.y + '</div>';
+        if (data.color_palette && data.color_palette.length) {
+          html += '<div style="font-size:0.78rem;margin-top:4px;"><strong>Colors:</strong></div><div id="edAiSwatches"></div>';
+        }
+        html += '</div>';
+        edAiShowResponse('edAiAnalyzeResult', html);
+        if (data.color_palette) edAiRenderSwatches('edAiSwatches', data.color_palette);
+        window._edAiLastAnalysis = data;
+      } catch (err) {
+        edAiShowResponse('edAiAnalyzeResult', '<span class="text-danger">Network error: ' + err.message + '</span>');
+      }
+    }
+
+    // ── AI Designer --
+
+    function openEditorAiDesigner() {
+      document.getElementById('edAiDesignerResponse').innerHTML = '';
+      document.getElementById('edAiDesignerModal').style.display = 'flex';
+    }
+
+    function closeEditorAiDesigner() {
+      document.getElementById('edAiDesignerModal').style.display = 'none';
+    }
+
+    async function submitEditorAiDesign() {
+      const prompt = document.getElementById('edAiDesignerPrompt').value.trim();
+      if (!prompt) { alert('Please enter a design prompt.'); return; }
+      const respEl = document.getElementById('edAiDesignerResponse');
+      respEl.innerHTML = '<div class="text-center p-3"><i class="fa-solid fa-spinner fa-spin fa-lg" style="color:#8b5cf6;"></i><p class="mt-2 small">Generating layout...</p></div>';
+      try {
+        const resp = await fetch('/api/ai/design-from-prompt', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': edAiGetCSRF() },
+          body: JSON.stringify({ prompt: prompt, card_width: 1015, card_height: 661 }),
+        });
+        const data = await resp.json();
+        if (!data.success) { respEl.innerHTML = '<span class="text-danger">' + (data.error || 'Generation failed') + '</span>'; return; }
+        const layout = data.layout;
+        let html = '<div class="alert alert-success py-1 px-2 small"><i class="fa-solid fa-check me-1"></i> Layout generated!</div>';
+        if (layout.fields && layout.fields.length) {
+          html += '<div class="small"><strong>Fields:</strong></div>';
+          layout.fields.forEach((f) => {
+            html += '<div class="small ps-2" style="font-size:0.75rem;">' + (f.name || f.label || 'Field') + ': x:' + f.x + ' y:' + f.y + (f.font_size ? ' size:' + f.font_size : '') + '</div>';
+          });
+        }
+        html += '<button class="btn btn-sm mt-2" style="background:#8b5cf6;color:#fff;" onclick="edAiApplyDesign()"><i class="fa-solid fa-check me-1"></i> Apply to Canvas</button>';
+        html += '<details class="mt-2 small"><summary style="cursor:pointer;">Raw JSON</summary><pre class="small" style="max-height:150px;overflow:auto;">' + JSON.stringify(layout, null, 2) + '</pre></details>';
+        respEl.innerHTML = html;
+        window._edAiLastDesign = data;
+      } catch (err) {
+        respEl.innerHTML = '<span class="text-danger">Network error: ' + err.message + '</span>';
+      }
+    }
+
+    function edAiApplyDesign() {
+      const data = window._edAiLastDesign;
+      if (!data || !data.layout || !canvas) return;
+      const layout = data.layout;
+      if (layout.fields) {
+        layout.fields.forEach((f) => {
+          if (typeof addFieldFromAi === 'function') {
+            addFieldFromAi(f);
+          } else {
+            const rect = new fabric.Rect({
+              left: f.x || 0, top: f.y || 0, width: f.width || 200, height: f.height || 30,
+              fill: 'rgba(99,102,241,0.1)', stroke: 'rgba(99,102,241,0.5)', strokeWidth: 1,
+              selectable: true, hasControls: true,
+            });
+            rect.dataType = 'ai-generated';
+            rect.aiFieldData = f;
+            canvas.add(rect);
+          }
+        });
+        canvas.renderAll();
+        switchTab('objects');
+      }
+      closeEditorAiDesigner();
+      showNotification('AI layout applied to canvas!', 'success');
+    }
+
+    // ── AI Color Harmony --
+
+    function openEditorAiColors() {
+      document.getElementById('edAiColorResponse').innerHTML = '';
+      document.getElementById('edAiColorModal').style.display = 'flex';
+      const hexEl = document.getElementById('edAiColorBaseHex');
+      const colorInput = document.getElementById('edAiColorBase');
+      if (hexEl && colorInput) hexEl.textContent = colorInput.value;
+      if (colorInput) colorInput.oninput = function() { if (hexEl) hexEl.textContent = this.value; };
+    }
+
+    function closeEditorAiColor() {
+      document.getElementById('edAiColorModal').style.display = 'none';
+    }
+
+    async function submitEditorAiColor() {
+      const base = document.getElementById('edAiColorBase').value;
+      const scheme = document.getElementById('edAiColorScheme').value;
+      const respEl = document.getElementById('edAiColorResponse');
+      respEl.innerHTML = '<div class="text-center p-3"><i class="fa-solid fa-spinner fa-spin fa-lg" style="color:#8b5cf6;"></i><p class="mt-2 small">Generating palette...</p></div>';
+      try {
+        const resp = await fetch('/api/ai/color-palette', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': edAiGetCSRF() },
+          body: JSON.stringify({ base_color: base, scheme: scheme, n_colors: 5 }),
+        });
+        const data = await resp.json();
+        if (!data.success) { respEl.innerHTML = '<span class="text-danger">' + (data.error || 'Failed') + '</span>'; return; }
+        let html = '<div class="alert alert-success py-1 px-2 small"><i class="fa-solid fa-check me-1"></i> <strong>' + data.scheme + '</strong> palette generated from ' + data.base_color + '</div>';
+        html += '<div id="edAiColorSwatches"></div>';
+        if (data.font_suggestions) {
+          const fs = data.font_suggestions;
+          html += '<div class="small mt-2"><strong>Font Colors:</strong> ';
+          if (fs.primary) html += '<span style="color:' + fs.primary + ';">Primary: ' + fs.primary + '</span> ';
+          if (fs.secondary) html += '<span style="color:' + fs.secondary + ';">Secondary: ' + fs.secondary + '</span> ';
+          if (fs.accent) html += '<span style="color:' + fs.accent + ';">Accent: ' + fs.accent + '</span>';
+          html += '</div>';
+        }
+        html += '<button class="btn btn-sm mt-2" style="background:#8b5cf6;color:#fff;" onclick="edAiApplyColors()"><i class="fa-solid fa-check me-1"></i> Apply Colors</button>';
+        respEl.innerHTML = html;
+        edAiRenderSwatches('edAiColorSwatches', data.colors);
+        window._edAiLastColors = data;
+      } catch (err) {
+        respEl.innerHTML = '<span class="text-danger">Network error: ' + err.message + '</span>';
+      }
+    }
+
+    function edAiApplyColors() {
+      const data = window._edAiLastColors;
+      if (!data || !data.colors || !data.colors.length) return;
+      const colors = data.colors;
+      if (typeof applyAiColorsToTheme === 'function') {
+        applyAiColorsToTheme(colors);
+      } else {
+        showNotification('Palette generated with ' + colors.length + ' colors. Use the swatches above.', 'info');
+      }
+    }
+
+    // ── AI Validator --
+
+    function openEditorAiValidator() {
+      document.getElementById('edAiValidateResponse').innerHTML = '';
+      document.getElementById('edAiValidatorModal').style.display = 'flex';
+    }
+
+    function closeEditorAiValidator() {
+      document.getElementById('edAiValidatorModal').style.display = 'none';
+    }
+
+    async function submitEditorAiValidate() {
+      const respEl = document.getElementById('edAiValidateResponse');
+      respEl.innerHTML = '<div class="text-center p-3"><i class="fa-solid fa-spinner fa-spin fa-lg" style="color:#8b5cf6;"></i><p class="mt-2 small">Validating design...</p></div>';
+      let layoutConfig = {};
+      if (typeof getLayoutConfig === 'function') {
+        layoutConfig = getLayoutConfig();
+      }
+      try {
+        const resp = await fetch('/api/ai/validate-design', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': edAiGetCSRF() },
+          body: JSON.stringify({ layout_config: layoutConfig }),
+        });
+        const data = await resp.json();
+        if (!data.success) { respEl.innerHTML = '<span class="text-danger">' + (data.error || 'Validation failed') + '</span>'; return; }
+        const v = data.validation;
+        let html = '';
+        if (v.overall_score !== undefined) {
+          const sc = v.overall_score;
+          const scColor = sc >= 80 ? '#059669' : sc >= 50 ? '#d97706' : '#dc2626';
+          html += '<div class="text-center p-2 mb-2" style="background:' + scColor + '15;border-radius:8px;border:2px solid ' + scColor + '40;">';
+          html += '<div style="font-size:1.8rem;font-weight:800;color:' + scColor + ';">' + sc + '</div>';
+          html += '<div class="small text-muted">Design Score / 100</div></div>';
+        }
+        if (v.checks && v.checks.length) {
+          edAiRenderChecklist('edAiValidateResponseInner', v.checks);
+          html += '<div id="edAiValidateResponseInner"></div>';
+        }
+        if (v.summary) html += '<div class="small mt-2 p-2" style="background:rgba(0,0,0,0.03);border-radius:6px;">' + v.summary + '</div>';
+        respEl.innerHTML = html;
+        if (v.checks) edAiRenderChecklist('edAiValidateResponseInner', v.checks);
+      } catch (err) {
+        respEl.innerHTML = '<span class="text-danger">Network error: ' + err.message + '</span>';
+      }
+    }
+
   </script>
+
+  <!-- ════ AI MODALS ════ -->
+
+  <!-- AI Designer Modal -->
+  <div id="edAiDesignerModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:10000; justify-content:center; align-items:center;">
+    <div style="background:#fff; border-radius:16px; padding:24px; width:520px; max-width:95vw; box-shadow:0 20px 60px rgba(0,0,0,0.3); position:relative;">
+      <button onclick="closeEditorAiDesigner()" style="position:absolute; top:12px; right:16px; background:none; border:none; font-size:20px; cursor:pointer; color:#64748b;">&times;</button>
+      <h5 style="font-weight:700; margin-bottom:16px;"><i class="fa-solid fa-pen-fancy me-2" style="color:#8b5cf6;"></i>AI Layout Designer</h5>
+      <p class="text-muted small mb-3">Describe your ideal ID card layout and AI will generate it for you.</p>
+      <textarea id="edAiDesignerPrompt" class="form-control mb-3" rows="4" placeholder="e.g., Professional ID card with photo on left, name and title centered, school logo at top right, blue accent colors..." style="border-radius:8px; resize:vertical;"></textarea>
+      <div class="d-flex gap-2 justify-content-end">
+        <button class="btn btn-light btn-sm" onclick="closeEditorAiDesigner()">Cancel</button>
+        <button class="btn btn-sm" style="background:#8b5cf6; color:#fff;" onclick="submitEditorAiDesign()"><i class="fa-solid fa-wand-magic-sparkles me-1"></i> Generate Layout</button>
+      </div>
+      <div id="edAiDesignerResponse" class="mt-3" style="max-height:300px; overflow-y:auto;"></div>
+    </div>
+  </div>
+
+  <!-- AI Color Modal -->
+  <div id="edAiColorModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:10000; justify-content:center; align-items:center;">
+    <div style="background:#fff; border-radius:16px; padding:24px; width:520px; max-width:95vw; box-shadow:0 20px 60px rgba(0,0,0,0.3); position:relative;">
+      <button onclick="closeEditorAiColor()" style="position:absolute; top:12px; right:16px; background:none; border:none; font-size:20px; cursor:pointer; color:#64748b;">&times;</button>
+      <h5 style="font-weight:700; margin-bottom:16px;"><i class="fa-solid fa-palette me-2" style="color:#8b5cf6;"></i>AI Color Harmony</h5>
+      <p class="text-muted small mb-3">Pick a base color and choose a harmony scheme. AI will generate a complete palette.</p>
+      <div class="rowx mb-3">
+        <label style="width:80px;">Base Color</label>
+        <input type="color" id="edAiColorBase" class="form-control form-control-sm" value="#1e40af" style="width:60px; padding:2px; height:32px;">
+        <span id="edAiColorBaseHex" class="small text-muted ms-2">#1e40af</span>
+      </div>
+      <div class="rowx mb-3">
+        <label style="width:80px;">Scheme</label>
+        <select id="edAiColorScheme" class="form-select form-select-sm">
+          <option value="complementary">Complementary</option>
+          <option value="analogous">Analogous</option>
+          <option value="triadic">Triadic</option>
+          <option value="split-complementary">Split Complementary</option>
+          <option value="monochromatic">Monochromatic</option>
+          <option value="wcag-safe">WCAG-Safe Contrast</option>
+        </select>
+      </div>
+      <div class="d-flex gap-2 justify-content-end">
+        <button class="btn btn-light btn-sm" onclick="closeEditorAiColor()">Cancel</button>
+        <button class="btn btn-sm" style="background:#8b5cf6; color:#fff;" onclick="submitEditorAiColor()"><i class="fa-solid fa-wand-magic-sparkles me-1"></i> Generate Palette</button>
+      </div>
+      <div id="edAiColorResponse" class="mt-3" style="max-height:300px; overflow-y:auto;"></div>
+    </div>
+  </div>
+
+  <!-- AI Validator Modal -->
+  <div id="edAiValidatorModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:10000; justify-content:center; align-items:center;">
+    <div style="background:#fff; border-radius:16px; padding:24px; width:520px; max-width:95vw; box-shadow:0 20px 60px rgba(0,0,0,0.3); position:relative;">
+      <button onclick="closeEditorAiValidator()" style="position:absolute; top:12px; right:16px; background:none; border:none; font-size:20px; cursor:pointer; color:#64748b;">&times;</button>
+      <h5 style="font-weight:700; margin-bottom:16px;"><i class="fa-solid fa-clipboard-check me-2" style="color:#8b5cf6;"></i>Design Validator (WCAG)</h5>
+      <p class="text-muted small mb-3">Validate your current ID card design for accessibility and best practices.</p>
+      <div class="d-flex gap-2 justify-content-end mb-3">
+        <button class="btn btn-light btn-sm" onclick="closeEditorAiValidator()">Cancel</button>
+        <button class="btn btn-sm" style="background:#8b5cf6; color:#fff;" onclick="submitEditorAiValidate()"><i class="fa-solid fa-check-double me-1"></i> Run Validation</button>
+      </div>
+      <div id="edAiValidateResponse" style="max-height:360px; overflow-y:auto;"></div>
+    </div>
+  </div>
 </body>
 </html>
