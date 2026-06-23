@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% block title %}NFC Encoding - ID Card Generator{% endblock %}
+{% block content %}
+<div class="container-fluid mt-3">
+<div class="row mb-3">
+<div class="col"><h4><i class="fa-solid fa-wifi me-2"></i>NFC Chip Encoding</h4></div>
+<div class="col-auto">
+<a href="{{ url_for('dashboard.admin') }}" class="btn btn-outline-secondary btn-sm"><i class="fa-solid fa-arrow-left me-1"></i>Back to Admin</a>
+</div>
+</div>
+
+<!-- Stats -->
+<div class="row mb-4" id="nfcStats">
+<div class="col-md-2"><div class="card bg-secondary text-white"><div class="card-body text-center"><h3 id="nfcTotal">0</h3><small>Total</small></div></div></div>
+<div class="col-md-2"><div class="card bg-warning text-dark"><div class="card-body text-center"><h3 id="nfcPending">0</h3><small>Pending</small></div></div></div>
+<div class="col-md-2"><div class="card bg-info text-white"><div class="card-body text-center"><h3 id="nfcEncoded">0</h3><small>Encoded</small></div></div></div>
+<div class="col-md-2"><div class="card bg-success text-white"><div class="card-body text-center"><h3 id="nfcVerified">0</h3><small>Verified</small></div></div></div>
+<div class="col-md-2"><div class="card bg-danger text-white"><div class="card-body text-center"><h3 id="nfcFailed">0</h3><small>Failed</small></div></div></div>
+<div class="col-md-2">
+<div class="card bg-primary text-white" style="cursor:pointer" onclick="openBatchModal()">
+<div class="card-body text-center"><h3><i class="fa-solid fa-plus"></i></h3><small>Batch Encode</small></div>
+</div>
+</div>
+</div>
+
+<!-- Encodings Table -->
+<div class="card">
+<div class="card-header d-flex justify-content-between">
+<span>Encoding Jobs</span>
+<select id="nfcFilterStatus" class="form-select form-select-sm" style="width:auto" onchange="loadEncodings()">
+<option value="">All</option><option value="pending">Pending</option><option value="encoded">Encoded</option><option value="verified">Verified</option><option value="failed">Failed</option>
+</select>
+</div>
+<div class="card-body p-0">
+<table class="table table-hover table-sm mb-0">
+<thead><tr><th>ID</th><th>Student</th><th>Template</th><th>Chip Type</th><th>Status</th><th>UID</th><th>Encoded</th><th>Actions</th></tr></thead>
+<tbody id="nfcTableBody"><tr><td colspan="8" class="text-center text-muted py-3">Loading...</td></tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+
+<!-- Batch Encode Modal -->
+<div class="modal fade" id="batchModal" tabindex="-1">
+<div class="modal-dialog"><div class="modal-content">
+<div class="modal-header"><h5 class="modal-title">Batch NFC Encoding</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+<div class="modal-body">
+<div class="mb-3"><label class="form-label">Template</label>
+<select id="batchTemplate" class="form-select">
+{% for t in templates %}
+<option value="{{ t.id }}">{{ t.school_name }} - {{ t.filename }}</option>
+{% endfor %}
+</select></div>
+<div class="mb-3"><label class="form-label">Chip Type</label>
+<select id="batchChipType" class="form-select">
+<option value="MIFARE_1K">MIFARE 1K</option>
+<option value="MIFARE_4K">MIFARE 4K</option>
+<option value="DESFIRE_EV1">DESFire EV1</option>
+<option value="NTAG213">NTAG213</option>
+<option value="NTAG215">NTAG215</option>
+<option value="NTAG216">NTAG216</option>
+</select></div>
+<p class="text-muted small">This will create encoding jobs for all students in the selected template.</p>
+</div>
+<div class="modal-footer">
+<button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+<button class="btn btn-primary" onclick="submitBatchEncode()">Create Batch Jobs</button>
+</div>
+</div></div>
+</div>
+<script>
+function loadStats(){
+ fetch('/api/v1/nfc-encodings?per_page=1').then(r=>r.json()).then(d=>{
+   if(d.success){
+        // Auto dark mode based on device preference
+        (function() {
+            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            if (prefersDark) { document.body.classList.add('dark'); }
+        })();
+      document.getElementById('nfcPending').textContent=d.stats.pending;
+      document.getElementById('nfcEncoded').textContent=d.stats.encoded;
+      document.getElementById('nfcVerified').textContent=d.stats.verified;
+      document.getElementById('nfcFailed').textContent=d.stats.failed;
+    }
+  });
+}
+function loadEncodings(){
+  const status=document.getElementById('nfcFilterStatus').value;
+  const params=new URLSearchParams({per_page:50});
+  if(status) params.set('status',status);
+  fetch('/api/v1/nfc-encodings?'+params).then(r=>r.json()).then(d=>{
+    if(!d.success) return;
+    const tbody=document.getElementById('nfcTableBody');
+    tbody.innerHTML='';
+    if(!d.encodings.length){ tbody.innerHTML='<tr><td colspan="8" class="text-center text-muted py-3">No encodings</td></tr>'; return; }
+    d.encodings.forEach(e=>{
+      const badge=e.status==='pending'?'warning':e.status==='encoded'?'info':e.status==='verified'?'success':'danger';
+      tbody.innerHTML+=`<tr>
+        <td>${e.id}</td><td>${e.student_id}</td><td>${e.template_id}</td>
+        <td><span class="badge bg-secondary">${e.chip_type}</span></td>
+        <td><span class="badge bg-${badge}">${e.status}</span></td>
+        <td><small>${e.uid||'-'}</small></td>
+        <td><small>${e.encoded_at?e.encoded_at.slice(0,16):'-'}</small></td>
+        <td>
+          ${e.status==='pending'?`<button class="btn btn-xs btn-primary" onclick="doEncode(${e.id})"><i class="fa-solid fa-wifi"></i></button>`:''}
+          ${e.status==='encoded'?`<button class="btn btn-xs btn-success" onclick="doVerify(${e.id})"><i class="fa-solid fa-check"></i></button>`:''}
+        </td></tr>`;
+    });
+  });
+}
+function doEncode(id){fetch('/api/v1/nfc-encodings/'+id+'/encode',{method:'POST'}).then(r=>r.json()).then(d=>{if(d.success){alert('Encoding started');loadEncodings();loadStats();}else alert(d.error);});}
+function doVerify(id){fetch('/api/v1/nfc-encodings/'+id+'/verify',{method:'POST'}).then(r=>r.json()).then(d=>{if(d.success){alert('Verification passed');loadEncodings();loadStats();}else alert(d.error);});}
+function openBatchModal(){new bootstrap.Modal(document.getElementById('batchModal')).show();}
+function submitBatchEncode(){
+  const data={template_id:parseInt(document.getElementById('batchTemplate').value),chip_type:document.getElementById('batchChipType').value};
+  fetch('/api/v1/nfc/batch-encode',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)}).then(r=>r.json()).then(d=>{
+    if(d.success){alert('Created '+d.created+' encoding jobs');bootstrap.Modal.getInstance(document.getElementById('batchModal')).hide();loadEncodings();loadStats();}else alert(d.error);
+  });
+}
+loadStats(); loadEncodings();
+setInterval(loadStats,15000);
+</script>
+{% endblock %}

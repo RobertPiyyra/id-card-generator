@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>{% block title %}ID Card Generator{% endblock %}</title>
+    <link rel="icon" href="data:,">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        :root{--primary:#4f46e5;--success:#059669;--warning:#d97706;--danger:#dc2626;--bg:#f8fafc;--card:#fff;--text:#1e293b;--muted:#64748b;--border:#e2e8f0}
+        body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);margin:0}
+        .card{background:var(--card);border:1px solid var(--border);border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,0.08)}
+        .card-header{background:transparent;border-bottom:1px solid var(--border);padding:16px 20px;font-weight:600}
+        .card-body{padding:20px}
+        .btn-primary{background:var(--primary);border-color:var(--primary)}
+        .btn-success{background:var(--success);border-color:var(--success)}
+        .btn-warning{background:var(--warning);border-color:var(--warning)}
+        .btn-danger{background:var(--danger);border-color:var(--danger)}
+        .badge{font-weight:500;padding:4px 10px;border-radius:20px;font-size:12px}
+        .table{font-size:14px}
+        .table th{font-weight:600;color:var(--muted);border-bottom:2px solid var(--border)}
+        .nav-tabs .nav-link{border:none;color:var(--muted);font-weight:500;padding:10px 16px}
+        .nav-tabs .nav-link.active{color:var(--primary);border-bottom:2px solid var(--primary)}
+        .form-control,.form-select{border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-size:14px}
+        .form-control:focus,.form-select:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(79,70,229,0.1)}
+        .alert{border-radius:8px;border:none;padding:12px 16px}
+        .alert-success{background:#ecfdf5;color:#065f46}
+        .alert-danger{background:#fef2f2;color:#991b1b}
+        .alert-warning{background:#fffbeb;color:#92400e}
+        .alert-info{background:#eff6ff;color:#1e40af}
+        .container{max-width:1400px;margin:0 auto;padding:0 20px}
+        .mt-3{margin-top:12px}.mt-4{margin-top:16px}.mb-3{margin-bottom:12px}.mb-4{margin-bottom:16px}
+        .d-flex{display:flex}.gap-2{gap:8px}.justify-content-between{justify-content:space-between}
+        .align-items-center{align-items:center}.text-center{text-align:center}
+        .text-muted{color:var(--muted)}.small{font-size:12px}
+        pre{background:#f1f5f9;padding:12px;border-radius:8px;overflow-x:auto;font-size:13px}
+        code{background:#f1f5f9;padding:2px 6px;border-radius:4px;font-size:13px}
+        .sticky-top{position:sticky;top:0;z-index:100}
+        .list-group-item{border:1px solid var(--border);padding:10px 16px}
+        .list-group-item.active{background:var(--primary);border-color:var(--primary)}
+        .shadow-sm{box-shadow:0 1px 3px rgba(0,0,0,0.08)}
+        .rounded{border-radius:8px}
+        .border-dashed{border-style:dashed}
+
+        /* ═══════════════════════════════════════════
+           DARK MODE — body.dark overrides
+           ═══════════════════════════════════════════ */
+        body.dark{--bg:#0f172a;--card:#1e293b;--text:#e2e8f0;--muted:#94a3b8;--border:#334155}
+        body.dark .card{background:var(--card);border-color:var(--border);box-shadow:0 1px 3px rgba(0,0,0,0.3)}
+        body.dark .card-header{border-bottom-color:var(--border)}
+        body.dark .table{color:var(--text)}
+        body.dark .table th{color:var(--muted);border-bottom-color:var(--border)}
+        body.dark .table td{border-color:var(--border)}
+        body.dark .nav-tabs .nav-link{color:var(--muted)}
+        body.dark .nav-tabs .nav-link.active{color:var(--primary);border-bottom-color:var(--primary)}
+        body.dark .form-control,body.dark .form-select{background:#1e293b;border-color:var(--border);color:var(--text)}
+        body.dark .form-control:focus,body.dark .form-select:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(79,70,229,0.2)}
+        body.dark .form-control::placeholder{color:#64748b}
+        body.dark .alert-success{background:#064e3b;color:#a7f3d0}
+        body.dark .alert-danger{background:#7f1d1d;color:#fca5a5}
+        body.dark .alert-warning{background:#78350f;color:#fcd34d}
+        body.dark .alert-info{background:#1e3a5f;color:#93c5fd}
+        body.dark .text-muted{color:var(--muted)}
+        body.dark pre{background:#1e293b;color:var(--text)}
+        body.dark code{background:#1e293b;color:var(--text)}
+        body.dark .list-group-item{border-color:var(--border);background:var(--card);color:var(--text)}
+        body.dark .list-group-item.active{background:var(--primary);border-color:var(--primary)}
+        body.dark .shadow-sm{box-shadow:0 1px 3px rgba(0,0,0,0.3)}
+        body.dark .modal-content{background:var(--card);color:var(--text);border-color:var(--border)}
+        body.dark .modal-header{border-bottom-color:var(--border)}
+        body.dark .modal-footer{border-top-color:var(--border)}
+        body.dark .dropdown-menu{background:var(--card);border-color:var(--border)}
+        body.dark .dropdown-item{color:var(--text)}
+        body.dark .dropdown-item:hover{background:#334155}
+        body.dark .navbar{background:var(--card) !important;border-bottom-color:var(--border) !important}
+        body.dark .navbar-brand{color:var(--primary) !important}
+        body.dark .nav-link{color:var(--muted) !important}
+        body.dark .nav-link:hover{color:var(--text) !important}
+        body.dark hr{border-color:var(--border)}
+        body.dark .bg-light{background:#1e293b !important}
+        body.dark .bg-white{background:var(--card) !important}
+        body.dark .text-dark{color:var(--text) !important}
+        body.dark .border{border-color:var(--border) !important}
+        body.dark .input-group-text{background:#1e293b;border-color:var(--border);color:var(--muted)}
+    </style>
+    {% block extra_head %}{% endblock %}
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg" style="background:var(--card);border-bottom:1px solid var(--border);padding:12px 0">
+        <div class="container">
+            <a class="navbar-brand" href="/" style="font-weight:700;color:var(--primary)">
+                <i class="fa-solid fa-id-card me-2"></i>ID Card Generator
+            </a>
+            <div class="navbar-nav ms-auto">
+                {% if session.get('admin') %}
+                <a class="nav-link" href="{{ url_for('dashboard.admin') }}">Admin</a>
+                <a class="nav-link" href="{{ url_for('dashboard.api_docs') }}">API Docs</a>
+                <a class="nav-link" href="{{ url_for('dashboard.print_queue_dashboard') }}">Print Queue</a>
+                <a class="nav-link" href="{{ url_for('dashboard.nfc_dashboard') }}">NFC</a>
+                {% elif session.get('student_email') %}
+                <a class="nav-link" href="{{ url_for('dashboard.student_portal') }}">My Portal</a>
+                {% endif %}
+                <a class="nav-link" href="{{ url_for('dashboard.about') }}">About</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        {% for category, message in messages %}
+        <div class="alert alert-{{ category }} alert-dismissible fade show">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+        {% endfor %}
+        {% endif %}
+        {% endwith %}
+
+        {% block content %}{% endblock %}
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Auto dark mode based on device preference
+        (function() {
+            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            if (prefersDark) { document.body.classList.add('dark'); }
+        })();
+    </script>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

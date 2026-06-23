@@ -46,6 +46,7 @@ api_bp = Blueprint("api", __name__)
 
 # ================== Task Status Route ==================
 @api_bp.route('/taskstatus/<task_id>')
+@admin_required
 def taskstatus(task_id):
     task = _get_bulk_job_state(task_id)
     if not task:
@@ -598,8 +599,8 @@ def preview_modes(student_id):
     student = db.session.get(Student, student_id)
     if not student:
         return jsonify({"success": False, "message": "Student not found"}), 404
-    visual_url = url_for("dashboard.student_preview", student_id=student_id)
-    print_safe_url = url_for("dashboard.generate_preview", student_id=student_id)
+    visual_url = url_for("dashboard.admin_student_preview", student_id=student_id)
+    print_safe_url = url_for("dashboard.generate_student_preview", student_id=student_id)
     corel_url = url_for("corel.corel_preview", template_id=student.template_id, student_id=student_id, side="front")
     return jsonify({"success": True, "visual_url": visual_url, "print_safe_url": print_safe_url, "corel_url": corel_url})
 
@@ -632,7 +633,7 @@ def issue_verify_token_v2(student_id):
         template_id=student.template_id or 0,
         token_id=token_id,
     )
-    return jsonify({"success": True, "token": token, "expires_in": ttl, "verify_url": url_for("api.verify_v2", token=token, _external=True)})
+    return jsonify({"success": True, "token": token, "expires_in": ttl, "verify_url": url_for("verify_routes.verify_card", token=token, _external=True)})
 
 # verification_v2 handler relocated to verify_routes.py
 

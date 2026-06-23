@@ -13,24 +13,7 @@ from app.services.redis_service import _redis_cache_key, _redis_get, _redis_set
 
 logger = logging.getLogger(__name__)
 
-def get_legacy_helpers():
-    import app.legacy_app as legacy
-    return legacy
 
-def _detect_face_crop_box(*args, **kwargs):
-    return get_legacy_helpers()._detect_face_crop_box(*args, **kwargs)
-
-def _crop_with_padding(*args, **kwargs):
-    return get_legacy_helpers()._crop_with_padding(*args, **kwargs)
-
-def _center_crop_box(*args, **kwargs):
-    return get_legacy_helpers()._center_crop_box(*args, **kwargs)
-
-def _read_uploaded_file_bytes(*args, **kwargs):
-    return get_legacy_helpers()._read_uploaded_file_bytes(*args, **kwargs)
-
-def _fallback_center_crop(*args, **kwargs):
-    return get_legacy_helpers()._fallback_center_crop(*args, **kwargs)
 
 
 
@@ -267,6 +250,7 @@ def auto_crop_face_photo(photo_path, target_width=260, target_height=313):
     except Exception as e:
         logger.exception(f"Smart crop failed: {e}")
         try:
+            from app.services.face_service import _fallback_center_crop
             image_open = getattr(Image, "open_original", Image.open)
             return _fallback_center_crop(image_open(photo_path), photo_path, target_width, target_height)
         except Exception:
@@ -303,7 +287,11 @@ def _process_photo_pil(pil_img, target_width=260, target_height=313, cache_key_e
             except Exception:
                 pass
 
-        # ================= ORIGINAL LOGIC =================
+        from app.services.face_service import (
+            _detect_face_crop_box,
+            _center_crop_box,
+            _crop_with_padding,
+        )
 
         pil_img.load()
         pil_img = pil_img.copy()
@@ -361,6 +349,7 @@ def _prepare_uploaded_student_photo_bytes(file_storage, photo_settings=None):
     Validate and normalize an uploaded student photo to JPEG bytes.
     Falls back to a normalized original if smart processing fails.
     """
+    from app.services.file_service import _read_uploaded_file_bytes
     photo_settings = photo_settings or {}
     raw_bytes = _read_uploaded_file_bytes(file_storage, file_label="photo")
     return _prepare_student_photo_image_bytes(

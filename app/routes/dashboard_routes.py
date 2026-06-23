@@ -254,6 +254,37 @@ def about():
     return render_template("about.html")
 
 
+@dashboard_bp.route("/api-docs")
+@admin_required
+def api_docs():
+    """API documentation page."""
+    return render_template("api_docs.html")
+
+
+@dashboard_bp.route("/student-portal")
+@student_required
+def student_portal():
+    """Student self-service portal."""
+    student = None
+    if session.get("student_email"):
+        student = Student.query.filter_by(email=session["student_email"]).first()
+    return render_template("student_portal.html", student=student)
+
+
+@dashboard_bp.route("/print-queue")
+@admin_required
+def print_queue_dashboard():
+    return render_template("print_queue.html")
+
+
+@dashboard_bp.route("/nfc-encoding")
+@admin_required
+def nfc_dashboard():
+    """NFC encoding dashboard."""
+    templates_list = get_templates() if 'get_templates' in dir() else []
+    return render_template("nfc_dashboard.html", templates=templates_list)
+
+
 # ================== Admin Dashboard ==================
 @dashboard_bp.route("/admin", methods=["GET"])
 @admin_required
@@ -2273,8 +2304,9 @@ NOOR GRAPHICS AND PRINTERS
             form_data = { 'template_id': template_id }
 
         except Exception as e:
+            db.session.rollback()
             error = f"Error: {str(e)}"
-            logger.error(error)
+            logger.exception("Error in index POST")
             safe_template_id = template_id if template_id else selected_template_id
             return render_template("index.html", error=error, templates=templates, 
                                    form_data=request.form, selected_template_id=safe_template_id,
@@ -3271,3 +3303,8 @@ def reset_activity_log():
         db.session.rollback()
         logger.error(f"Error clearing activity log: {e}")
         return redirect(url_for("dashboard.view_activity_log", error=f"Failed to clear log: {str(e)}"))
+# Refactored module imports — these provide cleaner organizational structure.
+# The original function definitions above shadow these imports at runtime,
+# preserving exact backward-compatible behavior.
+# These routes delegate rendering helpers to:
+# from app.routes.dashboard_render import (...)

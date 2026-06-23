@@ -1,3 +1,4 @@
+from functools import lru_cache
 """
 Font utilities: discovery, validation, loading, fallback resolution.
 
@@ -15,10 +16,10 @@ Cross-module deps:
 - app.utils.helper_utils for FONTS_FOLDER, DEFAULT_FONTS
 - app.utils.text_utils for process_text_for_drawing (Hindi/Arabic shaping)
 """
-
 import logging
 import os
 import re
+import time
 
 from PIL import ImageFont
 
@@ -31,7 +32,10 @@ logger = logging.getLogger(__name__)
 _FONT_CMAP_CACHE = {}
 _FONT_PIL_CACHE = {}
 _FONT_MISSING_GLYPH_WARNED = set()
-_REQUESTED_FONT_UNSAFE_WARNED = set()
+# Cache for get_available_fonts() — avoids filesystem scan on every admin page load
+_AVAILABLE_FONT_CACHE = None
+_AVAILABLE_FONT_CACHE_TIME = 0
+_FONT_CACHE_TTL = 60  # seconds
 
 
 # ================== Font Validation & Discovery ==================
@@ -46,9 +50,15 @@ def is_valid_font_file(filepath):
 
 
 def get_available_fonts():
+    global _AVAILABLE_FONT_CACHE, _AVAILABLE_FONT_CACHE_TIME
+    now = time.time()
+    if _AVAILABLE_FONT_CACHE is not None and (now - _AVAILABLE_FONT_CACHE_TIME) < _FONT_CACHE_TTL:
+        return _AVAILABLE_FONT_CACHE
     fonts = [f for f in os.listdir(FONTS_FOLDER) if f.lower().endswith((".ttf", ".otf"))]
     valid_fonts = [f for f in fonts if is_valid_font_file(os.path.join(FONTS_FOLDER, f))]
-    return valid_fonts or DEFAULT_FONTS
+    _AVAILABLE_FONT_CACHE = valid_fonts or DEFAULT_FONTS
+    _AVAILABLE_FONT_CACHE_TIME = now
+    return _AVAILABLE_FONT_CACHE
 
 
 # ================== Default Font Config ==================
@@ -79,6 +89,8 @@ def get_default_font_config():
         "enable_colon_gradient": False,
         "colon_font_color_bottom": [51, 51, 51],
     }
+
+get_default_font_config = lru_cache(maxsize=1)(get_default_font_config)
 
 
 def get_font_settings_for_orientation(template_id, font_settings):

@@ -1,0 +1,1586 @@
+[
+  {
+    "route": "/about",
+    "method": "GET",
+    "status": 500,
+    "response_time_ms": 21.33,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 21.09
+  },
+  {
+    "route": "/verify/v2/<token>",
+    "method": "GET",
+    "status": 200,
+    "response_time_ms": 20.61,
+    "query_count": 4,
+    "total_query_time_ms": 14.9,
+    "memory_delta_kb": 79.96
+  },
+  {
+    "route": "/enterprise/admin/security/2fa/verify",
+    "method": "POST",
+    "status": 302,
+    "response_time_ms": 20.61,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 16.97
+  },
+  {
+    "route": "/test_color_render",
+    "method": "GET",
+    "status": 200,
+    "response_time_ms": 17.29,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 13.33
+  },
+  {
+    "route": "/verify/<token>",
+    "method": "GET",
+    "status": 200,
+    "response_time_ms": 17.29,
+    "query_count": 4,
+    "total_query_time_ms": 3.82,
+    "memory_delta_kb": 82.38
+  },
+  {
+    "route": "/enterprise/admin/security/2fa/disable",
+    "method": "POST",
+    "status": 302,
+    "response_time_ms": 14.42,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 16.66
+  },
+  {
+    "route": "/enterprise/admin/reports/students",
+    "method": "GET",
+    "status": 302,
+    "response_time_ms": 12.43,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 12.59
+  },
+  {
+    "route": "/graphql",
+    "method": "POST",
+    "status": 302,
+    "response_time_ms": 10.59,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 17.23
+  },
+  {
+    "route": "/enterprise/admin/archive",
+    "method": "GET",
+    "status": 302,
+    "response_time_ms": 10.55,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 12.68
+  },
+  {
+    "route": "/enterprise/admin/security",
+    "method": "GET",
+    "status": 302,
+    "response_time_ms": 10.2,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 12.68
+  },
+  {
+    "route": "/enterprise/admin/security/2fa/status",
+    "method": "GET",
+    "status": 302,
+    "response_time_ms": 10.03,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 13.14
+  },
+  {
+    "route": "/admin/bulk-jobs/<task_id>/failed-rows.csv",
+    "method": "GET",
+    "status": 302,
+    "response_time_ms": 9.54,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 13.01
+  },
+  {
+    "route": "/bulk_generate",
+    "method": "POST",
+    "status": 302,
+    "response_time_ms": 8.92,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 16.56
+  },
+  {
+    "route": "/admin/students/<int:student_id>/photo-quality",
+    "method": "POST",
+    "status": 302,
+    "response_time_ms": 8.81,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 18.1
+  },
+  {
+    "route": "/admin_add_student_credential",
+    "method": "POST",
+    "status": 400,
+    "response_time_ms": 8.71,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 12.69
+  },
+  {
+    "route": "/enterprise/admin/webhooks",
+    "method": "GET",
+    "status": 302,
+    "response_time_ms": 8.57,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 12.68
+  },
+  {
+    "route": "/admin/register_school_admin",
+    "method": "POST",
+    "status": 400,
+    "response_time_ms": 8.47,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 13.06
+  },
+  {
+    "route": "/enterprise/admin/webhooks/<int:wh_id>/test",
+    "method": "POST",
+    "status": 302,
+    "response_time_ms": 8.41,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 18.14
+  },
+  {
+    "route": "/enterprise/admin/ocr/scan",
+    "method": "POST",
+    "status": 302,
+    "response_time_ms": 8.4,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 16.75
+  },
+  {
+    "route": "/enterprise/admin/access-policies",
+    "method": "GET",
+    "status": 302,
+    "response_time_ms": 8.32,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 12.53
+  },
+  {
+    "route": "/forgot_password",
+    "method": "POST",
+    "status": 302,
+    "response_time_ms": 8.25,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 14.91
+  },
+  {
+    "route": "/api/ai/analyze-layout",
+    "method": "POST",
+    "status": 400,
+    "response_time_ms": 7.78,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 13.24
+  },
+  {
+    "route": "/admin/analytics/overview",
+    "method": "GET",
+    "status": 302,
+    "response_time_ms": 7.76,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 12.68
+  },
+  {
+    "route": "/enterprise/admin/security/2fa/regenerate-backup",
+    "method": "POST",
+    "status": 302,
+    "response_time_ms": 7.67,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 16.82
+  },
+  {
+    "route": "/favicon.ico",
+    "method": "GET",
+    "status": 204,
+    "response_time_ms": 7.55,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 11.06
+  },
+  {
+    "route": "/update_template_settings",
+    "method": "POST",
+    "status": 302,
+    "response_time_ms": 7.53,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 17.13
+  },
+  {
+    "route": "/admin/disaster-recovery/snapshots",
+    "method": "GET",
+    "status": 302,
+    "response_time_ms": 7.51,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 12.69
+  },
+  {
+    "route": "/enterprise/admin/api/search/templates",
+    "method": "GET",
+    "status": 302,
+    "response_time_ms": 7.27,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 12.64
+  },
+  {
+    "route": "/reset_password/<token>",
+    "method": "POST",
+    "status": 302,
+    "response_time_ms": 7.22,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 16.67
+  },
+  {
+    "route": "/register",
+    "method": "POST",
+    "status": 302,
+    "response_time_ms": 7.14,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 14.9
+  },
+  {
+    "route": "/enterprise/admin/reports/activity",
+    "method": "GET",
+    "status": 302,
+    "response_time_ms": 7.1,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 12.59
+  },
+  {
+    "route": "/delete_all",
+    "method": "POST",
+    "status": 302,
+    "response_time_ms": 7.04,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 16.79
+  },
+  {
+    "route": "/enterprise/admin/api/analytics/stats",
+    "method": "GET",
+    "status": 302,
+    "response_time_ms": 6.95,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 12.8
+  },
+  {
+    "route": "/enterprise/admin/api-keys",
+    "method": "GET",
+    "status": 302,
+    "response_time_ms": 6.94,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 12.52
+  },
+  {
+    "route": "/clear_edit_session",
+    "method": "POST",
+    "status": 302,
+    "response_time_ms": 6.92,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 16.57
+  },
+  {
+    "route": "/admin/template/<int:template_id>/batch-rules",
+    "method": "POST",
+    "status": 302,
+    "response_time_ms": 6.87,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 18.09
+  },
+  {
+    "route": "/update_font",
+    "method": "POST",
+    "status": 302,
+    "response_time_ms": 6.75,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 16.81
+  },
+  {
+    "route": "/admin/download_compiled_school_pdf/<int:template_id>",
+    "method": "GET",
+    "status": 302,
+    "response_time_ms": 6.62,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 17.99
+  },
+  {
+    "route": "/admin/bulk_upload_guide",
+    "method": "GET",
+    "status": 302,
+    "response_time_ms": 6.6,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 12.51
+  },
+  {
+    "route": "/upload_qr_logo",
+    "method": "POST",
+    "status": 302,
+    "response_time_ms": 6.58,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 16.72
+  },
+  {
+    "route": "/api/ai/validate-design",
+    "method": "POST",
+    "status": 400,
+    "response_time_ms": 6.58,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 13.24
+  },
+  {
+    "route": "/api/v1/nfc/batch-encode",
+    "method": "POST",
+    "status": 400,
+    "response_time_ms": 6.57,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 13.45
+  },
+  {
+    "route": "/upload_font",
+    "method": "POST",
+    "status": 302,
+    "response_time_ms": 6.51,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 16.97
+  },
+  {
+    "route": "/enterprise/admin/reports",
+    "method": "GET",
+    "status": 302,
+    "response_time_ms": 6.49,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 12.68
+  },
+  {
+    "route": "/school_admin_login",
+    "method": "POST",
+    "status": 302,
+    "response_time_ms": 6.46,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 16.47
+  },
+  {
+    "route": "/update_password",
+    "method": "POST",
+    "status": 302,
+    "response_time_ms": 6.46,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 16.78
+  },
+  {
+    "route": "/fetch_record",
+    "method": "POST",
+    "status": 302,
+    "response_time_ms": 6.44,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 16.62
+  },
+  {
+    "route": "/admin",
+    "method": "GET",
+    "status": 302,
+    "response_time_ms": 6.21,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 12.39
+  },
+  {
+    "route": "/update_photo_position",
+    "method": "POST",
+    "status": 302,
+    "response_time_ms": 6.18,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 16.6
+  },
+  {
+    "route": "/api/v1/bulk-jobs/<task_id>/cancel",
+    "method": "POST",
+    "status": 400,
+    "response_time_ms": 6.15,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 13.76
+  },
+  {
+    "route": "/enterprise/admin/api/analytics/recent",
+    "method": "GET",
+    "status": 302,
+    "response_time_ms": 6.11,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 12.64
+  },
+  {
+    "route": "/enterprise/admin/security/sessions/revoke-all",
+    "method": "POST",
+    "status": 302,
+    "response_time_ms": 6.07,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 16.6
+  },
+  {
+    "route": "/api/ai/create-template-from-layout",
+    "method": "POST",
+    "status": 400,
+    "response_time_ms": 6.0,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 13.25
+  },
+  {
+    "route": "/request_reprint",
+    "method": "POST",
+    "status": 302,
+    "response_time_ms": 5.98,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 16.47
+  },
+  {
+    "route": "/index",
+    "method": "POST",
+    "status": 302,
+    "response_time_ms": 5.93,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 16.46
+  },
+  {
+    "route": "/health/ready",
+    "method": "GET",
+    "status": 200,
+    "response_time_ms": 5.91,
+    "query_count": 2,
+    "total_query_time_ms": 0.27,
+    "memory_delta_kb": 17.12
+  },
+  {
+    "route": "/api/v1/nfc-encodings/<int:encoding_id>/encode",
+    "method": "POST",
+    "status": 404,
+    "response_time_ms": 5.87,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 18.78
+  },
+  {
+    "route": "/upload_template",
+    "method": "POST",
+    "status": 302,
+    "response_time_ms": 5.86,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 17.15
+  },
+  {
+    "route": "/user_guide",
+    "method": "GET",
+    "status": 200,
+    "response_time_ms": 5.86,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 85.71
+  },
+  {
+    "route": "/admin/template_settings/<int:template_id>",
+    "method": "GET",
+    "status": 302,
+    "response_time_ms": 5.86,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 17.92
+  },
+  {
+    "route": "/enterprise/admin/api/search/activities",
+    "method": "GET",
+    "status": 302,
+    "response_time_ms": 5.86,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 12.8
+  },
+  {
+    "route": "/api-docs",
+    "method": "GET",
+    "status": 403,
+    "response_time_ms": 5.84,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 13.25
+  },
+  {
+    "route": "/admin/template/<int:template_id>/branding",
+    "method": "POST",
+    "status": 302,
+    "response_time_ms": 5.82,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 18.08
+  },
+  {
+    "route": "/api/v1/webhooks/<int:webhook_id>/deliveries",
+    "method": "GET",
+    "status": 404,
+    "response_time_ms": 5.82,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 18.61
+  },
+  {
+    "route": "/delete_pdf/<path:filename>",
+    "method": "POST",
+    "status": 302,
+    "response_time_ms": 5.76,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 16.69
+  },
+  {
+    "route": "/admin/bulk-jobs/<task_id>/cancel",
+    "method": "POST",
+    "status": 400,
+    "response_time_ms": 5.76,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 13.27
+  },
+  {
+    "route": "/admin/save_field_settings",
+    "method": "POST",
+    "status": 400,
+    "response_time_ms": 5.7,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 12.75
+  },
+  {
+    "route": "/update_duplicate_settings",
+    "method": "POST",
+    "status": 302,
+    "response_time_ms": 5.68,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 16.5
+  },
+  {
+    "route": "/update_photo",
+    "method": "POST",
+    "status": 302,
+    "response_time_ms": 5.66,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 16.47
+  },
+  {
+    "route": "/admin/audit-events",
+    "method": "GET",
+    "status": 302,
+    "response_time_ms": 5.65,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 12.46
+  },
+  {
+    "route": "/enterprise/admin/api/search/students",
+    "method": "GET",
+    "status": 302,
+    "response_time_ms": 5.64,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 12.8
+  },
+  {
+    "route": "/enterprise/admin/security/sessions/<int:session_id>/revoke",
+    "method": "POST",
+    "status": 302,
+    "response_time_ms": 5.63,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 18.29
+  },
+  {
+    "route": "/enterprise/admin/api/monitoring/metrics",
+    "method": "GET",
+    "status": 302,
+    "response_time_ms": 5.63,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 12.96
+  },
+  {
+    "route": "/api/ai/field-detection",
+    "method": "POST",
+    "status": 400,
+    "response_time_ms": 5.56,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 13.4
+  },
+  {
+    "route": "/remove_template/<int:template_id>",
+    "method": "POST",
+    "status": 404,
+    "response_time_ms": 5.52,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 17.67
+  },
+  {
+    "route": "/admin/reset_activity_log",
+    "method": "POST",
+    "status": 400,
+    "response_time_ms": 5.5,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 12.9
+  },
+  {
+    "route": "/admin/generate_preview/<int:student_id>",
+    "method": "GET",
+    "status": 302,
+    "response_time_ms": 5.47,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 17.91
+  },
+  {
+    "route": "/",
+    "method": "GET",
+    "status": 200,
+    "response_time_ms": 5.46,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 90.05
+  },
+  {
+    "route": "/admin/download_student_pdf/<int:student_id>",
+    "method": "GET",
+    "status": 302,
+    "response_time_ms": 5.46,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 17.94
+  },
+  {
+    "route": "/api/v1/nfc-encodings/<int:encoding_id>",
+    "method": "GET",
+    "status": 404,
+    "response_time_ms": 5.44,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 18.58
+  },
+  {
+    "route": "/admin/import-mappings/preview",
+    "method": "POST",
+    "status": 400,
+    "response_time_ms": 5.43,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 12.96
+  },
+  {
+    "route": "/admin/disaster-recovery/restore-to-date",
+    "method": "POST",
+    "status": 400,
+    "response_time_ms": 5.4,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 12.81
+  },
+  {
+    "route": "/enterprise/admin/api/analytics/students",
+    "method": "GET",
+    "status": 302,
+    "response_time_ms": 5.38,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 12.65
+  },
+  {
+    "route": "/update_email",
+    "method": "POST",
+    "status": 302,
+    "response_time_ms": 5.34,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 16.47
+  },
+  {
+    "route": "/enterprise/admin/organizations",
+    "method": "GET",
+    "status": 302,
+    "response_time_ms": 5.33,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 12.68
+  },
+  {
+    "route": "/enterprise/admin/api/monitoring/collect",
+    "method": "POST",
+    "status": 302,
+    "response_time_ms": 5.2,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 16.66
+  },
+  {
+    "route": "/admin_preview_card",
+    "method": "POST",
+    "status": 400,
+    "response_time_ms": 5.17,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 12.77
+  },
+  {
+    "route": "/admin/activity_log",
+    "method": "GET",
+    "status": 302,
+    "response_time_ms": 5.17,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 12.46
+  },
+  {
+    "route": "/print-queue",
+    "method": "GET",
+    "status": 302,
+    "response_time_ms": 5.16,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 12.44
+  },
+  {
+    "route": "/enterprise/admin/security/sessions",
+    "method": "GET",
+    "status": 302,
+    "response_time_ms": 5.16,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 12.74
+  },
+  {
+    "route": "/admin/template/<int:template_id>/qa-settings",
+    "method": "POST",
+    "status": 302,
+    "response_time_ms": 5.12,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 18.09
+  },
+  {
+    "route": "/admin/delete_school_sheets/<int:template_id>",
+    "method": "POST",
+    "status": 302,
+    "response_time_ms": 5.05,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 18.09
+  },
+  {
+    "route": "/api/v1/print-history",
+    "method": "GET",
+    "status": 401,
+    "response_time_ms": 4.97,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 13.06
+  },
+  {
+    "route": "/enterprise/admin/security/2fa/setup",
+    "method": "POST",
+    "status": 302,
+    "response_time_ms": 4.97,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 16.66
+  },
+  {
+    "route": "/api/ai/design-from-prompt",
+    "method": "POST",
+    "status": 400,
+    "response_time_ms": 4.97,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 13.4
+  },
+  {
+    "route": "/test_preview",
+    "method": "GET",
+    "status": 302,
+    "response_time_ms": 4.94,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 12.6
+  },
+  {
+    "route": "/admin_update_student_credential/<int:student_id>",
+    "method": "POST",
+    "status": 302,
+    "response_time_ms": 4.93,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 18.06
+  },
+  {
+    "route": "/debug_color/<int:template_id>",
+    "method": "GET",
+    "status": 404,
+    "response_time_ms": 4.92,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 17.5
+  },
+  {
+    "route": "/student_login",
+    "method": "POST",
+    "status": 302,
+    "response_time_ms": 4.92,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 14.91
+  },
+  {
+    "route": "/admin/disaster-recovery/snapshot",
+    "method": "POST",
+    "status": 400,
+    "response_time_ms": 4.91,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 12.75
+  },
+  {
+    "route": "/enterprise/admin/reports/bulk-jobs",
+    "method": "GET",
+    "status": 302,
+    "response_time_ms": 4.91,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 12.74
+  },
+  {
+    "route": "/enterprise/admin/monitoring",
+    "method": "GET",
+    "status": 302,
+    "response_time_ms": 4.88,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 12.53
+  },
+  {
+    "route": "/health",
+    "method": "GET",
+    "status": 200,
+    "response_time_ms": 4.87,
+    "query_count": 2,
+    "total_query_time_ms": 0.71,
+    "memory_delta_kb": 16.71
+  },
+  {
+    "route": "/documentation",
+    "method": "GET",
+    "status": 200,
+    "response_time_ms": 4.87,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 40.72
+  },
+  {
+    "route": "/nfc-encoding",
+    "method": "GET",
+    "status": 302,
+    "response_time_ms": 4.87,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 12.6
+  },
+  {
+    "route": "/api/v1/bulk-jobs/<task_id>",
+    "method": "GET",
+    "status": 401,
+    "response_time_ms": 4.83,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 13.54
+  },
+  {
+    "route": "/admin/template/<int:template_id>/versions",
+    "method": "GET",
+    "status": 302,
+    "response_time_ms": 4.78,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 17.88
+  },
+  {
+    "route": "/enterprise/admin/api/monitoring/health",
+    "method": "GET",
+    "status": 302,
+    "response_time_ms": 4.76,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 12.65
+  },
+  {
+    "route": "/api/ai/color-palette",
+    "method": "POST",
+    "status": 400,
+    "response_time_ms": 4.76,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 13.4
+  },
+  {
+    "route": "/enterprise/admin/api/monitoring/metrics/<metric_name>",
+    "method": "GET",
+    "status": 302,
+    "response_time_ms": 4.72,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 12.97
+  },
+  {
+    "route": "/export_csv",
+    "method": "GET",
+    "status": 302,
+    "response_time_ms": 4.71,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 12.28
+  },
+  {
+    "route": "/api/v1/students",
+    "method": "GET",
+    "status": 401,
+    "response_time_ms": 4.68,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 13.06
+  },
+  {
+    "route": "/enterprise/admin/analytics",
+    "method": "GET",
+    "status": 302,
+    "response_time_ms": 4.67,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 12.68
+  },
+  {
+    "route": "/login",
+    "method": "POST",
+    "status": 302,
+    "response_time_ms": 4.65,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 14.84
+  },
+  {
+    "route": "/corel/corel/preview/<int:template_id>",
+    "method": "GET",
+    "status": 302,
+    "response_time_ms": 4.62,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 17.86
+  },
+  {
+    "route": "/enterprise/admin/ocr",
+    "method": "GET",
+    "status": 302,
+    "response_time_ms": 4.62,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 12.52
+  },
+  {
+    "route": "/download_school_photos_zip/<int:template_id>",
+    "method": "GET",
+    "status": 404,
+    "response_time_ms": 4.61,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 17.58
+  },
+  {
+    "route": "/enterprise/admin/archive/<int:archive_id>/restore",
+    "method": "POST",
+    "status": 302,
+    "response_time_ms": 4.61,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 18.18
+  },
+  {
+    "route": "/api/v1/print-queue/<int:job_id>/reprint",
+    "method": "POST",
+    "status": 404,
+    "response_time_ms": 4.59,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 18.74
+  },
+  {
+    "route": "/api/v1/print-queue",
+    "method": "GET",
+    "status": 401,
+    "response_time_ms": 4.58,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 13.21
+  },
+  {
+    "route": "/enterprise/admin/security/login-history",
+    "method": "GET",
+    "status": 302,
+    "response_time_ms": 4.57,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 12.59
+  },
+  {
+    "route": "/admin/run_cleanup",
+    "method": "POST",
+    "status": 400,
+    "response_time_ms": 4.56,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 12.89
+  },
+  {
+    "route": "/admin/verification-audits",
+    "method": "GET",
+    "status": 302,
+    "response_time_ms": 4.52,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 12.47
+  },
+  {
+    "route": "/api/v1/nfc-encodings/<int:encoding_id>/verify",
+    "method": "POST",
+    "status": 404,
+    "response_time_ms": 4.5,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 18.78
+  },
+  {
+    "route": "/api/v1/webhooks",
+    "method": "GET",
+    "status": 401,
+    "response_time_ms": 4.49,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 13.37
+  },
+  {
+    "route": "/api/v1/students/<int:student_id>",
+    "method": "GET",
+    "status": 404,
+    "response_time_ms": 4.38,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 18.55
+  },
+  {
+    "route": "/admin/students/<int:student_id>/verification-status",
+    "method": "POST",
+    "status": 302,
+    "response_time_ms": 4.37,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 18.13
+  },
+  {
+    "route": "/admin/preview_bulk_template/<int:template_id>",
+    "method": "GET",
+    "status": 302,
+    "response_time_ms": 4.34,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 17.95
+  },
+  {
+    "route": "/logout",
+    "method": "GET",
+    "status": 302,
+    "response_time_ms": 4.32,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 13.18
+  },
+  {
+    "route": "/delete_all_students_by_template/<int:template_id>",
+    "method": "POST",
+    "status": 404,
+    "response_time_ms": 4.27,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 17.77
+  },
+  {
+    "route": "/api/v1/nfc-encodings",
+    "method": "GET",
+    "status": 401,
+    "response_time_ms": 4.26,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 13.06
+  },
+  {
+    "route": "/admin_student_credentials",
+    "method": "GET",
+    "status": 302,
+    "response_time_ms": 4.25,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 12.41
+  },
+  {
+    "route": "/api/v1/templates",
+    "method": "GET",
+    "status": 401,
+    "response_time_ms": 4.25,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 13.06
+  },
+  {
+    "route": "/admin/bulk-jobs",
+    "method": "GET",
+    "status": 302,
+    "response_time_ms": 4.15,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 12.46
+  },
+  {
+    "route": "/admin_reset_student_password/<int:student_id>",
+    "method": "POST",
+    "status": 302,
+    "response_time_ms": 4.13,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 18.04
+  },
+  {
+    "route": "/api/ai/status",
+    "method": "GET",
+    "status": 403,
+    "response_time_ms": 4.13,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 12.99
+  },
+  {
+    "route": "/admin_delete_student_credential/<int:student_id>",
+    "method": "POST",
+    "status": 302,
+    "response_time_ms": 4.1,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 18.06
+  },
+  {
+    "route": "/admin/import-mappings/<int:template_id>",
+    "method": "POST",
+    "status": 302,
+    "response_time_ms": 4.07,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 18.06
+  },
+  {
+    "route": "/force_generate_pdf/<int:template_id>",
+    "method": "POST",
+    "status": 404,
+    "response_time_ms": 4.04,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 17.64
+  },
+  {
+    "route": "/enterprise/admin/api/analytics/verifications",
+    "method": "GET",
+    "status": 302,
+    "response_time_ms": 4.01,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 12.81
+  },
+  {
+    "route": "/debug_template/<int:template_id>",
+    "method": "GET",
+    "status": 404,
+    "response_time_ms": 4.0,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 17.47
+  },
+  {
+    "route": "/admin/test_cloudinary_connection",
+    "method": "GET",
+    "status": 302,
+    "response_time_ms": 4.0,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 12.36
+  },
+  {
+    "route": "/admin/school_admins",
+    "method": "GET",
+    "status": 302,
+    "response_time_ms": 4.0,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 12.46
+  },
+  {
+    "route": "/delete_student/<int:student_id>",
+    "method": "POST",
+    "status": 404,
+    "response_time_ms": 3.97,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 17.71
+  },
+  {
+    "route": "/corel/download_compiled_vector_pdf/<int:template_id>",
+    "method": "GET",
+    "status": 302,
+    "response_time_ms": 3.96,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 17.94
+  },
+  {
+    "route": "/verify/v2/token/<int:student_id>",
+    "method": "POST",
+    "status": 404,
+    "response_time_ms": 3.93,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 17.84
+  },
+  {
+    "route": "/admin/template/<int:template_id>/version-diff/<int:v1_id>/<int:v2_id>",
+    "method": "GET",
+    "status": 302,
+    "response_time_ms": 3.92,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 18.09
+  },
+  {
+    "route": "/student-portal",
+    "method": "GET",
+    "status": 302,
+    "response_time_ms": 3.92,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 12.47
+  },
+  {
+    "route": "/admin/template_editor/<int:template_id>",
+    "method": "GET",
+    "status": 302,
+    "response_time_ms": 3.91,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 17.91
+  },
+  {
+    "route": "/api/v1/print-queue/<int:job_id>/cancel",
+    "method": "POST",
+    "status": 404,
+    "response_time_ms": 3.89,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 18.69
+  },
+  {
+    "route": "/edit/<int:student_id>",
+    "method": "POST",
+    "status": 404,
+    "response_time_ms": 3.86,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 17.6
+  },
+  {
+    "route": "/admin/template/<int:template_id>/form-fields",
+    "method": "POST",
+    "status": 302,
+    "response_time_ms": 3.85,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 18.09
+  },
+  {
+    "route": "/editor/get_template_image/<int:template_id>",
+    "method": "GET",
+    "status": 302,
+    "response_time_ms": 3.83,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 17.89
+  },
+  {
+    "route": "/home",
+    "method": "GET",
+    "status": 302,
+    "response_time_ms": 3.8,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 12.31
+  },
+  {
+    "route": "/admin/delete_school_admin/<int:admin_id>",
+    "method": "POST",
+    "status": 302,
+    "response_time_ms": 3.76,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 18.02
+  },
+  {
+    "route": "/admin/template/<int:template_id>/design-qa",
+    "method": "GET",
+    "status": 302,
+    "response_time_ms": 3.75,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 17.93
+  },
+  {
+    "route": "/admin/template/<int:template_id>/localization-pack",
+    "method": "POST",
+    "status": 302,
+    "response_time_ms": 3.75,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 18.13
+  },
+  {
+    "route": "/admin/get_editor_fields/<int:template_id>",
+    "method": "GET",
+    "status": 302,
+    "response_time_ms": 3.75,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 17.88
+  },
+  {
+    "route": "/admin/preview-modes/<int:student_id>",
+    "method": "GET",
+    "status": 302,
+    "response_time_ms": 3.74,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 17.89
+  },
+  {
+    "route": "/download_template/<int:template_id>",
+    "method": "GET",
+    "status": 404,
+    "response_time_ms": 3.72,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 17.53
+  },
+  {
+    "route": "/admin/template/<int:template_id>/localized-labels",
+    "method": "GET",
+    "status": 302,
+    "response_time_ms": 3.71,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 17.92
+  },
+  {
+    "route": "/debug_session",
+    "method": "GET",
+    "status": 401,
+    "response_time_ms": 3.68,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 12.4
+  },
+  {
+    "route": "/debug_students",
+    "method": "GET",
+    "status": 401,
+    "response_time_ms": 3.67,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 12.4
+  },
+  {
+    "route": "/admin/validate_templates",
+    "method": "GET",
+    "status": 302,
+    "response_time_ms": 3.67,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 12.35
+  },
+  {
+    "route": "/enterprise/admin/organizations/<int:org_id>/departments",
+    "method": "POST",
+    "status": 302,
+    "response_time_ms": 3.67,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 18.17
+  },
+  {
+    "route": "/api/v1/templates/<int:template_id>",
+    "method": "GET",
+    "status": 404,
+    "response_time_ms": 3.61,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 18.56
+  },
+  {
+    "route": "/admin/disaster-recovery/restore/<int:snapshot_id>",
+    "method": "POST",
+    "status": 302,
+    "response_time_ms": 3.57,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 18.18
+  },
+  {
+    "route": "/download_school_excel/<int:template_id>",
+    "method": "GET",
+    "status": 404,
+    "response_time_ms": 3.54,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 17.55
+  },
+  {
+    "route": "/metrics",
+    "method": "GET",
+    "status": 200,
+    "response_time_ms": 3.53,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 13.62
+  },
+  {
+    "route": "/health/live",
+    "method": "GET",
+    "status": 200,
+    "response_time_ms": 3.49,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 14.39
+  },
+  {
+    "route": "/taskstatus/<task_id>",
+    "method": "GET",
+    "status": 302,
+    "response_time_ms": 3.31,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 13.03
+  },
+  {
+    "route": "/enterprise/admin/organizations/<int:org_id>/branches",
+    "method": "POST",
+    "status": 302,
+    "response_time_ms": 3.28,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 18.2
+  },
+  {
+    "route": "/api/v1/bulk-jobs",
+    "method": "GET",
+    "status": 401,
+    "response_time_ms": 3.27,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 13.21
+  },
+  {
+    "route": "/admin/template/<int:template_id>/workflow",
+    "method": "POST",
+    "status": 302,
+    "response_time_ms": 3.08,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 18.08
+  },
+  {
+    "route": "/admin/template/<int:template_id>/rollback/<int:version_id>",
+    "method": "POST",
+    "status": 302,
+    "response_time_ms": 3.06,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 18.18
+  },
+  {
+    "route": "/admin/student_preview/<int:student_id>",
+    "method": "GET",
+    "status": 302,
+    "response_time_ms": 2.95,
+    "query_count": 0,
+    "total_query_time_ms": 0,
+    "memory_delta_kb": 17.91
+  }
+]

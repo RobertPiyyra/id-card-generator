@@ -116,6 +116,11 @@
 </div>
 
 <script>
+    // Auto dark mode based on device preference
+    (function() {
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        if (prefersDark) { document.documentElement.setAttribute('data-theme', 'dark'); }
+    })();
 document.getElementById('btn-save-webhook').addEventListener('click', function() {
     const form = document.getElementById('webhook-form');
     const name = form.querySelector('[name=name]').value;

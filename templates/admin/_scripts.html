@@ -1,4 +1,9 @@
     <script>
+        // Auto dark mode based on device preference
+        (function() {
+            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            if (prefersDark) { document.body.classList.add('dark'); }
+        })();
         let currentTemplateSettings = null;
         let isPasswordVisible = false;
         let currentFormFields = [];
@@ -1806,7 +1811,8 @@
                     card_orientation: card_orientation,
                     language: liveLang,
                     text_direction: liveDir,
-                    ignore_layout_fields: false
+                    ignore_layout_fields: false,
+                    layout_config: (window._aiLastAnalysis && window._aiLastAnalysis._layoutConfig) ? window._aiLastAnalysis._layoutConfig : undefined,
                 })
             })
             .then(response => {
@@ -2706,16 +2712,6 @@
             document.getElementById("resultCount").innerText = totalCount + " results found";
         }
 
-        function toggleTheme() {
-            document.body.classList.toggle("dark");
-            const themeToggle = document.querySelector('.theme-toggle');
-            if (document.body.classList.contains('dark')) {
-                themeToggle.innerHTML = '<i class="fas fa-sun"></i>';
-            } else {
-                themeToggle.innerHTML = '<i class="fas fa-moon"></i>';
-            }
-        }
-
         function confirmDelete() {
             return confirm('Are you absolutely sure you want to delete ALL data and files? This action cannot be undone.');
         }
@@ -3009,7 +3005,6 @@
             const details = document.getElementById('bulkErrorDetails');
 
             btn.disabled = true;
-            window.onbeforeunload = function() { return "Your cards are being generated. This may take some time. Please do not navigate away."; };
             container.style.display = 'block';
             bar.style.width = '0%';
             bar.style.backgroundColor = '#4caf50';
@@ -3024,9 +3019,35 @@
                  },
                  body: formData
             })
-            .then(response => response.json())
+            .then(response => {
+                if (!response.ok) {
+                    return response.text().then(text => {
+                        if (response.status === 401 || response.status === 403 ||
+                            text.indexOf('<!DOCTYPE') !== -1 || text.indexOf('<html') !== -1) {
+                            window.onbeforeunload = null;
+                            window.location.href = '/login?next=' + encodeURIComponent(window.location.pathname);
+                            throw new Error('REDIRECTING');
+                        }
+                        throw new Error(`Server error (${response.status}): ${text.substring(0, 200)}`);
+                    });
+                }
+                const ct = response.headers.get('content-type') || '';
+                if (ct.indexOf('json') === -1) {
+                    return response.text().then(text => {
+                        if (text.indexOf('<!DOCTYPE') !== -1 || text.indexOf('<html') !== -1) {
+                            window.onbeforeunload = null;
+                            window.location.href = '/login?next=' + encodeURIComponent(window.location.pathname);
+                            throw new Error('REDIRECTING');
+                        }
+                        throw new Error(`Unexpected response (${ct}): ${text.substring(0, 200)}`);
+                    });
+                }
+                return response.json();
+            })
             .then(data => {
                 if (data.success) {
+                    // Session is valid — now set the unload warning since generation is running
+                    window.onbeforeunload = function() { return "Your cards are being generated. This may take some time. Please do not navigate away."; };
                     trackBulkJobId(data.task_id);
                     refreshBulkJobsDashboard();
                     pollStatus(data.task_id);
@@ -3044,7 +3065,9 @@
                 }
             })
             .catch(err => {
-                text.innerText = "Network Error: " + err;
+                if (err.message === 'REDIRECTING') return; // already redirecting to login
+                text.innerText = "Network Error: " + err.message;
+                bar.style.backgroundColor = '#dc3545';
                 btn.disabled = false;
                 window.onbeforeunload = null;
             });
@@ -3083,7 +3106,33 @@
 
             const interval = setInterval(() => {
                 fetch(`/taskstatus/${taskId}`)
-                .then(res => res.json())
+                .then(res => {
+                    if (!res.ok) {
+                        return res.text().then(text => {
+                            if (res.status === 401 || res.status === 403 ||
+                                text.indexOf('<!DOCTYPE') !== -1 || text.indexOf('<html') !== -1) {
+                                clearInterval(interval);
+                                window.onbeforeunload = null;
+                                window.location.href = '/login?next=' + encodeURIComponent(window.location.pathname);
+                                throw new Error('REDIRECTING');
+                            }
+                            throw new Error(`Server error (${res.status})`);
+                        });
+                    }
+                    const ct = res.headers.get('content-type') || '';
+                    if (ct.indexOf('json') === -1) {
+                        return res.text().then(text => {
+                            if (text.indexOf('<!DOCTYPE') !== -1 || text.indexOf('<html') !== -1) {
+                                clearInterval(interval);
+                                window.onbeforeunload = null;
+                                window.location.href = '/login?next=' + encodeURIComponent(window.location.pathname);
+                                throw new Error('REDIRECTING');
+                            }
+                            throw new Error('Session expired. Please refresh the page.');
+                        });
+                    }
+                    return res.json();
+                })
                 .then(data => {
                     if (data.state === 'FAILURE' || !data.state) {
                         clearInterval(interval);
@@ -3115,7 +3164,10 @@
                         setTimeout(() => window.location.reload(), 3000);
                     }
                 })
-                .catch(err => console.log("Polling error:", err));
+                .catch(err => {
+                    if (err.message === 'REDIRECTING') return;
+                    console.log("Polling error:", err);
+                });
             }, 2000);
         }
 
@@ -3970,6 +4022,10 @@
         function aiRenderSwatches(containerId, colors, clickHandler) {
             const container = document.getElementById(containerId);
             if (!container) return;
+            if (!Array.isArray(colors)) {
+                console.warn('aiRenderSwatches: expected array, got', typeof colors, colors);
+                return;
+            }
             let html = '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">';
             colors.forEach((c, i) => {
                 const hex = typeof c === 'string' ? c : c.hex || c.color || '#000000';
@@ -4062,21 +4118,120 @@
             const data = window._aiLastAnalysis;
             if (!data || !data.regions) { showNotification('No analysis data available.', 'error'); return; }
             const r = data.regions;
+            let applied = 0;
+
+            // Card dimensions
+            if (data.suggested_card_width) {
+                const el = document.getElementById('cardWidth');
+                if (el) { el.value = data.suggested_card_width; applied++; }
+            }
+            if (data.suggested_card_height) {
+                const el = document.getElementById('cardHeight');
+                if (el) { el.value = data.suggested_card_height; applied++; }
+            }
+
+            // Photo region → photo position/size
             if (r.photo) {
-                const px = document.getElementById('photoX'), py = document.getElementById('photoY');
-                const pw = document.getElementById('photoW'), ph = document.getElementById('photoH');
-                if (px) px.value = r.photo.x;
-                if (py) py.value = r.photo.y;
-                if (pw) pw.value = r.photo.width;
-                if (ph) ph.value = r.photo.height;
+                const setVal = (id, val) => {
+                    const el = document.getElementById(id);
+                    if (el && val !== undefined) { el.value = val; applied++; }
+                };
+                setVal('photoX', r.photo.x);
+                setVal('photoY', r.photo.y);
+                setVal('photoWidth', r.photo.width);
+                setVal('photoHeight', r.photo.height);
             }
+
+            // QR region → QR position/size
             if (r.qr) {
-                const qx = document.getElementById('qrX'), qy = document.getElementById('qrY'), qs = document.getElementById('qrS');
-                if (qx) qx.value = r.qr.x;
-                if (qy) qy.value = r.qr.y;
-                if (qs) qs.value = Math.max(r.qr.width, r.qr.height);
+                const enableQr = document.getElementById('enable_qr');
+                if (enableQr) {
+                    enableQr.checked = true;
+                    applied++;
+                    enableQr.dispatchEvent(new Event('change'));
+                }
+                const setVal = (id, val) => {
+                    const el = document.getElementById(id);
+                    if (el && val !== undefined) { el.value = val; applied++; }
+                };
+                setVal('qrX', r.qr.x);
+                setVal('qrY', r.qr.y);
+                setVal('qrSize', Math.max(r.qr.width || 0, r.qr.height || 0));
             }
-            showNotification('AI layout applied! Review and save.', 'success');
+
+            // Logo region → logo position (if logo fields exist)
+            if (r.logo) {
+                const setVal = (id, val) => {
+                    const el = document.getElementById(id);
+                    if (el && val !== undefined) { el.value = val; applied++; }
+                };
+                setVal('logoX', r.logo.x);
+                setVal('logoY', r.logo.y);
+                setVal('logoWidth', r.logo.width);
+                setVal('logoHeight', r.logo.height);
+            }
+
+            // Text regions → font positioning
+            if (r.text && r.text.length) {
+                const firstText = r.text[0];
+                if (firstText.y !== undefined) {
+                    const startY = document.getElementById('startY');
+                    if (startY) { startY.value = firstText.y; applied++; }
+                }
+                if (r.text.length > 1) {
+                    const gap = r.text[1].y - r.text[0].y;
+                    const lineHeight = document.getElementById('lineHeight');
+                    if (lineHeight && gap > 0) { lineHeight.value = gap; applied++; }
+                }
+                if (firstText.height) {
+                    const labelSize = document.getElementById('labelFontSize');
+                    const valueSize = document.getElementById('valueFontSize');
+                    const estimatedSize = Math.max(8, Math.min(100, Math.round(firstText.height * 0.8)));
+                    if (labelSize) { labelSize.value = estimatedSize; applied++; }
+                    if (valueSize) { valueSize.value = estimatedSize; applied++; }
+                }
+                if (firstText.x !== undefined) {
+                    const labelX = document.getElementById('labelX');
+                    const valueX = document.getElementById('valueX');
+                    if (labelX) { labelX.value = firstText.x; applied++; }
+                    if (valueX) { valueX.value = firstText.x + Math.round(firstText.width * 0.4); applied++; }
+                }
+            }
+
+            // Build layout_config from detected text regions
+            if (r.text && r.text.length) {
+                const layoutFields = {};
+                const fieldKeyMap = {
+                    'name': 'NAME', 'student_name': 'NAME', 'full_name': 'NAME',
+                    'father': 'F_NAME', 'father_name': 'F_NAME', 'f_name': 'F_NAME',
+                    'class': 'CLASS', 'grade': 'CLASS', 'section': 'CLASS',
+                    'dob': 'DOB', 'birth': 'DOB', 'date_of_birth': 'DOB', 'birthdate': 'DOB',
+                    'phone': 'MOBILE', 'mobile': 'MOBILE', 'contact': 'MOBILE', 'tel': 'MOBILE',
+                    'address': 'ADDRESS', 'addr': 'ADDRESS', 'location': 'ADDRESS',
+                };
+                r.text.forEach((t) => {
+                    let fieldKey = null;
+                    if (t.suggested_field_name) {
+                        const suggested = t.suggested_field_name.toLowerCase().replace(/[^a-z0-9_]/g, '_');
+                        fieldKey = fieldKeyMap[suggested] || t.suggested_field_name.toUpperCase();
+                    }
+                    if (fieldKey) {
+                        layoutFields[fieldKey] = {
+                            label_x: t.x,
+                            label_y: t.y,
+                            value_x: t.x + Math.round(t.width * 0.35),
+                            value_y: t.y,
+                            label_font_size: Math.max(8, Math.min(100, Math.round((t.height || 20) * 0.7))),
+                            value_font_size: Math.max(8, Math.min(100, Math.round((t.height || 20) * 0.7))),
+                        };
+                    }
+                });
+                if (Object.keys(layoutFields).length > 0) {
+                    data._layoutConfig = { fields: layoutFields };
+                }
+            }
+
+            showNotification('AI layout applied (' + applied + ' settings)! Review and save.', 'success');
             closeAiAnalyzerModal();
             updateAdminPreview();
         }
@@ -4137,18 +4292,67 @@
             }
         }
 
-        function applyAiDesign() {
+        async function applyAiDesign() {
             const data = window._aiLastDesign;
             if (!data || !data.layout) { showNotification('No design data.', 'error'); return; }
             const layout = data.layout;
-            if (layout.fields && layout.fields.length) {
-                const layoutConfig = { fields: layout.fields };
-                const layoutInput = document.getElementById('layoutConfigJson') || document.querySelector('textarea[name="layout_config"]');
-                if (layoutInput) { layoutInput.value = JSON.stringify(layoutConfig); }
+
+            // Ask user for template name
+            const defaultName = 'AI ' + (layout.style || 'Generated') + ' ' + new Date().toLocaleDateString();
+            let schoolName = prompt('Enter a name for the new template:', defaultName);
+            if (!schoolName) { showNotification('Template creation cancelled.', 'info'); return; }
+            schoolName = schoolName.trim() || defaultName;
+
+            try {
+                showNotification('Creating template...', 'info');
+                const resp = await fetch('/api/ai/create-template-from-layout', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': aiGetCSRF() },
+                    body: JSON.stringify({
+                        layout: layout,
+                        school_name: schoolName,
+                    }),
+                });
+                const result = await resp.json();
+                if (!result.success) {
+                    showNotification('Error: ' + (result.error || 'Failed to create template.'), 'error');
+                    return;
+                }
+
+                // Add new template to the selector
+                const selector = document.getElementById('templateSelector');
+                const opt = document.createElement('option');
+                opt.value = result.template_id;
+                opt.textContent = schoolName;
+                opt.setAttribute('data-font-settings', JSON.stringify(result.font_settings || {}));
+                opt.setAttribute('data-photo-settings', JSON.stringify(result.photo_settings || {}));
+                opt.setAttribute('data-qr-settings', JSON.stringify(result.qr_settings || {}));
+                opt.setAttribute('data-card-orientation', result.orientation || 'landscape');
+                opt.setAttribute('data-card-width', result.card_width || 1015);
+                opt.setAttribute('data-card-height', result.card_height || 661);
+                opt.setAttribute('data-sheet-width', 2480);
+                opt.setAttribute('data-sheet-height', 3508);
+                opt.setAttribute('data-grid-rows', result.orientation === 'portrait' ? 2 : 5);
+                opt.setAttribute('data-grid-cols', result.orientation === 'portrait' ? 5 : 2);
+                opt.setAttribute('data-language', 'english');
+                opt.setAttribute('data-direction', 'ltr');
+                opt.setAttribute('data-is-double-sided', 'false');
+                if (result.layout_config) {
+                    opt.setAttribute('data-layout-config', JSON.stringify(result.layout_config));
+                }
+
+                // Insert after the first option (Select a template...) and select it
+                selector.insertBefore(opt, selector.options[1] || null);
+                selector.value = result.template_id;
+
+                // Trigger onchange to load the new template's settings
+                selector.dispatchEvent(new Event('change'));
+
+                closeAiDesignModal();
+                showNotification(result.message || "Template '" + schoolName + "' created!", 'success');
+            } catch (err) {
+                showNotification('Error creating template: ' + err.message, 'error');
             }
-            showNotification('AI design applied! Review and save.', 'success');
-            closeAiDesignModal();
-            updateAdminPreview();
         }
 
         // ── AI Color Harmony ──
@@ -4190,12 +4394,14 @@
                     if (fs.accent) html += `<div>Accent: <span style="color:${fs.accent};font-weight:700;">${fs.accent}</span></div>`;
                     html += '</div>';
                 }
-                html += `<button class="btn" style="width:100%;background:#ec4899;margin-top:8px;" onclick="applyAiColors()"><i class="fas fa-check"></i> Apply Colors</button>`;
-                html += '</div>';
                 const resultsEl = document.getElementById('aiColorResults');
                 resultsEl.innerHTML = html;
                 resultsEl.style.display = 'block';
-                aiRenderSwatches('aiColorSwatches', data.colors, 'aiApplySingleColor');
+                if (Array.isArray(data.colors)) {
+                    aiRenderSwatches('aiColorSwatches', data.colors, 'aiApplySingleColor');
+                } else {
+                    console.warn('submitAiColorPalette: data.colors is not an array', data.colors);
+                }
                 window._aiLastColors = data;
             } catch (err) {
                 aiClearLoading('aiColorLoading', 'aiColorBtnText', origBtnText);
@@ -4238,11 +4444,70 @@
         async function submitAiValidate() {
             aiSetLoading('aiValidateLoading', 'aiValidateBtnText');
             const origBtnText = '<i class="fas fa-check-double"></i> Validate Current Design';
-            let layoutConfig = {};
+            let layoutConfig = { fields: {} };
             try {
-                const layoutInput = document.getElementById('layoutConfigJson') || document.querySelector('textarea[name="layout_config"]');
-                if (layoutInput && layoutInput.value.trim()) layoutConfig = JSON.parse(layoutInput.value);
-            } catch (e) { /* use empty config */ }
+                const selector = document.getElementById('templateSelector');
+                if (selector && selector.selectedIndex > 0) {
+                    const opt = selector.options[selector.selectedIndex];
+                    const rawConfig = opt.getAttribute('data-layout-config') || '{}';
+                    layoutConfig = JSON.parse(rawConfig) || { fields: {} };
+                }
+            } catch (e) {
+                layoutConfig = { fields: {} };
+            }
+
+            // Override card size and background
+            if (!layoutConfig.background) layoutConfig.background = {};
+            layoutConfig.background.color = '#FFFFFF';
+            const wEl = document.getElementById('cardWidth');
+            if (wEl) layoutConfig.card_width = parseInt(wEl.value) || 1015;
+            const hEl = document.getElementById('cardHeight');
+            if (hEl) layoutConfig.card_height = parseInt(hEl.value) || 661;
+
+            // Override fields based on current template flow settings
+            const startYEl = document.getElementById('startY');
+            const lhEl = document.getElementById('lineHeight');
+            const lblXEl = document.getElementById('labelX');
+            const valXEl = document.getElementById('valueX');
+            const lblSizeEl = document.getElementById('labelFontSize');
+            const valSizeEl = document.getElementById('valueFontSize');
+            const lblColorEl = document.getElementById('labelFontColor');
+            const valColorEl = document.getElementById('valueFontColor');
+
+            if (startYEl && lhEl && lblXEl && valXEl) {
+                const startY = parseInt(startYEl.value) || 0;
+                const lh = parseInt(lhEl.value) || 0;
+                const lblX = parseInt(lblXEl.value) || 0;
+                const valX = parseInt(valXEl.value) || 0;
+                const lblSize = lblSizeEl ? parseInt(lblSizeEl.value) || 14 : 14;
+                const valSize = valSizeEl ? parseInt(valSizeEl.value) || 14 : 14;
+                const lblColor = lblColorEl ? lblColorEl.value : '#000000';
+                const valColor = valColorEl ? valColorEl.value : '#000000';
+
+                const fieldKeys = ["NAME", "F_NAME", "CLASS", "DOB", "MOBILE", "ADDRESS"];
+                fieldKeys.forEach((key, idx) => {
+                    const fieldY = startY + idx * lh;
+                    layoutConfig.fields[key] = {
+                        label: { x: lblX, y: fieldY, font_size: lblSize, color: lblColor, visible: true },
+                        value: { x: valX, y: fieldY, font_size: valSize, color: valColor, visible: true },
+                        colon: { x: valX - 8, y: fieldY, font_size: lblSize, color: lblColor, visible: true }
+                    };
+                });
+            }
+
+            // Override photo coordinates
+            const pxEl = document.getElementById('photoX');
+            const pyEl = document.getElementById('photoY');
+            const pwEl = document.getElementById('photoWidth');
+            const phEl = document.getElementById('photoHeight');
+            if (pxEl && pyEl && pwEl && phEl) {
+                if (!layoutConfig.photo) layoutConfig.photo = {};
+                layoutConfig.photo.enabled = true;
+                layoutConfig.photo.x = parseInt(pxEl.value) || 0;
+                layoutConfig.photo.y = parseInt(pyEl.value) || 0;
+                layoutConfig.photo.width = parseInt(pwEl.value) || 100;
+                layoutConfig.photo.height = parseInt(phEl.value) || 100;
+            }
             try {
                 const resp = await fetch('/api/ai/validate-design', {
                     method: 'POST',

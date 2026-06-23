@@ -585,6 +585,55 @@
       .cardx { padding: 8px 9px; }
       .rowx { grid-template-columns: 54px 1fr 1fr; gap: 5px; }
     }
+
+    /* ═══════════════════════════════════════════
+       DARK MODE — body.dark overrides
+       ═══════════════════════════════════════════ */
+    body.dark {
+      --bg-studio: #0f1117; --bg-workspace: #161822;
+      --bg-panel: rgba(22,24,34,0.92); --bg-panel-solid: #1a1d2e;
+      --bg-surface: rgba(255,255,255,0.04); --bg-surface-hover: rgba(255,255,255,0.07);
+      --bg-surface-active: rgba(255,255,255,0.10);
+      --border-light: rgba(255,255,255,0.07); --border-medium: rgba(255,255,255,0.12);
+      --border-focus: rgba(129,140,248,0.30);
+      --text-main: #e2e8f0; --text-secondary: #94a3b8; --text-muted: #64748b;
+      --shadow-sm: 0 1px 3px rgba(0,0,0,0.3); --shadow-md: 0 8px 30px rgba(0,0,0,0.4);
+      --shadow-lg: 0 20px 50px rgba(0,0,0,0.5); --shadow-glow: 0 0 12px rgba(129,140,248,0.25);
+    }
+    body.dark ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); }
+    body.dark ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.25); }
+    body.dark .form-control, body.dark .form-select { background-color: #1e2235; border-color: var(--border-medium); color: var(--text-main) !important; }
+    body.dark .form-control:focus, body.dark .form-select:focus { background-color: #1e2235; border-color: var(--accent-indigo); }
+    body.dark .form-control:disabled, body.dark .form-select:disabled { background-color: #161822; color: var(--text-muted) !important; }
+    body.dark label { color: var(--text-secondary); }
+    body.dark .btn-outline-light { border-color: var(--border-medium); color: var(--text-secondary); background: transparent; }
+    body.dark .btn-outline-light:hover { background: var(--bg-surface-hover); color: var(--text-main); border-color: var(--text-muted); }
+    body.dark .top { background: rgba(15,17,23,0.92); border-bottom-color: var(--border-light); box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
+    body.dark .toolbar { background: rgba(22,24,34,0.95); border-bottom-color: var(--border-light); }
+    body.dark .toolbar .btn-soft { background: #1e2235; color: var(--text-secondary); border-color: var(--border-medium); }
+    body.dark .toolbar .btn-soft:hover { background: var(--bg-surface-hover); color: var(--text-main); border-color: var(--text-muted); }
+    body.dark .tool-sep { background: var(--border-light); }
+    body.dark .canvas-scroll { background-color: var(--bg-workspace); background-image: radial-gradient(rgba(255,255,255,0.04) 1.5px, transparent 0), radial-gradient(rgba(255,255,255,0.04) 1.5px, transparent 0); }
+    body.dark .canvas-wrap { background: rgba(255,255,255,0.03); border-color: rgba(255,255,255,0.08); }
+    body.dark #editorCanvas { border-color: rgba(255,255,255,0.08); }
+    body.dark .right { border-left-color: var(--border-light); background: var(--bg-panel-solid); }
+    body.dark .side-head { border-bottom-color: var(--border-light); }
+    body.dark .panel-tabs { background: #13151e; border-bottom-color: var(--border-light); }
+    body.dark .panel-tab { color: var(--text-muted); }
+    body.dark .panel-tab:hover { color: var(--text-secondary); background: var(--bg-surface-hover); }
+    body.dark .panel-tab.active { color: #a5b4fc; background: rgba(129,140,248,0.12); }
+    body.dark .cardx { border-color: var(--border-light); background: #1e2235; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
+    body.dark .grid-field { border-color: var(--border-light); background: #13151e; }
+    body.dark .grid-field:hover { border-color: var(--border-medium); }
+    body.dark .layer-item { border-color: var(--border-light); background: rgba(255,255,255,0.02); }
+    body.dark .layer-item:hover { background: var(--bg-surface-hover); }
+    body.dark .layer-item.active { border-color: var(--accent-indigo); background: rgba(129,140,248,0.12); }
+    body.dark .foot { border-top-color: var(--border-light); background: rgba(10,15,30,0.8); }
+    body.dark .status { background: rgba(255,255,255,0.04); border-color: var(--border-light); }
+    body.dark .grow-block { border-top-color: var(--border-light); }
+    body.dark .side-head::before { background: #4a5568; }
+    body.dark #edAiDesignerModal, body.dark #edAiColorModal, body.dark #edAiValidatorModal { background: rgba(0,0,0,0.7); }
+
   </style>
 </head>
 <body>
@@ -1008,6 +1057,11 @@
     const TEMPLATE_ID = {{ template_id }};
     const EDITOR_SIDE = "{{ editor_side }}";
     const CARD_ORIENTATION = "{{ template.card_orientation or 'landscape' }}";
+          // Auto dark mode based on device preference
+          (function() {
+              const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+              if (prefersDark) { document.body.classList.add('dark'); }
+          })();
     const CARD_W = {{ template.card_width or 1015 }};
     const CARD_H = {{ template.card_height or 661 }};
     const SHEET_W = {{ template.sheet_width or 2480 }};
@@ -1090,7 +1144,7 @@
         barcode_width: parseInt(initQR.barcode_width ?? 220, 10),
         barcode_height: parseInt(initQR.barcode_height ?? 70, 10),
       },
-      layout: (typeof initLayout === "object" && initLayout) ? initLayout : { fields: {} },
+      layout: (typeof initLayout === "string" && initLayout && initLayout !== "{}") ? JSON.parse(initLayout) : (typeof initLayout === "object" && initLayout ? initLayout : { fields: {} }),
     };
     if (!state.layout.fields) state.layout.fields = {};
     if (!Array.isArray(state.layout.objects)) state.layout.objects = [];
@@ -4817,6 +4871,95 @@
       canvas.on('selection:updated', _autoTabOnSelect);
     }
 
+    // ── AI Helper Functions --
+
+    function getLayoutConfig() {
+      const cfg = {
+        card_width: typeof CARD_W !== 'undefined' ? CARD_W : 1015,
+        card_height: typeof CARD_H !== 'undefined' ? CARD_H : 661,
+        background: { color: (state && state.font && state.font.background_color) || '#FFFFFF' },
+        fields: {},
+        objects: [],
+        photo: {
+          enabled: !!(state && state.photo && state.photo.enable_photo),
+          x: (state && state.photo && state.photo.photo_x) || 50,
+          y: (state && state.photo && state.photo.photo_y) || 100,
+          width: (state && state.photo && state.photo.photo_width) || 120,
+          height: (state && state.photo && state.photo.photo_height) || 160
+        },
+        qr_code: {
+          enabled: !!(state && state.qr && state.qr.enable_qr),
+          x: (state && state.qr && state.qr.qr_x) || 800,
+          y: (state && state.qr && state.qr.qr_y) || 500,
+          size: (state && state.qr && state.qr.qr_size) || 120
+        }
+      };
+
+      if (typeof canvas !== 'undefined' && canvas) {
+        canvas.getObjects().forEach((obj) => {
+          if (obj.dataType === 'field') {
+            const key = obj.fieldKey;
+            const part = obj.part; // 'label', 'value', 'colon'
+            if (!key || !part) return;
+
+            if (!cfg.fields[key]) {
+              cfg.fields[key] = {};
+            }
+
+            cfg.fields[key][part] = {
+              x: Math.round(obj.left || 0),
+              y: Math.round(obj.top || 0),
+              visible: obj.visible !== false,
+              font_size: Math.round(obj.fontSize || 14),
+              color: obj.fill || '#000000',
+              grow: obj.growMode || 'left'
+            };
+          }
+        });
+      }
+      return cfg;
+    }
+
+    function addFieldFromAi(field) {
+      if (typeof canvas === 'undefined' || !canvas) return;
+      const x = field.x || 0;
+      const y = field.y || 0;
+      const w = field.width || 200;
+      const h = field.height || 30;
+      const text = new fabric.IText(field.label || field.name || 'Field', {
+        left: x, top: y, width: w, height: h,
+        fontSize: field.font_size || 14,
+        fill: field.font_color || '#000000',
+        fontFamily: 'Inter',
+        selectable: true,
+        hasControls: true,
+      });
+      text.dataType = 'ai-generated';
+      text.aiFieldData = field;
+      text.fieldName = field.name || '';
+      canvas.add(text);
+    }
+
+    function applyAiColorsToTheme(colors) {
+      if (!colors || !colors.length) return;
+      let applied = 0;
+      if (typeof canvas !== 'undefined' && canvas) {
+        canvas.getObjects().forEach((obj) => {
+          if (obj.dataType === 'ai-generated' || obj.dataType === 'field') {
+            if (applied < colors.length) {
+              const c = colors[applied];
+              const hex = typeof c === 'string' ? c : (c.hex || c.color || '#000000');
+              obj.set('fill', hex);
+              applied++;
+            }
+          }
+        });
+        canvas.renderAll();
+      }
+      showNotification('AI colors applied to ' + applied + ' element(s)!', 'success');
+    }
+
+
     // ═══════════════════════════════════════════════════════════════
     // AI DESIGN STUDIO — Visual Editor Functions
     // ═══════════════════════════════════════════════════════════════
@@ -4835,6 +4978,10 @@
       const container = document.getElementById(containerId);
       if (!container) return;
       let h = '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;">';
+      if (!Array.isArray(colors)) {
+        console.warn('edAiRenderSwatches: expected array, got', typeof colors, colors);
+        return;
+      }
       colors.forEach((c) => {
         const hex = typeof c === 'string' ? c : (c.hex || c.color || '#000000');
         h += '<div style="text-align:center;">';
@@ -4972,26 +5119,132 @@
       const data = window._edAiLastDesign;
       if (!data || !data.layout || !canvas) return;
       const layout = data.layout;
+      
+      const keyMapping = {
+        "name": "NAME",
+        "father_name": "F_NAME",
+        "class": "CLASS",
+        "dob": "DOB",
+        "phone": "MOBILE",
+        "address": "ADDRESS"
+      };
+
       if (layout.fields) {
+        if (!state.layout) state.layout = {};
+        if (!state.layout.fields) state.layout.fields = {};
+        
         layout.fields.forEach((f) => {
-          if (typeof addFieldFromAi === 'function') {
-            addFieldFromAi(f);
-          } else {
-            const rect = new fabric.Rect({
-              left: f.x || 0, top: f.y || 0, width: f.width || 200, height: f.height || 30,
-              fill: 'rgba(99,102,241,0.1)', stroke: 'rgba(99,102,241,0.5)', strokeWidth: 1,
-              selectable: true, hasControls: true,
-            });
-            rect.dataType = 'ai-generated';
-            rect.aiFieldData = f;
-            canvas.add(rect);
-          }
+          const rawName = f.name || '';
+          const systemKey = keyMapping[rawName.toLowerCase()] || rawName.toUpperCase();
+          
+          state.layout.fields[systemKey] = {
+            label: {
+              x: f.x || 50,
+              y: f.y || 100,
+              visible: f.show_label !== false,
+              font_size: f.font_size || 14,
+              color: f.label_color || f.font_color || '#000000',
+              grow: 'left',
+              manual_y: true
+            },
+            value: {
+              x: (f.x || 50) + Math.round((f.width || 200) * 0.4),
+              y: f.y || 100,
+              visible: true,
+              font_size: f.font_size || 14,
+              color: f.font_color || '#000000',
+              grow: 'left',
+              manual_y: true
+            },
+            colon: {
+              x: (f.x || 50) + Math.round((f.width || 200) * 0.38),
+              y: f.y || 100,
+              visible: f.show_label !== false,
+              font_size: f.font_size || 14,
+              color: f.label_color || f.font_color || '#000000',
+              grow: 'left',
+              manual_y: true
+            }
+          };
+          
+          // Also set legacy flat coordinates so the system works with backward-compat routes
+          state.layout.fields[systemKey].label_x = f.x || 50;
+          state.layout.fields[systemKey].label_y = f.y || 100;
+          state.layout.fields[systemKey].value_x = (f.x || 50) + Math.round((f.width || 200) * 0.4);
+          state.layout.fields[systemKey].value_y = f.y || 100;
+          state.layout.fields[systemKey].colon_x = (f.x || 50) + Math.round((f.width || 200) * 0.38);
+          state.layout.fields[systemKey].colon_y = f.y || 100;
         });
-        canvas.renderAll();
-        switchTab('objects');
       }
+
+      // Apply Photo
+      if (layout.photo && layout.photo.enabled) {
+        state.photo.enable_photo = true;
+        state.photo.photo_x = layout.photo.x || 50;
+        state.photo.photo_y = layout.photo.y || 100;
+        state.photo.photo_width = layout.photo.width || 120;
+        state.photo.photo_height = layout.photo.height || 160;
+        if (layout.photo.border_color) state.photo.photo_frame_color = layout.photo.border_color;
+        if (photoRect) syncPhotoRectFromState();
+      }
+
+      // Apply QR Code
+      if (layout.qr_code && layout.qr_code.enabled) {
+        state.qr.enable_qr = true;
+        state.qr.qr_x = layout.qr_code.x || 800;
+        state.qr.qr_y = layout.qr_code.y || 500;
+        state.qr.qr_size = layout.qr_code.size || 120;
+        if (qrRect) {
+          qrRect.set({
+            left: state.qr.qr_x,
+            top: state.qr.qr_y,
+            width: state.qr.qr_size,
+            height: state.qr.qr_size,
+            visible: true,
+            evented: true,
+            selectable: true
+          });
+        }
+      }
+
+      // Apply Barcode
+      if (layout.barcode && layout.barcode.enabled) {
+        state.barcode.enable_barcode = true;
+        state.barcode.barcode_x = layout.barcode.x || 50;
+        state.barcode.barcode_y = layout.barcode.y || 580;
+        state.barcode.barcode_width = layout.barcode.width || 400;
+        state.barcode.barcode_height = layout.barcode.height || 50;
+        if (barcodeRect) {
+          barcodeRect.set({
+            left: state.barcode.barcode_x,
+            top: state.barcode.barcode_y,
+            width: state.barcode.barcode_width,
+            height: state.barcode.barcode_height,
+            visible: true,
+            evented: true,
+            selectable: true
+          });
+        }
+      }
+
+      // Apply dominant colors from design to font_settings if present
+      if (layout.colors) {
+        if (layout.colors.primary) {
+          state.font.label_font_color = layout.colors.primary;
+        }
+        if (layout.colors.secondary) {
+          state.font.value_font_color = layout.colors.secondary;
+        }
+        if (layout.colors.accent) {
+          state.font.colon_font_color = layout.colors.accent;
+        }
+      }
+
+      syncBlockInputs();
+      redrawFields();
+      canvas.renderAll();
       closeEditorAiDesigner();
-      showNotification('AI layout applied to canvas!', 'success');
+      showNotification('AI design layout successfully applied to canvas! Remember to save.', 'success');
     }
 
     // ── AI Color Harmony --

@@ -22,9 +22,12 @@ def create_app(config_object=None):
 
         # Register Blueprints
         from app.routes import auth_bp, api_bp, dashboard_bp, corel_bp, editor_bp, verify_bp, enterprise_bp, ai_bp
-        from app.legacy_app import student_bp
+        from app.routes.rest_api import rest_api_bp
+        from app.routes.serial_batch_routes import serial_batch_bp
         _app.register_blueprint(auth_bp)
         _app.register_blueprint(api_bp)
+        from app.legacy_app import student_bp
+        _app.register_blueprint(rest_api_bp)
         _app.register_blueprint(dashboard_bp)
         _app.register_blueprint(corel_bp, url_prefix='/corel')
         _app.register_blueprint(editor_bp)
@@ -32,6 +35,7 @@ def create_app(config_object=None):
         _app.register_blueprint(verify_bp)
         _app.register_blueprint(enterprise_bp, url_prefix='/enterprise')
         _app.register_blueprint(ai_bp)
+        _app.register_blueprint(serial_batch_bp, url_prefix='/admin/serial_batches')
 
     if config_object:
         _app.config.from_object(config_object)
@@ -45,3 +49,13 @@ def __getattr__(name):
         create_app()
         return _db
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+# Re-export render helpers for Corel export service discovery
+from app.services.render_service import (
+    build_student_card_text_runs,
+    render_student_card_side,
+    render_student_card_side_background,
+)
+from app.services.photo_service import (
+    load_student_photo_rgba,
+    _process_photo_pil,
+)

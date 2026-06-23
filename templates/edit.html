@@ -510,8 +510,7 @@
   </ul>
 
   <div class="nav-links">
-    <a href="/admin"><i class="fas fa-user-cog"></i>Admin Panel</a>
-    <button class="toggle-btn" id="themeToggle"><i class="fas fa-moon"></i>Toggle Theme</button>
+    <a href="/admin"><i class="fas fa-user-cog"></i> Admin Panel</a>
   </div>
 
   <div class="container">
@@ -663,6 +662,11 @@
   </div>
 
   <script>
+    // Auto dark mode based on device preference
+    (function() {
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        if (prefersDark) { document.body.classList.add('dark'); }
+    })();
     document.addEventListener('DOMContentLoaded', function() {
       // 1. Initial Setup
       const dobInput = document.getElementById('dob');
@@ -759,16 +763,6 @@
           // Trigger once on load to set initial state
           updateFields();
       }
-      
-      // 5. Theme Toggle
-      const toggleBtn = document.getElementById('themeToggle');
-      const themeIcon = toggleBtn.querySelector('i');
-      toggleBtn.addEventListener('click', () => {
-        document.body.classList.toggle('dark');
-        toggleBtn.innerHTML = document.body.classList.contains('dark')
-          ? '<i class="fas fa-sun"></i> Light Mode'
-          : '<i class="fas fa-moon"></i> Dark Mode';
-      });
       
       // 6. UI Animations
       const buttons = document.querySelectorAll('button, .nav-links a, .download-btn');

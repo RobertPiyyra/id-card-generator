@@ -1,0 +1,189 @@
+{% extends "base.html" %}
+{% block title %}My Portal - ID Card Generator{% endblock %}
+{% block extra_head %}
+<style>
+.id-card-preview{max-width:100%;max-height:350px;object-fit:contain;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.15);}
+.webcam-wrap{position:relative;background:#000;border-radius:8px;overflow:hidden;}
+#webcamVideo{width:100%;border-radius:8px;}
+.capture-btn{position:absolute;bottom:15px;left:50%;transform:translateX(-50%);}
+</style>
+{% endblock %}
+{% block content %}
+<div class="container mt-4">
+<div class="row">
+<!-- Profile Sidebar -->
+<div class="col-md-4">
+<div class="card mb-4">
+<div class="card-header bg-primary text-white"><h5 class="mb-0"><i class="fa-solid fa-user me-2"></i>My Profile</h5></div>
+<div class="card-body text-center">
+{% if student and student.photo_url %}
+<img src="{{ student.photo_url }}" id="profilePhoto" class="rounded-circle mb-3 border" style="width:120px;height:120px;object-fit:cover">
+{% else %}
+<div class="bg-light rounded-circle mx-auto mb-3 d-flex align-items-center justify-content-center border" style="width:120px;height:120px">
+<i class="fa-solid fa-user fa-3x text-secondary"></i>
+</div>
+{% endif %}
+<h4>{{ student.name or 'Student' }}</h4>
+<p class="text-muted mb-1">{{ student.class_name or '' }}</p>
+<p class="text-muted"><i class="fa-solid fa-school me-1"></i>{{ student.school_name or '' }}</p>
+</div>
+<ul class="list-group list-group-flush">
+<li class="list-group-item"><strong>ID:</strong> {{ student.id if student else '-' }}</li>
+<li class="list-group-item"><strong>Phone:</strong> {{ student.phone or '-' }}</li>
+<li class="list-group-item"><strong>Email:</strong> {{ student.email or '-' }}</li>
+</ul>
+</div>
+</div>
+
+<!-- Main Content -->
+<div class="col-md-8">
+<!-- ID Card Preview -->
+<div class="card mb-4">
+<div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+<span><i class="fa-solid fa-id-card me-2"></i>My ID Card</span>
+{% if student and student.image_url %}
+<div class="btn-group btn-group-sm">
+<a href="{{ student.image_url }}" class="btn btn-light" download><i class="fa-solid fa-download me-1"></i>Image</a>
+{% if student.pdf_url %}
+<a href="{{ student.pdf_url }}" class="btn btn-light" download><i class="fa-solid fa-file-pdf me-1"></i>PDF</a>
+{% endif %}
+</div>
+{% endif %}
+</div>
+<div class="card-body text-center">
+{% if student and student.image_url %}
+<img src="{{ student.image_url }}" class="id-card-preview" alt="My ID Card">
+{% else %}
+<div class="py-5 text-muted">
+<i class="fa-solid fa-id-card fa-3x mb-3"></i>
+<p>No ID card generated yet. Contact your administrator.</p>
+</div>
+{% endif %}
+</div>
+</div>
+
+<!-- Photo Update with Webcam -->
+<div class="card mb-4">
+<div class="card-header bg-info text-white"><i class="fa-solid fa-camera me-2"></i>Update My Photo</div>
+<div class="card-body">
+<ul class="nav nav-tabs mb-3" id="photoTab">
+<li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#webcamTab"><i class="fa-solid fa-video me-1"></i>Webcam</button></li>
+<li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#uploadTab"><i class="fa-solid fa-upload me-1"></i>Upload</button></li>
+</ul>
+<div class="tab-content">
+<div class="tab-pane fade show active" id="webcamTab">
+<div class="webcam-wrap mb-3">
+<video id="webcamVideo" autoplay playsinline></video>
+<button class="btn btn-primary capture-btn" id="captureBtn" onclick="capturePhoto()"><i class="fa-solid fa-camera me-1"></i>Capture</button>
+</div>
+<canvas id="webcamCanvas" style="display:none"></canvas>
+<div id="capturedPreview" style="display:none" class="text-center">
+<img id="capturedImg" class="img-fluid rounded" style="max-height:200px">
+<p class="text-muted small mt-2">Looks good? Save it below.</p>
+</div>
+<div class="d-grid">
+<button class="btn btn-success" id="savePhotoBtn" style="display:none" onclick="savePhoto()">
+<i class="fa-solid fa-check me-1"></i>Save This Photo
+</button>
+</div>
+<p id="webcamError" class="text-danger small mt-2" style="display:none"></p>
+</div>
+<div class="tab-pane fade" id="uploadTab">
+<div class="border rounded p-4 text-center border-dashed" style="border-style:dashed">
+<i class="fa-solid fa-cloud-upload-alt fa-3x text-muted mb-3"></i>
+<p class="text-muted">Drag & drop your photo here, or click to browse</p>
+<input type="file" id="photoUpload" accept="image/*" class="form-control">
+</div>
+</div>
+</div>
+</div>
+</div>
+
+<!-- Reprint Requests -->
+<div class="card">
+<div class="card-header bg-warning text-dark"><i class="fa-solid fa-rotate-left me-2"></i>Card Requests</div>
+<div class="card-body">
+<button class="btn btn-outline-warning" onclick="requestReprint()">
+<i class="fa-solid fa-print me-1"></i>Request Reprint
+</button>
+<p class="text-muted small mt-2">Request a new print of your ID card if it's lost or damaged.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+
+<script>
+        // Auto dark mode based on device preference
+        (function() {
+            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            if (prefersDark) { document.body.classList.add('dark'); }
+        })();
+let stream=null;
+async function startWebcam(){
+  try{
+    stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user',width:{ideal:640},height:{ideal:480}}});
+    document.getElementById('webcamVideo').srcObject=stream;
+    document.getElementById('webcamError').style.display='none';
+  }catch(e){
+    document.getElementById('webcamError').textContent='Cannot access webcam: '+e.message;
+    document.getElementById('webcamError').style.display='block';
+  }
+}
+function capturePhoto(){
+  const video=document.getElementById('webcamVideo');
+  const canvas=document.getElementById('webcamCanvas');
+  canvas.width=video.videoWidth;
+  canvas.height=video.videoHeight;
+  canvas.getContext('2d').drawImage(video,0,0);
+  const dataUrl=canvas.toDataURL('image/jpeg',0.85);
+  document.getElementById('capturedImg').src=dataUrl;
+  document.getElementById('capturedPreview').style.display='block';
+  document.getElementById('savePhotoBtn').style.display='inline-block';
+  stream.getTracks().forEach(t=>t.stop());
+  document.getElementById('webcamVideo').style.display='none';
+  document.getElementById('captureBtn').style.display='none';
+}
+function savePhoto(){
+  const canvas=document.getElementById('webcamCanvas');
+  canvas.toBlob(function(blob){
+    const fd=new FormData();
+    fd.append('photo',blob,'selfie.jpg');
+    fd.append('_csrf_token',document.querySelector('meta[name=csrf-token]')?.content||'');
+    fetch('/student/update_photo',{method:'POST',body:fd})
+      .then(r=>r.json())
+      .then(d=>{
+        if(d.success){alert('Photo updated! Your new ID card will be generated.');location.reload();}
+        else alert(d.error||'Failed to save photo');
+      }).catch(e=>alert('Error: '+e.message));
+  },'image/jpeg',0.85);
+}
+function requestReprint(){
+  if(!confirm('Request a reprint of your ID card?')) return;
+  const fd=new FormData();
+  fd.append('_csrf_token',document.querySelector('meta[name=csrf-token]')?.content||'');
+  fetch('/student/request_reprint',{method:'POST',body:fd})
+    .then(r=>r.json())
+    .then(d=>{
+      if(d.success)alert('Reprint requested! You will be notified when ready.');
+      else alert(d.error||'Failed to request reprint');
+    }).catch(e=>alert('Error: '+e.message));
+}
+// File upload handler
+document.getElementById('photoUpload')?.addEventListener('change',function(e){
+  const file=e.target.files[0];
+  if(!file)return;
+  const fd=new FormData();
+  fd.append('photo',file);
+  fd.append('_csrf_token',document.querySelector('meta[name=csrf-token]')?.content||'');
+  fetch('/student/update_photo',{method:'POST',body:fd})
+    .then(r=>r.json())
+    .then(d=>{
+      if(d.success){alert('Photo updated!');location.reload();}
+      else alert(d.error||'Failed to upload');
+    });
+});
+// Start webcam on load
+if(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia){startWebcam();}
+</script>
+{% endblock %}

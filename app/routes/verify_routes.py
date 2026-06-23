@@ -36,7 +36,12 @@ def verify_card(token):
             max_age_seconds=86400  # Token valid for 24 hours
         )
         if status == "ok" and payload:
-            student = db.session.get(Student, int(payload.get("sid")))
+            from sqlalchemy.orm import load_only
+            student = Student.query.options(
+                load_only(Student.id, Student.name, Student.father_name, Student.class_name,
+                          Student.dob, Student.phone, Student.photo_url, Student.photo_filename,
+                          Student.school_name, Student.template_id)
+            ).get(int(payload.get("sid")))
             decoded = True
     except Exception as e:
         logger.debug(f"Token decoding exception: {e}")
@@ -45,7 +50,12 @@ def verify_card(token):
     # 2. Fall back to searching by student ID or MD5 hash substring if token decode failed
     if not student:
         identifier = str(token).strip()
-        student = Student.query.filter(
+        from sqlalchemy.orm import load_only
+        student = Student.query.options(
+            load_only(Student.id, Student.name, Student.father_name, Student.class_name,
+                      Student.dob, Student.phone, Student.photo_url, Student.photo_filename,
+                      Student.school_name, Student.template_id)
+        ).filter(
             (db.cast(Student.id, db.String) == identifier) |
             (db.func.substr(Student.data_hash, 1, 10) == identifier)
         ).first()

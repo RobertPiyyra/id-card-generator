@@ -66,12 +66,15 @@
     .progress { border-radius: 10px; overflow: hidden; }
     .progress-bar { background: linear-gradient(90deg, #0052cc, #00d4aa); }
 </style>
-
 <script>
 document.getElementById('bulkForm').onsubmit = async function(e) {
-    e.preventDefault();
+   e.preventDefault();
     const form = e.target;
-    const submitBtn = document.getElementById('submitBtn');
+        // Auto dark mode based on device preference
+        (function() {
+            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            if (prefersDark) { document.body.classList.add('dark'); }
+        })();
     const progressContainer = document.getElementById('progressContainer');
     const progressBar = document.getElementById('progressBar');
     const progressText = document.getElementById('progressText');

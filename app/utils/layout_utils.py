@@ -62,8 +62,8 @@ def get_card_size(template_id=None):
 
 def get_sheet_size(orientation):
     if orientation == 'landscape':
-        return A4_WIDTH_PX, A4_HEIGHT_PX
-    return A4_LANDSCAPE_WIDTH_PX, A4_LANDSCAPE_HEIGHT_PX
+        return A4_LANDSCAPE_WIDTH_PX, A4_LANDSCAPE_HEIGHT_PX
+    return A4_WIDTH_PX, A4_HEIGHT_PX
 
 
 def get_template_orientation(template_id):
@@ -130,6 +130,9 @@ def _normalize_hex_color(value):
         return None
     if re.fullmatch(r"#[0-9a-fA-F]{6}", s):
         return s.upper()
+    if re.fullmatch(r"#[0-9a-fA-F]{3}", s):
+        r, g, b = s[1] * 2, s[2] * 2, s[3] * 2
+        return f"#{r}{g}{b}".upper()
     return None
 
 

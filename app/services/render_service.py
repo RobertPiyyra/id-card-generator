@@ -77,57 +77,24 @@ def _cache_put_template(path_or_url, target_w, target_h, image_bytes):
         _template_cache[cache_key] = image_bytes
 
 
-def get_legacy_helpers():
-    import app.legacy_app as legacy
-    return legacy
-
-def _build_student_image_ref(*args, **kwargs):
-    return get_legacy_helpers()._build_student_image_ref(*args, **kwargs)
-
-def _build_qr_hash(*args, **kwargs):
-    return get_legacy_helpers()._build_qr_hash(*args, **kwargs)
-
-def _build_payload(*args, **kwargs):
-    return get_legacy_helpers()._build_payload(*args, **kwargs)
-
-def _get_cached_qr_image(*args, **kwargs):
-    return get_legacy_helpers()._get_cached_qr_image(*args, **kwargs)
-
-def _get_cached_barcode_image(*args, **kwargs):
-    return get_legacy_helpers()._get_cached_barcode_image(*args, **kwargs)
-
-def _looks_like_pdf_template_source(*args, **kwargs):
-    return get_legacy_helpers()._looks_like_pdf_template_source(*args, **kwargs)
-
-def _flatten_to_rgb(*args, **kwargs):
-    return get_legacy_helpers()._flatten_to_rgb(*args, **kwargs)
-
-def apply_layout_custom_objects_pil(*args, **kwargs):
-    return get_legacy_helpers().apply_layout_custom_objects_pil(*args, **kwargs)
-
-def get_initial_flow_y_for_side(*args, **kwargs):
-    return get_legacy_helpers().get_initial_flow_y_for_side(*args, **kwargs)
-
-def field_within_vertical_bounds(*args, **kwargs):
-    return get_legacy_helpers().field_within_vertical_bounds(*args, **kwargs)
-
-def fit_dynamic_font_to_single_line(*args, **kwargs):
-    return get_legacy_helpers().fit_dynamic_font_to_single_line(*args, **kwargs)
-
-def order_to_field_key(*args, **kwargs):
-    return get_legacy_helpers().order_to_field_key(*args, **kwargs)
-
-def translate_value_for_template_side(*args, **kwargs):
-    return get_legacy_helpers().translate_value_for_template_side(*args, **kwargs)
-
-def resolve_field_layout_for_side(*args, **kwargs):
-    return get_legacy_helpers().resolve_field_layout_for_side(*args, **kwargs)
-
-def field_advances_layout_flow(*args, **kwargs):
-    return get_legacy_helpers().field_advances_layout_flow(*args, **kwargs)
-
-def field_consumes_layout_space(*args, **kwargs):
-    return get_legacy_helpers().field_consumes_layout_space(*args, **kwargs)
+from app.helpers import (
+    _build_student_image_ref,
+    _build_qr_hash,
+    _build_payload,
+    _get_cached_qr_image,
+    _get_cached_barcode_image,
+    _looks_like_pdf_template_source,
+    _flatten_to_rgb,
+    apply_layout_custom_objects_pil,
+    get_initial_flow_y_for_side,
+    field_within_vertical_bounds,
+    fit_dynamic_font_to_single_line,
+    order_to_field_key,
+    translate_value_for_template_side,
+    resolve_field_layout_for_side,
+    field_advances_layout_flow,
+    field_consumes_layout_space,
+)
 
 # Helper from legacy_app
 def get_template_language_direction_from_obj(template, side="front"):
@@ -136,10 +103,10 @@ def get_template_language_direction_from_obj(template, side="front"):
     if template:
         if side == "back":
             lang = getattr(template, "back_language", "english") or "english"
-            direction = getattr(template, "back_direction", "ltr") or "ltr"
+            direction = getattr(template, "back_text_direction", "ltr") or "ltr"
         else:
             lang = getattr(template, "language", "english") or "english"
-            direction = getattr(template, "direction", "ltr") or "ltr"
+            direction = getattr(template, "text_direction", "ltr") or "ltr"
     return lang, direction
 
 

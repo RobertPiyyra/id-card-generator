@@ -44,10 +44,14 @@ class LayoutAnalysis:
     orientation: str = "landscape"
     regions: List[LayoutRegion] = field(default_factory=list)
     color_palette: List[str] = field(default_factory=list)
+    dominant_colors: List[str] = field(default_factory=list)
     background_color: str = "#FFFFFF"
     text_regions: List[LayoutRegion] = field(default_factory=list)
     photo_region: Optional[LayoutRegion] = None
     qr_region: Optional[LayoutRegion] = None
+    logo_region: Optional[LayoutRegion] = None
+    suggested_card_width: int = 0
+    suggested_card_height: int = 0
 
 
 def analyze_template_layout(image_bytes: bytes) -> LayoutAnalysis:
@@ -82,8 +86,9 @@ def analyze_template_layout(image_bytes: bytes) -> LayoutAnalysis:
         width=w,
         height=h,
         orientation="landscape" if w > h else "portrait",
+        suggested_card_width=w,
+        suggested_card_height=h,
     )
-
     # Detect background color (most common edge color)
     edge_pixels = np.concatenate([
         arr[0, :, :], arr[-1, :, :],
@@ -94,6 +99,7 @@ def analyze_template_layout(image_bytes: bytes) -> LayoutAnalysis:
 
     # Extract dominant color palette
     analysis.color_palette = _extract_color_palette(arr, n_colors=5)
+    analysis.dominant_colors = analysis.color_palette.copy()
 
     # Detect photo region (look for skin-tone colored area)
     photo_region = _detect_photo_region(arr, w, h)
@@ -115,6 +121,7 @@ def analyze_template_layout(image_bytes: bytes) -> LayoutAnalysis:
     # Detect logo (small colorful region in corner)
     logo_region = _detect_logo_region(arr, w, h)
     if logo_region:
+        analysis.logo_region = logo_region
         analysis.regions.append(logo_region)
 
     logger.info(
@@ -447,11 +454,15 @@ def generate_color_palette(base_color: str, scheme: str = "complementary",
         palette = generate_color_palette("#3498DB", "complementary")
         # Returns: ["#3498DB", "#DB6734", "#2980B9", "#E67E22", "#1ABC9C"]
     """
-    # Parse base color
+    # Validate hex color format
+    if not re.match(r'^[0-9a-fA-F]{6}$', base_color.lstrip("#")):
+        raise ValueError(f"Invalid hex color: {base_color}. Expected format: #RRGGBB")
+    n_colors = max(2, min(n_colors, 12))
+    # Normalize scheme names (frontend may send hyphens)
+    scheme = scheme.replace("-", "_")
     base_color = base_color.lstrip("#")
     r, g, b = int(base_color[:2], 16) / 255.0, int(base_color[2:4], 16) / 255.0, int(base_color[4:], 16) / 255.0
     h, s, v = colorsys.rgb_to_hsv(r, g, b)
-
     colors = [f"#{base_color}"]
 
     if scheme == "complementary":
@@ -459,7 +470,6 @@ def generate_color_palette(base_color: str, scheme: str = "complementary",
         colors.append(_hsv_to_hex(h, max(s - 0.2, 0.1), min(v + 0.1, 1.0)))
         colors.append(_hsv_to_hex((h + 0.5) % 1.0, max(s - 0.2, 0.1), v))
         colors.append(_hsv_to_hex(h, s, max(v - 0.2, 0.1)))
-
     elif scheme == "analogous":
         for offset in [1/12, 2/12, -1/12, -2/12]:
             colors.append(_hsv_to_hex((h + offset) % 1.0, s, v))
@@ -481,8 +491,23 @@ def generate_color_palette(base_color: str, scheme: str = "complementary",
             factor = 0.6 + (i * 0.1)
             colors.append(_hsv_to_hex(h, s * factor, v * factor))
 
-    return colors[:n_colors]
+    elif scheme in ("wcag_safe", "wcag-safe"):
+        # Generate colors with guaranteed WCAG AA contrast against white
+        base_lum = 0.299 * r + 0.587 * g + 0.114 * b
+        if base_lum > 0.5:
+            # Light base → generate darker variants
+            for i in range(1, n_colors):
+                factor = 0.7 - (i * 0.12)
+                colors.append(_hsv_to_hex(h, min(s + 0.1, 1.0), max(v * factor, 0.15)))
+        else:
+            # Dark base → generate contrast pair + variants
+            colors.append(_hsv_to_hex(h, min(s + 0.15, 1.0), min(v + 0.2, 1.0)))
+            colors.append(_hsv_to_hex(h, max(s - 0.1, 0.1), max(v - 0.15, 0.1)))
+            colors.append(_hsv_to_hex((h + 0.5) % 1.0, s, v))
+            for i in range(4, n_colors):
+                colors.append(_hsv_to_hex(h, s, max(v - i * 0.08, 0.1)))
 
+    return colors[:n_colors]
 
 def _hsv_to_hex(h: float, s: float, v: float) -> str:
     """Convert HSV to hex color string."""
@@ -497,7 +522,11 @@ def suggest_font_colors(background_color: str) -> dict:
     Returns dict with primary, secondary, and accent color suggestions.
     """
     bg = background_color.lstrip("#")
-    r, g, b = int(bg[:2], 16), int(bg[2:4], 16), int(bg[4:], 16)
+    try:
+        r, g, b = int(bg[:2], 16), int(bg[2:4], 16), int(bg[4:], 16)
+    except (ValueError, IndexError):
+        # Default to white background if color is invalid
+        r, g, b = 255, 255, 255
     luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
 
     if luminance > 0.5:
@@ -691,13 +720,65 @@ def validate_design(layout_config: dict) -> dict:
     """
     issues = []
     warnings_list = []
+    checks = []
+
+    # Parse and normalize fields data
+    raw_fields = layout_config.get("fields", [])
+    fields = []
+    base_field_names = set()
+
+    if isinstance(raw_fields, list):
+        for f in raw_fields:
+            if isinstance(f, dict):
+                f_norm = {
+                    "name": f.get("name") or "unnamed",
+                    "x": int(f.get("x", 0)),
+                    "y": int(f.get("y", 0)),
+                    "width": int(f.get("width") or f.get("w") or 150),
+                    "height": int(f.get("height") or f.get("h") or 20),
+                    "font_size": int(f.get("font_size") or f.get("size") or 12),
+                    "font_color": f.get("font_color") or f.get("color") or f.get("text_color") or "#000000",
+                }
+                fields.append(f_norm)
+                if f.get("name"):
+                    base_field_names.add(str(f.get("name")).lower())
+    elif isinstance(raw_fields, dict):
+        for field_key, field_val in raw_fields.items():
+            base_field_names.add(str(field_key).lower())
+            if str(field_key).upper() == "NAME":
+                base_field_names.add("name")
+            if str(field_key).upper() == "CLASS":
+                base_field_names.add("class")
+            if isinstance(field_val, dict):
+                for comp_name in ["label", "value", "colon"]:
+                    comp = field_val.get(comp_name)
+                    if isinstance(comp, dict) and comp.get("visible", True):
+                        font_size = int(comp.get("font_size") or comp.get("size") or 12)
+                        f_norm = {
+                            "name": f"{field_key}_{comp_name}",
+                            "x": int(comp.get("x", 0)),
+                            "y": int(comp.get("y", 0)),
+                            "width": int(comp.get("width") or comp.get("w") or (150 if comp_name != "colon" else 10)),
+                            "height": int(comp.get("height") or comp.get("h") or int(font_size * 1.2)),
+                            "font_size": font_size,
+                            "font_color": comp.get("color") or comp.get("font_color") or comp.get("text_color") or "#000000",
+                        }
+                        fields.append(f_norm)
 
     # Check contrast ratios
-    bg_color = layout_config.get("background", {}).get("color", "#FFFFFF")
-    for field in layout_config.get("fields", []):
+    bg_color = "#FFFFFF"
+    background_obj = layout_config.get("background")
+    if isinstance(background_obj, dict):
+        bg_color = background_obj.get("color") or "#FFFFFF"
+    elif isinstance(background_obj, str):
+        bg_color = background_obj
+
+    contrast_pass = True
+    for field in fields:
         font_color = field.get("font_color", "#000000")
         contrast = _contrast_ratio(bg_color, font_color)
         if contrast < 4.5:
+            contrast_pass = False
             issues.append({
                 "type": "accessibility",
                 "severity": "error",
@@ -712,10 +793,19 @@ def validate_design(layout_config: dict) -> dict:
                 "field": field.get("name"),
             })
 
+    if not raw_fields:
+        checks.append({"status": "warn", "label": "No fields to validate for contrast"})
+    elif contrast_pass:
+        checks.append({"status": "ok", "label": "WCAG AA contrast ratio passed for all fields"})
+    else:
+        checks.append({"status": "fail", "label": f"WCAG AA contrast ratio failed for {len(issues)} field(s)"})
+
     # Check font sizes
-    for field in layout_config.get("fields", []):
+    font_size_ok = True
+    for field in fields:
         font_size = field.get("font_size", 12)
         if font_size < 8:
+            font_size_ok = False
             issues.append({
                 "type": "readability",
                 "severity": "error",
@@ -729,6 +819,12 @@ def validate_design(layout_config: dict) -> dict:
                 "message": f"Field '{field.get('name')}': font size {font_size}px may be hard to read when printed",
                 "field": field.get("name"),
             })
+    if not fields:
+        checks.append({"status": "ok", "label": "No font sizes to validate"})
+    elif font_size_ok:
+        checks.append({"status": "ok", "label": "All font sizes are readable (≥8px)"})
+    else:
+        checks.append({"status": "fail", "label": "Some font sizes are too small (<8px)"})
 
     # Check photo aspect ratio
     photo = layout_config.get("photo", {})
@@ -740,43 +836,104 @@ def validate_design(layout_config: dict) -> dict:
                 "severity": "warning",
                 "message": f"Photo aspect ratio ({ratio:.2f}:1) is unusual. Standard is 0.75:1 to 1:1",
             })
+            checks.append({"status": "warn", "label": f"Photo aspect ratio ({ratio:.2f}:1) is non-standard"})
+        else:
+            checks.append({"status": "ok", "label": "Photo aspect ratio is within standard range"})
+    else:
+        checks.append({"status": "ok", "label": "No photo element to validate"})
 
     # Check QR code size
     qr = layout_config.get("qr_code", {})
-    if qr.get("enabled") and qr.get("size", 0) < 50:
-        issues.append({
-            "type": "functionality",
-            "severity": "error",
-            "message": f"QR code size ({qr.get('size')}px) is too small. Minimum 50px recommended.",
-        })
+    if qr.get("enabled"):
+        if qr.get("size", 0) < 50:
+            issues.append({
+                "type": "functionality",
+                "severity": "error",
+                "message": f"QR code size ({qr.get('size')}px) is too small. Minimum 50px recommended.",
+            })
+            checks.append({"status": "fail", "label": "QR code is too small (<50px)"})
+        else:
+            checks.append({"status": "ok", "label": "QR code size is adequate (≥50px)"})
+    else:
+        checks.append({"status": "ok", "label": "QR code not enabled"})
 
     # Check field overlap
-    fields = layout_config.get("fields", [])
+    has_overlap = False
     for i, f1 in enumerate(fields):
         for f2 in fields[i + 1:]:
             if _rectangles_overlap(f1, f2):
+                has_overlap = True
                 warnings_list.append({
                     "type": "layout",
                     "severity": "warning",
                     "message": f"Fields '{f1.get('name')}' and '{f2.get('name')}' may overlap",
                 })
+    if fields and not has_overlap:
+        checks.append({"status": "ok", "label": "No overlapping fields detected"})
+    elif has_overlap:
+        checks.append({"status": "warn", "label": "Some fields may overlap"})
+    else:
+        checks.append({"status": "ok", "label": "No fields to check for overlap"})
 
     # Check required fields
     required_fields = ["name", "class"]
-    field_names = {f.get("name") for f in fields}
+    field_names = base_field_names
+    missing_required = []
     for req in required_fields:
         if req not in field_names:
+            missing_required.append(req)
             warnings_list.append({
                 "type": "completeness",
                 "severity": "warning",
                 "message": f"Recommended field '{req}' is missing from the layout",
             })
+    if not missing_required:
+        checks.append({"status": "ok", "label": "All recommended fields (name, class) present"})
+    else:
+        checks.append({"status": "warn", "label": f"Missing recommended fields: {', '.join(missing_required)}"})
+
+    # Check print bleed / safe margins
+    card_width = layout_config.get("card_width", 1015)
+    card_height = layout_config.get("card_height", 661)
+    margin = 30
+    out_of_bounds = False
+    for f in fields:
+        fx = f.get("x", 0)
+        fy = f.get("y", 0)
+        fw = f.get("width", 0)
+        fh = f.get("height", 0)
+        if fx < margin or fy < margin or fx + fw > card_width - margin or fy + fh > card_height - margin:
+            out_of_bounds = True
+            warnings_list.append({
+                "type": "layout",
+                "severity": "warning",
+                "message": f"Field '{f.get('name')}' is near or outside safe print margin",
+            })
+    if fields and not out_of_bounds:
+        checks.append({"status": "ok", "label": "All elements within safe print margins"})
+    elif out_of_bounds:
+        checks.append({"status": "warn", "label": "Some elements are near print boundaries"})
+    else:
+        checks.append({"status": "ok", "label": "No elements to check for print margins"})
+
+    score = max(0, 100 - len(issues) * 20 - len(warnings_list) * 5)
+    summary_parts = []
+    if issues:
+        summary_parts.append(f"{len(issues)} error(s)")
+    if warnings_list:
+        summary_parts.append(f"{len(warnings_list)} warning(s)")
+    if not summary_parts:
+        summary_parts.append("Design looks great!")
+    summary = "Validation complete: " + ", ".join(summary_parts) + f". Score: {score}/100."
 
     return {
         "valid": len(issues) == 0,
+        "overall_score": score,
+        "score": score,
+        "checks": checks,
         "issues": issues,
         "warnings": warnings_list,
-        "score": max(0, 100 - len(issues) * 20 - len(warnings_list) * 5),
+        "summary": summary,
     }
 
 

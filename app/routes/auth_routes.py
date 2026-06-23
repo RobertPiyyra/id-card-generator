@@ -33,8 +33,8 @@ def login():
             return render_template("login.html", error="Server configuration error. Contact support."), 500
 
         # Check Username and Password Hash
-        username_input = request.form.get("username")
-        password_input = request.form.get("password")
+        username_input = request.form.get("username", "")
+        password_input = request.form.get("password", "")
 
         # 1. Check DB for RBAC user (School Admin or custom Super Admin)
         admin_user = AdminUser.query.filter(db.func.lower(AdminUser.username) == username_input.lower()).first()
@@ -175,6 +175,7 @@ def register():
                         logger.info(f"Registered new student: {email}, name: {name}")
                         return redirect(url_for('dashboard.index'))
             except Exception as e:
+                db.session.rollback()
                 error = f"Database error: {str(e)}"
                 logger.error(f"Database error during registration for email {email}: {e}")
     return render_template("register.html", templates=templates, error=error)
@@ -449,8 +450,8 @@ def admin_add_student_credential():
         logger.info(f"Admin added student credential: {email}")
         flash("Student credential added successfully", "success")
         return redirect(url_for("auth.admin_student_credentials"))
-        
     except Exception as e:
+        db.session.rollback()
         logger.error(f"Error adding student credential: {e}")
         flash(f"Error adding student credential: {str(e)}", "error")
         return redirect(url_for("auth.admin_student_credentials"))
@@ -504,8 +505,8 @@ def admin_update_student_credential(student_id):
         logger.info(f"Admin updated student credential for ID: {student_id}")
         flash("Student credential updated successfully", "success")
         return redirect(url_for("auth.admin_student_credentials"))
-        
     except Exception as e:
+        db.session.rollback()
         logger.error(f"Error updating student credential: {e}")
         flash(f"Error updating student credential: {str(e)}", "error")
         return redirect(url_for("auth.admin_student_credentials"))
@@ -531,8 +532,8 @@ def admin_delete_student_credential(student_id):
         logger.info(f"Admin deleted student credential for ID: {student_id}")
         flash("Student credential deleted successfully", "success")
         return redirect(url_for("auth.admin_student_credentials"))
-        
     except Exception as e:
+        db.session.rollback()
         logger.error(f"Error deleting student credential: {e}")
         flash(f"Error deleting student credential: {str(e)}", "error")
         return redirect(url_for("auth.admin_student_credentials"))
@@ -570,6 +571,7 @@ def admin_reset_student_password(student_id):
         return redirect(url_for("auth.admin_student_credentials"))
         
     except Exception as e:
+        db.session.rollback()
         logger.error(f"Error resetting student password: {e}")
         flash(f"Error resetting password: {str(e)}", "error")
         return redirect(url_for("auth.admin_student_credentials"))

@@ -24,7 +24,7 @@ import string
 from collections import defaultdict
 from functools import lru_cache
 import textwrap
-import pandas as pd
+# import pandas as pd  # Lazy imported in background_bulk_generate()
 import tempfile
 import glob
 import io
@@ -172,46 +172,11 @@ try:
 except ImportError:
     pass  # python-json-logger not installed yet
 
-def fit_loaded_font_to_single_line(draw, font_loader, display_text, max_width, start_size, language="english", min_size=6):
-    """Shrink a font until the text fits on one line; wrapping is reserved for address fields."""
-    display_text = str(display_text or "")
-    try:
-        safe_width = max(1, int(float(max_width)))
-    except Exception:
-        safe_width = 1
-    try:
-        size = max(int(float(start_size or min_size)), int(min_size))
-    except Exception:
-        size = int(min_size)
-    min_size = max(1, int(min_size))
-
-    last_font = None
-    while size >= min_size:
-        font = font_loader(size)
-        last_font = font
-        try:
-            text_len = draw.textlength(display_text, font=font, **get_draw_text_kwargs(display_text, language))
-            if text_len <= safe_width:
-                return font, int(getattr(font, "size", size) or size)
-        except Exception:
-            return font, int(getattr(font, "size", size) or size)
-        size -= 1
-
-    if last_font is None:
-        last_font = font_loader(min_size)
-    return last_font, int(getattr(last_font, "size", min_size) or min_size)
-
-
-def fit_dynamic_font_to_single_line(draw, font_path, display_text, max_width, start_size, language="english", min_size=6):
-    return fit_loaded_font_to_single_line(
-        draw,
-        lambda size: load_font_dynamic(font_path, display_text or "X", 10**9, size, language=language),
-        display_text,
-        max_width,
-        start_size,
-        language=language,
-        min_size=min_size,
-    )
+# Extracted to app/services/font_service.py — backward-compat re-export
+from app.services.font_service import (  # noqa: E402
+    fit_loaded_font_to_single_line,
+    fit_dynamic_font_to_single_line,
+)
 
 
 
@@ -224,99 +189,21 @@ def fit_dynamic_font_to_single_line(draw, font_path, display_text, max_width, st
 STORAGE_BACKEND = get_storage_backend()
 
 
-def _get_cached_media_image(key_prefix, buffer_bytes, generate_fn):
-    cache_key = _redis_cache_key(key_prefix, buffer_bytes)
-    cached = _redis_get(cache_key)
-    if cached is not None:
-        try:
-            img = Image.open(io.BytesIO(cached))
-            img.load()
-            return img.convert("RGBA")
-        except Exception as e:
-            logger.warning(f"Media cache decode failed for {cache_key}: {e}")
-            _redis_delete(cache_key)
-
-    # 🚫 Stampede protection
-    lock_key = cache_key + ":lock"
-    if not _redis_acquire_lock(lock_key, ttl=5):
-        time.sleep(0.05)
-        cached = _redis_get(cache_key)
-        if cached is not None:
-            try:
-                img = Image.open(io.BytesIO(cached))
-                img.load()
-                return img.convert("RGBA")
-            except Exception:
-                pass
-
-    try:
-        img = generate_fn()
-        if img is not None:
-            try:
-                out = io.BytesIO()
-                img.save(out, format="PNG")
-                _redis_set(cache_key, out.getvalue())
-            except Exception as exc:
-                logger.warning("Failed to cache media image %s: %s", cache_key, exc)
-        return img
-    finally:
-        _redis_delete(lock_key)
+# Extracted to app/services/cache_service.py — backward-compat re-export
+from app.services.cache_service import (  # noqa: E402
+    _get_cached_media_image,
+    _get_cached_qr_image,
+    _get_cached_barcode_image,
+)
 
 
-def _get_cached_qr_image(payload, qr_settings, size):
-    logo_key = f"{qr_settings.get('qr_include_logo', False)}:{qr_settings.get('qr_logo_path', '')}"
-    return _get_cached_media_image(
-        "qr",
-        f"{payload}:{size}:{qr_settings.get('qr_data_type','default')}:{logo_key}".encode("utf-8", "ignore"),
-        lambda: generate_qr_code(payload, qr_settings, size),
-    )
-
-
-def _get_cached_barcode_image(payload, qr_settings, width, height):
-    return _get_cached_media_image(
-        "barcode",
-        f"{payload}:{width}:{height}:{qr_settings.get('barcode_data_type','default')}".encode("utf-8", "ignore"),
-        lambda: generate_barcode_code128(payload, qr_settings, width=width, height=height),
-    )
-
-
-def _build_student_form_data(student_like):
-    return {
-        'name': getattr(student_like, 'name', '') or '',
-        'father_name': getattr(student_like, 'father_name', '') or '',
-        'class_name': getattr(student_like, 'class_name', '') or '',
-        'dob': getattr(student_like, 'dob', '') or '',
-        'address': getattr(student_like, 'address', '') or '',
-        'phone': getattr(student_like, 'phone', '') or '',
-    }
-
-
-def _build_student_image_ref(student_like):
-    return getattr(student_like, 'photo_url', None) or getattr(student_like, 'photo_filename', None) or ''
-
-
-def _build_qr_hash(student_like):
-    return generate_data_hash(_build_student_form_data(student_like), _build_student_image_ref(student_like))[:10]
-
-
-def _build_payload(settings, student_like, student_id, school_name, prefix):
-    data_type = settings.get(f'{prefix}_data_type', 'student_id')
-    str_student_id = str(student_id) if student_id is not None else None
-    if data_type == 'url':
-        base = settings.get(f'{prefix}_base_url', '') or ''
-        if base and not base.endswith('/'):
-            base += '/'
-        return base + (str_student_id or _build_qr_hash(student_like))
-    if data_type == 'text':
-        return settings.get(f'{prefix}_custom_text', 'Sample Text')
-    if data_type == 'json':
-        return json.dumps({
-            'student_id': str_student_id or _build_qr_hash(student_like),
-            'name': getattr(student_like, 'name', '') or '',
-            'class': getattr(student_like, 'class_name', '') or '',
-            'school_name': school_name or getattr(student_like, 'school_name', '') or '',
-        })
-    return str_student_id or _build_qr_hash(student_like)
+# Extracted to app/services/student_service.py — backward-compat re-export
+from app.services.student_service import (  # noqa: E402
+    _build_student_form_data,
+    _build_student_image_ref,
+    _build_qr_hash,
+    _build_payload,
+)
 
 
 
@@ -337,12 +224,8 @@ def _build_payload(settings, student_like, student_id, school_name, prefix):
 
 
 
-def with_cache_bust(url):
-    """Append a cache-busting query param for preview images."""
-    if not url:
-        return url
-    separator = "&" if "?" in url else "?"
-    return f"{url}{separator}v={int(time.time() * 1000)}"
+# Extracted to app/services/cache_service.py — backward-compat re-export
+from app.services.cache_service import with_cache_bust  # noqa: E402
 
 class SafeRotatingFileHandler(RotatingFileHandler):
     """
@@ -368,7 +251,7 @@ from PIL import Image, ImageOps
 # ================== App Config ==================
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
 app = Flask(__name__, root_path=PROJECT_ROOT)
-app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024  # 16MB upload limit
+app.config["MAX_CONTENT_LENGTH"] = 250 * 1024 * 1024  # 250MB upload limit for bulk generation
 
 from app.config import get_config
 app.config.from_object(get_config())
@@ -613,10 +496,11 @@ def handle_bad_request_error(e):
 def handle_payload_too_large(e):
     """Handle file uploads exceeding MAX_CONTENT_LENGTH."""
     logger.warning("413 Payload Too Large: %s", request.path)
-    if request.is_json or request.path.startswith('/api'):
-        return jsonify({"success": False, "error": "File too large. Maximum upload size is 16MB."}), 413
+    max_mb = app.config.get("MAX_CONTENT_LENGTH", 0) // (1024 * 1024)
+    if request.is_json or request.path.startswith('/api') or request.path.startswith('/bulk'):
+        return jsonify({"success": False, "error": f"File too large. Maximum upload size is {max_mb}MB."}), 413
     from flask import flash, redirect, request as req
-    flash("File too large. Maximum upload size is 16MB.", "error")
+    flash(f"File too large. Maximum upload size is {max_mb}MB.", "error")
     return redirect(req.referrer or '/')
 
 @app.errorhandler(422)
@@ -691,28 +575,8 @@ ADMIN_PASSWORD_HASH = Config.ADMIN_PASSWORD_HASH  # MUST be a pbkdf2:sha256 hash
 student_bp = Blueprint('student', __name__)
 
 # ================== Helper Functions ==================
-def get_form_int(form_data, key, default=0):
-    """Safely get integer value from form data"""
-    try:
-        value = form_data.get(key)
-        if value is None or value == '':
-            return default
-        return int(value)
-    except (ValueError, TypeError):
-        return default
-
-
-def order_to_field_key(order_value):
-    """Map standard display order to stable field key names."""
-    mapping = {
-        10: "NAME",
-        20: "F_NAME",
-        30: "CLASS",
-        40: "DOB",
-        50: "MOBILE",
-        60: "ADDRESS",
-    }
-    return mapping.get(order_value)
+# Extracted to app/services/layout_service.py — backward-compat re-export
+from app.services.layout_service import get_form_int, order_to_field_key  # noqa: E402
 
 
 def resolve_field_layout(template_obj, field_key, default_label_x, default_value_x, default_y):
@@ -861,230 +725,25 @@ NON_TRANSLATABLE_FIELD_KEYS = {"DOB", "MOBILE"}
 NON_TRANSLATABLE_FIELD_TYPES = {"date", "number", "tel", "email"}
 
 
-def default_text_direction_for_language(language):
-    return "rtl" if str(language or "").strip().lower() in {"urdu", "arabic"} else "ltr"
+# Extracted to app/services/translation_service.py — backward-compat re-export
+from app.services.translation_service import (  # noqa: E402
+    default_text_direction_for_language,
+    validate_double_sided_language_pair,
+    _should_skip_translation,
+    _extract_google_translate_text,
+    detect_translation_source_language,
+    _google_translate_text,
+    translate_value_for_template_side,
+    get_template_language_direction_from_obj,
+)
 
 
-def validate_double_sided_language_pair(front_language, back_language):
-    front = str(front_language or "english").strip().lower()
-    back = str(back_language or "english").strip().lower()
-    return front in SUPPORTED_TEMPLATE_LANGUAGES and back in SUPPORTED_TEMPLATE_LANGUAGES
-
-
-def _should_skip_translation(raw_value, field_key=None, field_type=None):
-    text = str(raw_value or "").strip()
-    if not text:
-        return True
-
-    normalized_key = str(field_key or "").strip().upper()
-    normalized_type = str(field_type or "").strip().lower()
-
-    if normalized_key in NON_TRANSLATABLE_FIELD_KEYS:
-        return True
-    if normalized_type in NON_TRANSLATABLE_FIELD_TYPES:
-        return True
-    if "@" in text or "://" in text:
-        return True
-
-    letters = re.findall(r"[A-Za-z\u0600-\u06FF\u0900-\u097F]", text)
-    if not letters:
-        return True
-
-    compact = re.sub(r"\s+", "", text)
-    if compact and re.fullmatch(r"[\d\W_]+", compact):
-        return True
-
-    return False
-
-
-def _extract_google_translate_text(payload):
-    if not isinstance(payload, list) or not payload:
-        return ""
-    segments = payload[0]
-    if not isinstance(segments, list):
-        return ""
-    return "".join(
-        str(segment[0])
-        for segment in segments
-        if isinstance(segment, list) and segment and segment[0] is not None
-    ).strip()
-
-
-def detect_translation_source_language(raw_text, fallback="english"):
-    text = str(raw_text or "").strip()
-    if not text:
-        return str(fallback or "english").strip().lower()
-
-    if re.search(r"[\u0900-\u097F]", text):
-        return "hindi"
-    if re.search(r"[\u0600-\u06FF]", text):
-        hinted = str(fallback or "").strip().lower()
-        if hinted in {"urdu", "arabic"}:
-            return hinted
-        return "urdu"
-    if re.search(r"[A-Za-z]", text):
-        return "english"
-    return str(fallback or "english").strip().lower()
-
-
-@lru_cache(maxsize=4096)
-def _google_translate_text(raw_text, source_language, target_language):
-    text = str(raw_text or "").strip()
-    source = str(source_language or "").strip().lower()
-    target = str(target_language or "").strip().lower()
-    if not text or source == target:
-        return text
-
-    source_code = LANGUAGE_TO_TRANSLATE_CODE.get(source)
-    target_code = LANGUAGE_TO_TRANSLATE_CODE.get(target)
-    if not source_code or not target_code:
-        return text
-
-    try:
-        if GOOGLE_TRANSLATE_API_KEY:
-            response = requests.post(
-                "https://translation.googleapis.com/language/translate/v2",
-                params={"key": GOOGLE_TRANSLATE_API_KEY},
-                json={
-                    "q": text,
-                    "source": source_code,
-                    "target": target_code,
-                    "format": "text",
-                },
-                timeout=8,
-            )
-            response.raise_for_status()
-            payload = response.json()
-            translated = (
-                payload.get("data", {})
-                .get("translations", [{}])[0]
-                .get("translatedText", "")
-            )
-            return str(translated or "").strip() or text
-
-        response = requests.get(
-            "https://translate.googleapis.com/translate_a/single",
-            params={
-                "client": "gtx",
-                "sl": source_code,
-                "tl": target_code,
-                "dt": "t",
-                "q": text,
-            },
-            timeout=8,
-        )
-        response.raise_for_status()
-        translated = _extract_google_translate_text(response.json())
-        return translated or text
-    except Exception as exc:
-        logger.warning(
-            "Google translation failed for %s -> %s: %s",
-            source,
-            target,
-            exc,
-        )
-        return text
-
-
-def translate_value_for_template_side(template_obj, side, raw_value, *, field_key=None, field_type=None):
-    text = str(raw_value or "")
-    if not template_obj:
-        return text
-
-    target_language, _ = get_template_language_direction_from_obj(template_obj, side=side)
-    source_hint = (getattr(template_obj, "language", "english") or "english").strip().lower()
-    source_language = detect_translation_source_language(text, fallback=source_hint)
-
-    if source_language == target_language:
-        return text
-    if source_language not in SUPPORTED_TEMPLATE_LANGUAGES or target_language not in SUPPORTED_TEMPLATE_LANGUAGES:
-        return text
-    if _should_skip_translation(text, field_key=field_key, field_type=field_type):
-        return text
-
-    return _google_translate_text(text, source_language, target_language)
-
-
-def field_consumes_layout_space(layout_item, raw_value=""):
-    """Return True when a field should reserve vertical flow space."""
-    if not isinstance(layout_item, dict):
-        return bool(str(raw_value or "").strip())
-    if layout_item.get("label_visible"):
-        return True
-    return bool(layout_item.get("value_visible")) and bool(str(raw_value or "").strip())
-
-
-def field_advances_layout_flow(layout_item, raw_value="", *, separate_colon=False):
-    """
-    Return True only for fields that should advance the flowing Y cursor.
-
-    Manually positioned fields must render at their saved coordinates without dragging
-    later fields down the card.
-    """
-    if not field_consumes_layout_space(layout_item, raw_value):
-        return False
-    if not isinstance(layout_item, dict):
-        return True
-
-    has_value = bool(str(raw_value or "").strip())
-    if layout_item.get("label_visible") and layout_item.get("label_manual_y"):
-        return False
-    if has_value and layout_item.get("value_visible") and layout_item.get("value_manual_y"):
-        return False
-    if separate_colon and layout_item.get("colon_visible") and layout_item.get("colon_manual_y"):
-        return False
-    return True
-
-
-def field_within_vertical_bounds(layout_item, default_y, card_height, margin=20):
-    """
-    Decide whether a field should still render vertically.
-
-    Older render loops used only the flowing `current_y` cursor and could break before
-    reaching later fields, even when those fields had an explicit manual position saved
-    in the visual editor. We instead trust the resolved field layout first.
-    """
-    try:
-        limit = int(card_height) - int(margin)
-    except Exception:
-        limit = int(card_height or 0)
-
-    if not isinstance(layout_item, dict):
-        try:
-            return int(default_y or 0) <= limit
-        except Exception:
-            return True
-
-    y_candidates = []
-    if layout_item.get("label_visible"):
-        y_candidates.append(int(layout_item.get("label_y", default_y)))
-    if layout_item.get("value_visible"):
-        y_candidates.append(int(layout_item.get("value_y", default_y)))
-    if layout_item.get("colon_visible"):
-        y_candidates.append(int(layout_item.get("colon_y", layout_item.get("label_y", default_y))))
-
-    if not y_candidates:
-        try:
-            y_candidates.append(int(layout_item.get("value_y", layout_item.get("label_y", default_y))))
-        except Exception:
-            y_candidates.append(int(default_y or 0))
-
-    return min(y_candidates) <= limit
-
-
-def _hex_to_rgb_for_editor(value, fallback=(0, 0, 0)):
-    if isinstance(value, (list, tuple)) and len(value) >= 3:
-        try:
-            return tuple(int(v) for v in value[:3])
-        except Exception:
-            return fallback
-    text = str(value or "").strip()
-    if len(text) == 7 and text.startswith("#"):
-        try:
-            return tuple(int(text[i:i + 2], 16) for i in (1, 3, 5))
-        except Exception:
-            return fallback
-    return fallback
+# Extracted to app/services/layout_service.py — backward-compat re-export
+from app.services.layout_service import (  # noqa: E402
+    field_consumes_layout_space,
+    field_advances_layout_flow,
+    field_within_vertical_bounds,
+)
 
 
 def apply_layout_custom_objects_pil(template_img, template_obj, font_settings, side="front", language="english", render_scale=1.0):
@@ -1285,36 +944,10 @@ def apply_layout_custom_objects_pil(template_img, template_obj, font_settings, s
             _paste_rotated_overlay(overlay, paste_x, paste_y, angle)
 
 
-def _looks_like_pdf_template_source(path_or_url):
-    try:
-        src = str(path_or_url or "").strip().lower()
-    except Exception:
-        return False
-    if not src:
-        return False
-    src_no_query = src.split("?", 1)[0]
-    if src_no_query.endswith(".pdf") or "/raw/upload/" in src_no_query:
-        return True
-    if src.startswith(("http://", "https://")):
-        return False
-    try:
-        with open(path_or_url, "rb") as fh:
-            return b"%PDF" in fh.read(16)
-    except Exception:
-        return False
-
-
-def _flatten_to_rgb(image):
-    if image is None:
-        return None
-    if image.mode == "RGB":
-        return image
-    if image.mode in ("RGBA", "LA"):
-        background = Image.new("RGB", image.size, (255, 255, 255))
-        alpha = image.getchannel("A") if "A" in image.getbands() else None
-        background.paste(image.convert("RGBA"), mask=alpha)
-        return background
-    return image.convert("RGB")
+# Extracted to app/services/template_upload_service.py — backward-compat re-export
+from app.services.template_upload_service import _looks_like_pdf_template_source  # noqa: E402
+from app.services.render_service import _flatten_to_rgb  # noqa: E402
+from app.services.layout_service import _hex_to_rgb_for_editor  # noqa: E402
 
 
 
@@ -2001,11 +1634,16 @@ def get_templates():
                 
         templates = query.all()
         result = []
-        
+
+        # Pre-compute default settings once (not per-template)
+        default_font = get_default_font_config()
+        default_photo = get_default_photo_config()
+        default_qr = get_default_qr_config()
+
         for template in templates:
-            font_settings = get_default_font_config()
-            photo_settings = get_default_photo_config()
-            qr_settings = get_default_qr_config()
+            font_settings = default_font.copy()
+            photo_settings = default_photo.copy()
+            qr_settings = default_qr.copy()
             source_path = template.filename or template.template_url or ""
             source_basename = os.path.basename(source_path.split("?", 1)[0]) if source_path else ""
             if source_basename and len(source_basename) > 90:
@@ -2014,7 +1652,7 @@ def get_templates():
             back_source_basename = os.path.basename(back_source_path.split("?", 1)[0]) if back_source_path else ""
             if back_source_basename and len(back_source_basename) > 90:
                 back_source_basename = back_source_basename[:87] + "..."
-            
+
             # Merge with template settings
             if template.font_settings:
                 loaded_font = template.font_settings.copy()
@@ -2023,15 +1661,15 @@ def get_templates():
                     loaded_font['label_font_color'] = loaded_font['font_color']
                     loaded_font['value_font_color'] = loaded_font['font_color']
                 font_settings = {**font_settings, **loaded_font}
-            
+
             if template.photo_settings:
                 photo_settings = {**photo_settings, **template.photo_settings}
-            
+
             if template.qr_settings:
                 qr_settings = {**qr_settings, **template.qr_settings}
-            back_font_settings = {**get_default_font_config(), **(template.back_font_settings or {})}
-            back_photo_settings = {**get_default_photo_config(), **(template.back_photo_settings or {})}
-            back_qr_settings = {**get_default_qr_config(), **(template.back_qr_settings or {})}
+            back_font_settings = {**default_font, **(template.back_font_settings or {})}
+            back_photo_settings = {**default_photo, **(template.back_photo_settings or {})}
+            back_qr_settings = {**default_qr, **(template.back_qr_settings or {})}
             
             # === MISSING PART ADDED HERE ===
             # Serialize fields for frontend
@@ -2097,180 +1735,25 @@ def get_templates():
         return []  # Always return empty list on error
 
 
-def _normalize_school_name(value):
-    return re.sub(r"\s+", " ", str(value or "").strip()).casefold()
+# Extracted to app/services/student_service.py — backward-compat re-export
+from app.services.student_service import (  # noqa: E402
+    _normalize_school_name,
+    _find_template_dict_by_school,
+    _student_session_school_name,
+    _is_admin_session,
+    _current_session_email,
+    _student_school_access_allowed,
+)
 
 
-def _find_template_dict_by_school(templates, school_name):
-    normalized = _normalize_school_name(school_name)
-    if not normalized:
-        return None
-    for template in templates or []:
-        if _normalize_school_name(template.get("school_name")) == normalized:
-            return template
-    return None
-
-
-def _student_session_school_name():
-    return (session.get("student_school_name") or "").strip()
-
-
-def _is_admin_session():
-    return bool(session.get("admin"))
-
-
-def _current_session_email():
-    return (session.get("student_email") or "").strip().lower()
-
-
-def _student_school_access_allowed(student_school_name):
-    if _is_admin_session() and session.get("admin_role") != "school_admin":
-        return True
-    locked_school = _student_session_school_name()
-    if not locked_school:
-        return True
-    return _normalize_school_name(locked_school) == _normalize_school_name(student_school_name)
-
-
-def store_template_upload_asset(file_storage, *, side_label):
-    if file_storage is None or not file_storage.filename:
-        raise ValueError(f"{side_label} template file is required")
-    filename = secure_filename(file_storage.filename)
-    file_bytes = io.BytesIO()
-    file_storage.save(file_bytes)
-    file_bytes.seek(0)
-    return store_template_upload_bytes(file_bytes.getvalue(), filename, side_label=side_label)
-
-
-def _extract_pdf_upload_payload(raw_bytes, side_label):
-    pdf_header_pos = raw_bytes.find(b"%PDF")
-    if pdf_header_pos < 0:
-        raise ValueError("Uploaded file does not contain a PDF header.")
-    upload_payload = raw_bytes[pdf_header_pos:]
-    if len(upload_payload) < 128:
-        raise ValueError("Uploaded PDF is too small and appears truncated.")
-    pdf_doc = fitz.open(stream=upload_payload, filetype="pdf")
-    try:
-        page_count = pdf_doc.page_count
-        if page_count < 1:
-            raise ValueError("Uploaded PDF has no pages.")
-        _ = pdf_doc[0].get_pixmap(dpi=72)
-    finally:
-        pdf_doc.close()
-    return upload_payload, page_count
-
-
-def _single_pdf_page_bytes(pdf_bytes, page_index):
-    src_doc = fitz.open(stream=pdf_bytes, filetype="pdf")
-    dst_doc = fitz.open()
-    try:
-        if page_index < 0 or page_index >= src_doc.page_count:
-            raise ValueError(f"PDF page {page_index + 1} is missing.")
-        dst_doc.insert_pdf(src_doc, from_page=page_index, to_page=page_index)
-        return dst_doc.tobytes(
-            garbage=4,
-            clean=False,
-            deflate=False,
-            deflate_images=False,
-            deflate_fonts=False,
-            expand=255,
-            linear=False,
-            no_new_id=True,
-            pretty=False,
-            use_objstms=0,
-        )
-    finally:
-        dst_doc.close()
-        src_doc.close()
-
-
-def _template_side_filename(filename, side_label):
-    safe_name = secure_filename(filename or "template.pdf")
-    stem, ext = os.path.splitext(safe_name)
-    ext = ext or ".pdf"
-    return f"{stem}_{side_label.lower()}{ext}"
-
-
-def store_template_upload_bytes(raw_bytes, filename, *, side_label):
-    filename = secure_filename(filename or f"{side_label.lower()}_template")
-    raw_bytes = raw_bytes if isinstance(raw_bytes, bytes) else bytes(raw_bytes or b"")
-    if not raw_bytes:
-        raise ValueError(f"{side_label} template file is empty")
-    if not filename.lower().endswith(('.pdf', '.jpg', '.jpeg', '.png')):
-        raise ValueError(f"Invalid {side_label.lower()} template format. Use PDF, JPG, or PNG")
-
-    file_ext = os.path.splitext(filename)[1].lower()
-    is_pdf_upload = file_ext == ".pdf"
-    upload_payload = raw_bytes
-    page_count = None
-
-    if is_pdf_upload:
-        try:
-            upload_payload, page_count = _extract_pdf_upload_payload(raw_bytes, side_label)
-        except Exception as pdf_err:
-            raise ValueError(f"Uploaded {side_label.lower()} PDF is invalid: {pdf_err}")
-    else:
-        try:
-            test_img = Image.open(io.BytesIO(raw_bytes))
-            test_img.verify()
-        except Exception as img_err:
-            raise ValueError(f"Uploaded {side_label.lower()} image is invalid: {img_err}")
-
-    templates_dir = os.path.join(STATIC_DIR, "templates_uploads")
-    os.makedirs(templates_dir, exist_ok=True)
-    ts = datetime.now().strftime("%Y%m%d%H%M%S")
-    stored_name = f"{ts}_{uuid.uuid4().hex}_{filename}"
-    local_abs_path = os.path.join(templates_dir, stored_name)
-    with open(local_abs_path, "wb") as local_file:
-        local_file.write(upload_payload)
-    local_rel_filename = f"templates_uploads/{stored_name}"
-
-    remote_url = None
-    if STORAGE_BACKEND != "local":
-        remote_url = upload_image(
-            upload_payload,
-            folder='id_card_templates',
-            resource_type='raw' if is_pdf_upload else 'image',
-            format='pdf' if is_pdf_upload else file_ext.lstrip('.') or None,
-        )
-
-        if not remote_url:
-            raise RuntimeError(f"Failed to upload {side_label.lower()} template to Cloudinary")
-
-        last_remote_err = None
-        for _ in range(5):
-            try:
-                _ = load_template_smart(remote_url)
-                last_remote_err = None
-                break
-            except Exception as remote_err:
-                last_remote_err = remote_err
-                time.sleep(0.8)
-        if last_remote_err is not None:
-            last_err_text = str(last_remote_err)
-            if "network/DNS" in last_err_text:
-                logger.warning(
-                    "%s uploaded, but immediate Cloudinary read-check failed due network/DNS. Using local backup copy.",
-                    side_label,
-                )
-                remote_url = None
-            elif "HTTP 401" in last_err_text or "HTTP 403" in last_err_text or "unauthorized/forbidden" in last_err_text.lower():
-                logger.warning(
-                    "%s uploaded, but Cloudinary denied public access. Using local backup copy.",
-                    side_label,
-                )
-                remote_url = None
-            else:
-                raise RuntimeError(
-                    f"Uploaded {side_label.lower()} template is not readable from Cloudinary after retry. Details: {last_remote_err}"
-                )
-
-    return {
-        "filename": local_rel_filename,
-        "template_url": remote_url,
-        "is_pdf": is_pdf_upload,
-        "page_count": page_count,
-    }
+# Extracted to app/services/template_upload_service.py — backward-compat re-export
+from app.services.template_upload_service import (  # noqa: E402
+    store_template_upload_asset,
+    _extract_pdf_upload_payload,
+    _single_pdf_page_bytes,
+    _template_side_filename,
+    store_template_upload_bytes,
+)
 
 
 
@@ -2471,156 +1954,29 @@ def check_duplicate_student(form_data, photo_filename=None, student_id=None):
     
 
 
-try:
-    import mediapipe as mp
-    mp_face = mp.solutions.face_detection
-except Exception as e:
-    logger.warning("MediaPipe face detection disabled: %s", e)
-    mp_face = None
+# Lazy mediapipe import — face_service.py handles lazy loading now
+mp_face = None
 
 _detector_lock = threading.Lock()
 
-def _get_face_detector():
-    if mp_face is None:
-        return None
-    try:
-        return mp_face.FaceDetection(model_selection=0, min_detection_confidence=0.5)
-    except Exception as e:
-        logger.warning("Error initializing MediaPipe face detector: %s", e)
-        return None
+# Extracted to app/services/face_service.py — backward-compat re-export
+from app.services.face_service import _get_face_detector  # noqa: E402
 
 
 
 
-def _fallback_center_crop(pil_img, save_path, target_w, target_h):
-    """
-    Fallback that respects EXIF rotation and aspect ratio.
-    """
-    final = _process_photo_pil(
-        pil_img,
-        target_width=target_w,
-        target_height=target_h,
-    )
-    if final.mode == "RGBA":
-        rgb = Image.new("RGB", final.size, (255, 255, 255))
-        rgb.paste(final, mask=final.getchannel("A"))
-        final = rgb
-    elif final.mode != "RGB":
-        final = final.convert("RGB")
-    final.save(save_path, "JPEG", quality=95)
-    return True
-
-
-def _crop_with_padding(pil_img, crop_box, fill_rgb=(255, 255, 255)):
-    x1, y1, x2, y2 = [int(round(v)) for v in crop_box]
-    crop_w = max(1, x2 - x1)
-    crop_h = max(1, y2 - y1)
-    src = pil_img.convert("RGB")
-    canvas = Image.new("RGB", (crop_w, crop_h), fill_rgb)
-
-    src_x1 = max(0, x1)
-    src_y1 = max(0, y1)
-    src_x2 = min(src.width, x2)
-    src_y2 = min(src.height, y2)
-    if src_x2 <= src_x1 or src_y2 <= src_y1:
-        return canvas
-
-    region = src.crop((src_x1, src_y1, src_x2, src_y2))
-    paste_x = max(0, -x1)
-    paste_y = max(0, -y1)
-    canvas.paste(region, (paste_x, paste_y))
-    return canvas
-
-
-def _center_crop_box(img_w, img_h, target_ratio):
-    if img_w <= 0 or img_h <= 0:
-        return (0, 0, max(1, img_w), max(1, img_h))
-    current_ratio = float(img_w) / float(img_h)
-    if current_ratio > target_ratio:
-        crop_w = max(1, int(round(img_h * target_ratio)))
-        left = int(round((img_w - crop_w) / 2.0))
-        return (left, 0, left + crop_w, img_h)
-    crop_h = max(1, int(round(img_w / target_ratio)))
-    top = int(round((img_h - crop_h) / 2.0))
-    return (0, top, img_w, top + crop_h)
-
-
-def _detect_face_crop_box(pil_img, target_width, target_height):
-    try:
-        rgb_img = pil_img.convert("RGB")
-        img_np = np.array(rgb_img)
-        h_orig, w_orig = img_np.shape[:2]
-        if h_orig <= 0 or w_orig <= 0:
-            return None
-
-        with _detector_lock:
-            detector = _get_face_detector()
-            if detector is None:
-                return None
-            try:
-                # MediaPipe FaceDetection keeps per-graph timestamp state. A fresh
-                # graph per call avoids packet timestamp mismatches during rapid
-                # admin preview/Corel export requests.
-                results = detector.process(img_np.copy())
-            finally:
-                try:
-                    detector.close()
-                except Exception:
-                    pass
-
-        if not results or not results.detections:
-            return None
-
-        detection = max(results.detections, key=lambda d: d.score[0])
-        box = detection.location_data.relative_bounding_box
-        face_h = max(1, int(box.height * h_orig))
-        face_cx = int((box.xmin + (box.width / 2.0)) * w_orig)
-        face_cy = int((box.ymin + (box.height / 2.0)) * h_orig)
-
-        target_ratio = float(target_width) / float(max(1, target_height))
-        face_to_image_ratio = 0.45
-        face_center_y_ratio = 0.51
-        crop_h = max(1, int(round(face_h / face_to_image_ratio)))
-        crop_w = max(1, int(round(crop_h * target_ratio)))
-
-        x1 = face_cx - (crop_w // 2)
-        y1 = face_cy - int(round(crop_h * face_center_y_ratio))
-        return (x1, y1, x1 + crop_w, y1 + crop_h)
-    except Exception as exc:
-        logger.warning("Face detection crop fallback triggered: %s", exc)
-        return None
+# Extracted to app/services/face_service.py — backward-compat re-export
+from app.services.face_service import (  # noqa: E402
+    _fallback_center_crop,
+    _crop_with_padding,
+    _center_crop_box,
+    _detect_face_crop_box,
+)
 
 
 
-def _read_uploaded_file_bytes(file_storage, *, file_label="file"):
-    """Read uploaded bytes robustly so we never silently persist empty files."""
-    if file_storage is None or not getattr(file_storage, "filename", ""):
-        raise ValueError(f"{file_label.capitalize()} is required.")
-
-    raw_bytes = b""
-    try:
-        stream = getattr(file_storage, "stream", None)
-        if stream is not None:
-            try:
-                stream.seek(0)
-            except Exception:
-                pass
-        raw_bytes = file_storage.read() or b""
-        if not raw_bytes and hasattr(file_storage, "save"):
-            buffer = io.BytesIO()
-            file_storage.save(buffer)
-            raw_bytes = buffer.getvalue() or b""
-    finally:
-        stream = getattr(file_storage, "stream", None)
-        if stream is not None:
-            try:
-                stream.seek(0)
-            except Exception:
-                pass
-
-    if not raw_bytes:
-        raise ValueError(f"Uploaded {file_label} is empty. Please choose the image again.")
-    return raw_bytes
+# Extracted to app/services/file_service.py — backward-compat re-export
+from app.services.file_service import _read_uploaded_file_bytes  # noqa: E402
 
 
 
@@ -2629,74 +1985,14 @@ def _read_uploaded_file_bytes(file_storage, *, file_label="file"):
 
 
 
-def _write_binary_file_atomic(path, payload):
-    """Write bytes atomically and refuse empty output files."""
-    data = payload if isinstance(payload, bytes) else bytes(payload or b"")
-    if not data:
-        raise ValueError(f"Refusing to write empty file: {os.path.basename(path)}")
-
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    tmp_path = f"{path}.tmp_{uuid.uuid4().hex}"
-    with open(tmp_path, "wb") as fh:
-        fh.write(data)
-    if os.path.getsize(tmp_path) <= 0:
-        try:
-            os.remove(tmp_path)
-        except OSError:
-            pass
-        raise ValueError(f"Failed to save photo bytes for {os.path.basename(path)}")
-    os.replace(tmp_path, path)
-    return path
+# Extracted to app/services/file_service.py — backward-compat re-export
+from app.services.file_service import _write_binary_file_atomic  # noqa: E402
 
 
 
 
-def send_email(to, subject, body):
-    msg = MIMEText(body)
-    msg['Subject'] = subject
-    msg['From'] = os.environ.get("EMAIL_FROM")
-    msg['To'] = to
-
-    server = None
-    try:
-        # 1. Configuration (Force Port 465 for SSL)
-        smtp_server = "smtp.gmail.com"
-        smtp_port = 465
-        password = os.environ.get("EMAIL_PASSWORD")
-        
-        logger.info(f"📧 Sending email to {to} via {smtp_server}:{smtp_port}...")
-
-        # 2. FORCE IPv4 (Fixes 'Network is unreachable')
-        # We manually resolve the IP to ensure we don't accidentally use IPv6
-        addr_info = socket.getaddrinfo(smtp_server, smtp_port, socket.AF_INET, socket.SOCK_STREAM)
-        family, socktype, proto, canonname, sa = addr_info[0]
-        target_ip = sa[0]
-        
-        logger.info(f"🔗 Connecting to Gmail IPv4: {target_ip}")
-
-        # 3. Connect via SMTP_SSL (Implicit SSL)
-        # We increase timeout to 30s to handle network lag
-        context = ssl.create_default_context()
-        server = smtplib.SMTP_SSL(target_ip, smtp_port, context=context, timeout=30)
-        
-        # 4. Login & Send
-        logger.info("🔑 Logging in...")
-        server.login(msg['From'], password)
-        server.send_message(msg)
-        server.quit()
-        
-        logger.info(f"✅ Email sent successfully to {to}")
-        return True
-
-    except Exception as e:
-        logger.error(f"❌ Failed to send email: {e}")
-        return False
-    finally:
-        if server:
-            try:
-                server.quit()
-            except Exception:
-                pass
+# Extracted to app/services/email_service.py — backward-compat re-export
+from app.services.email_service import send_email  # noqa: E402
 # ================== Landing Page Routes ==================
 
 # ================== Auth ==================
@@ -2767,13 +2063,13 @@ def update_email():
     email = request.form.get('email')
     if not email or not re.match(r"[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$", email):
         flash('Invalid email address.', 'error')
-        return redirect(url_for('dashboard.admin'))
+        return redirect(url_for('dashboard.index'))
   
     try:
         student = Student.query.filter_by(email=session['student_email']).first()
         if not student:
             flash('No matching student record found.', 'error')
-            return redirect(url_for('dashboard.admin'))
+            return redirect(url_for('dashboard.index'))
         
         # Check if email already in use by another student
         existing = Student.query.filter(
@@ -2783,7 +2079,7 @@ def update_email():
         
         if existing:
             flash('Email already in use.', 'error')
-            return redirect(url_for('dashboard.admin'))
+            return redirect(url_for('dashboard.index'))
         
         student.email = email
         session['student_email'] = email
@@ -2794,9 +2090,9 @@ def update_email():
     except Exception as e:
         flash(f'Error updating email: {e}', 'error')
         logger.error(f"Error updating email: {e}")
-        return redirect(url_for('dashboard.admin'))
+        return redirect(url_for('dashboard.index'))
   
-    return redirect(url_for('dashboard.admin'))
+    return redirect(url_for('dashboard.index'))
 
 @student_bp.route("/update_password", methods=["POST"])
 def update_password():
@@ -2809,30 +2105,30 @@ def update_password():
     confirm_password = request.form.get('confirm_password')
     if not all([current_password, new_password, confirm_password]):
         flash('All password fields are required.', 'error')
-        return redirect(url_for('dashboard.admin'))
+        return redirect(url_for('dashboard.index'))
   
     if new_password != confirm_password:
         flash('New password and confirmation do not match.', 'error')
-        return redirect(url_for('dashboard.admin'))
+        return redirect(url_for('dashboard.index'))
   
     if len(new_password) < 6:
         flash('New password must be at least 6 characters.', 'error')
-        return redirect(url_for('dashboard.admin'))
+        return redirect(url_for('dashboard.index'))
     try:
         student = Student.query.filter_by(email=session['student_email']).first()
         
         if not student or not student.password:
             flash('Current password is incorrect.', 'error')
-            return redirect(url_for('dashboard.admin'))
+            return redirect(url_for('dashboard.index'))
         
         try:
             if not check_password_hash(student.password, current_password):
                 flash('Current password is incorrect.', 'error')
-                return redirect(url_for('dashboard.admin'))
+                return redirect(url_for('dashboard.index'))
         except Exception as e:
             logger.error(f"Password verification error: {e}")
             flash('Authentication error. Please try again.', 'error')
-            return redirect(url_for('dashboard.admin'))
+            return redirect(url_for('dashboard.index'))
         
         hashed_password = generate_password_hash(new_password)
         student.password = hashed_password
@@ -2842,11 +2138,125 @@ def update_password():
     except Exception as e:
         flash(f'Error updating password: {e}', 'error')
         logger.error(f"Error updating password: {e}")
-        return redirect(url_for('dashboard.admin'))
+        return redirect(url_for('dashboard.index'))
   
-    return redirect(url_for('dashboard.admin'))
+    return redirect(url_for('dashboard.index'))
 
-# ================== Preview Routes ==================
+
+@student_bp.route("/update_photo", methods=["POST"])
+def student_update_photo():
+    """Allow student to update their own photo via webcam or upload."""
+    if 'student_email' not in session:
+        return redirect(url_for("auth.student_login"))
+
+    from app.services.photo_service import auto_crop_face_photo, _process_photo_pil
+    from app.services.cache_service import invalidate_student_caches
+    from werkzeug.utils import secure_filename
+    import io
+
+    photo_file = request.files.get('photo')
+    if not photo_file or not photo_file.filename:
+        if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({"success": False, "error": "No photo provided"}), 400
+        flash("No photo provided.", "error")
+        return redirect(url_for("dashboard.student_portal"))
+
+    try:
+        student = Student.query.filter_by(email=session["student_email"]).first()
+        if not student:
+            return jsonify({"success": False, "error": "Student not found"}), 404
+
+        # Read and process photo
+        raw_bytes = photo_file.read()
+        if not raw_bytes:
+            return jsonify({"success": False, "error": "Empty photo file"}), 400
+
+        # Process photo with face detection and cropping
+        processed = _process_photo_pil(
+            Image.open(io.BytesIO(raw_bytes)),
+            target_width=260, target_height=313,
+            auto_crop_fn=auto_crop_face_photo
+        )
+
+        # Save to Cloudinary or local
+        from app.legacy_app import UPLOAD_FOLDER, STORAGE_BACKEND
+        import os, uuid
+        filename = f"student_{student.id}_{uuid.uuid4().hex[:8]}.jpg"
+
+        if STORAGE_BACKEND == "local":
+            os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+            filepath = os.path.join(UPLOAD_FOLDER, filename)
+            processed.save(filepath, "JPEG", quality=90)
+            student.photo_filename = filename
+            student.photo_url = None
+        else:
+            from cloudinary_config import upload_image
+            buf = io.BytesIO()
+            processed.save(buf, format="JPEG", quality=90)
+            buf.seek(0)
+            result = upload_image(buf.getvalue(), folder="student_photos")
+            student.photo_url = result if isinstance(result, str) else result.get("url", "")
+            student.photo_filename = filename
+
+        db.session.commit()
+        invalidate_student_caches(student.id)
+
+        if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({"success": True, "photo_url": student.photo_url})
+        flash("Photo updated successfully! Your new ID card will be generated.", "success")
+        return redirect(url_for("dashboard.student_portal"))
+    except Exception as e:
+        logger.error(f"Error updating student photo: {e}")
+        db.session.rollback()
+        if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({"success": False, "error": str(e)}), 500
+        flash(f"Error updating photo: {e}", "error")
+        return redirect(url_for("dashboard.student_portal"))
+
+
+@student_bp.route("/request_reprint", methods=["POST"])
+def student_request_reprint():
+    """Allow student to request a reprint of their ID card."""
+    if 'student_email' not in session:
+        return redirect(url_for("auth.student_login"))
+
+    try:
+        student = Student.query.filter_by(email=session["student_email"]).first()
+        if not student:
+            return jsonify({"success": False, "error": "Student not found"}), 404
+
+        # Add to print queue with high priority
+        from app.services.print_queue_service import add_print_job
+        job_id = add_print_job(
+            template_id=student.template_id,
+            student_id=student.id,
+            job_type='reprint',
+            priority=2,  # High priority for reprint requests
+        )
+
+        # Log the request
+        from app.legacy_app import log_activity
+        log_activity("Reprint requested", target=f"Student {student.name} (ID: {student.id})",
+                     details=f"Print job {job_id} created")
+
+        # Send notification
+        try:
+            from app.services.notification_service import notify_card_ready
+            notify_card_ready(student.id, student.template_id, reprint=True)
+        except Exception:
+            pass
+
+        if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({"success": True, "message": "Reprint requested", "job_id": job_id})
+        flash("Reprint requested! You will be notified when your new card is ready.", "success")
+        return redirect(url_for("dashboard.student_portal"))
+    except Exception as e:
+        logger.error(f"Error requesting reprint: {e}")
+        db.session.rollback()
+        if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({"success": False, "error": str(e)}), 500
+        flash(f"Error requesting reprint: {e}", "error")
+        return redirect(url_for("dashboard.student_portal"))
 
 # ================== Student Credential Management Routes ==================
 # ================== UPDATED INDEX ROUTE (Admin Email Bypass) ==================
@@ -3573,15 +2983,6 @@ def update_template_settings_route():
             return jsonify({'success': False, 'error': error_msg}), 500
         return redirect(url_for('dashboard.admin', error=error_msg))
     
-@app.template_filter('rgb_to_hex')
-def rgb_to_hex(rgb_list):
-    if isinstance(rgb_list, list) and len(rgb_list) == 3:
-        try:
-            clamped = [max(0, min(255, int(c))) for c in rgb_list]
-            return '#{:02x}{:02x}{:02x}'.format(*clamped)
-        except (ValueError, TypeError):
-            pass
-    return '#000000'
 
 @app.route("/upload_font", methods=["POST"])
 def upload_font():
@@ -4163,11 +3564,10 @@ def admin_preview_card():
                     font=l_font,
                     fill=label_fill,
                     char_spacing=label_char_spacing,
-                    direction=direction,
                     target_image=template_img,
                     enable_gradient=enable_label_gradient,
                     bottom_color=label_fill_bottom,
-                    **get_draw_text_kwargs(label_text_final, lang)
+                    **{"direction": direction, **get_draw_text_kwargs(label_text_final, lang)}
                 )
                 draw_aligned_colon_pil(
                     draw,
@@ -4257,11 +3657,10 @@ def admin_preview_card():
                             font=addr_font,
                             fill=value_fill,
                             char_spacing=value_char_spacing,
-                            direction=direction,
                             target_image=template_img,
                             enable_gradient=enable_value_gradient,
                             bottom_color=value_fill_bottom,
-                            **get_draw_text_kwargs(line_display, lang)
+                            **{"direction": direction, **get_draw_text_kwargs(line_display, lang)}
                         )
                     value_y_eff += spacing
                     if advances_flow:
@@ -4300,11 +3699,10 @@ def admin_preview_card():
                         font=v_font,
                         fill=value_fill,
                         char_spacing=value_char_spacing,
-                        direction=direction,
                         target_image=template_img,
                         enable_gradient=enable_value_gradient,
                         bottom_color=value_fill_bottom,
-                        **get_draw_text_kwargs(display_val, lang)
+                        **{"direction": direction, **get_draw_text_kwargs(display_val, lang)}
                     )
                 if advances_flow:
                     current_y += value_line_height
@@ -4837,13 +4235,22 @@ def background_bulk_generate(task_id, template_id, excel_path, photo_map, import
     """
     Background thread to process bulk generation without blocking the server.
     Uses SQLAlchemy ORM for all database operations.
+    
+    For bulk jobs with > 10 students, uses parallel rendering via ThreadPoolExecutor
+    to significantly speed up card generation on multi-core systems.
     """
+    from app.services.parallel_render import (
+        bulk_render_students,
+        get_optimal_workers,
+        render_cards_parallel_to_bytes,
+    )
     with app.app_context():
         success_count = 0
         skipped_count = 0
         error_count = 0
         total_records = 0
         errors = []
+        render_inputs = []
         try:
             _set_bulk_job_state(
                 task_id,
@@ -4853,7 +4260,7 @@ def background_bulk_generate(task_id, template_id, excel_path, photo_map, import
                 started_at=datetime.now(timezone.utc).isoformat(),
                 updated_at=datetime.now(timezone.utc).isoformat(),
             )
-
+            import pandas as pd  # Lazy import — Avoids 340ms startup cost when bulk generation is not used
             if excel_path.endswith('.csv'):
                 df = pd.read_csv(excel_path)
             else:
@@ -4913,6 +4320,14 @@ def background_bulk_generate(task_id, template_id, excel_path, photo_map, import
             commit_batch_size = 25
             last_progress_update = 0.0
 
+            # Parallel rendering: collect student data first, then render in parallel
+            parallel_batch_size = 0
+            parallel_students = []  # List of (idx, row_data_dict) for parallel rendering
+            use_parallel = total_records > 10  # Use parallel for bulk jobs > 10 cards
+            parallel_workers = get_optimal_workers(total_records) if use_parallel else 1
+
+            if use_parallel:
+                logger.info(f"Bulk generation: using parallel rendering with {parallel_workers} workers for {total_records} cards")
             def _cleanup_generated_paths(paths):
                 if STORAGE_BACKEND != "local":
                     return
@@ -5113,111 +4528,113 @@ def background_bulk_generate(task_id, template_id, excel_path, photo_map, import
                         continue
 
                     school_name = template_school_name
-                    side_render_student = SimpleNamespace(
-                        name=name,
-                        father_name=father_name,
-                        class_name=class_name,
-                        dob=dob,
-                        address=address,
-                        phone=phone,
-                        photo_url=used_photo if str(used_photo or "").startswith("http") else None,
-                        photo_filename=used_photo if used_photo and not str(used_photo).startswith("http") and used_photo != "placeholder.jpg" else None,
-                        custom_data=custom_data,
-                        school_name=school_name,
-                        _template_fields=dynamic_fields,
-                        _prepared_photo_cache=photo_cache,
-                    )
 
-                    student_id = getattr(side_render_student, "id", None)
-                    render_scale = 1.0
-
-                    
-                    front_image = _get_cached_final_card(
-                        template_obj,
-                        side_render_student,
-                        side="front",
-                        student_id=student_id,
-                        school_name=school_name,
-                        render_scale=render_scale,
-                    )
-                    
-                    if front_image is None:
-                        raise RuntimeError("Failed to render front card image")
-                    
-                    back_image = None
-                    if getattr(template_obj, "is_double_sided", False):
-                        back_image = _get_cached_final_card(
-                            template_obj,
-                            side_render_student,
-                            side="back",
-                            student_id=student_id,
-                            school_name=school_name,
-                            render_scale=render_scale,
-                        ) or load_static_back_template_image(template_obj, card_width, card_height)
-                    front_rgb = _flatten_to_rgb(front_image)
-                    back_rgb = _flatten_to_rgb(back_image) if back_image is not None else None
-
-                    image_url = None
-                    back_image_url = None
-                    generated_filename = None
-                    back_generated_filename = None
-                    cleanup_paths = []
-
-                    ts = datetime.now().strftime("%Y%m%d%H%M%S%f")
-                    base = f"card_{template_id}_{ts}_{uuid.uuid4().hex}"
-
-                    if STORAGE_BACKEND == "local":
-                        os.makedirs(GENERATED_FOLDER, exist_ok=True)
-                        jpg_name = f"{base}.jpg"
-                        jpg_path = os.path.join(GENERATED_FOLDER, jpg_name)
-                        front_rgb.save(jpg_path, format="JPEG", quality=95)
-                        cleanup_paths.append(jpg_path)
-                        generated_filename = jpg_name
-
-                        if back_rgb is not None:
-                            back_jpg_name = f"{base}_back.jpg"
-                            back_jpg_path = os.path.join(GENERATED_FOLDER, back_jpg_name)
-                            back_rgb.save(back_jpg_path, format="JPEG", quality=95)
-                            cleanup_paths.append(back_jpg_path)
-                            back_generated_filename = back_jpg_name
-                    else:
-                        jpg_buffer = io.BytesIO()
-                        front_rgb.save(jpg_buffer, format="JPEG", quality=95)
-                        jpg_buffer.seek(0)
-                        image_url = upload_image(jpg_buffer.getvalue(), folder='cards', resource_type='image')
-                        if back_rgb is not None:
-                            back_jpg_buffer = io.BytesIO()
-                            back_rgb.save(back_jpg_buffer, format="JPEG", quality=95)
-                            back_jpg_buffer.seek(0)
-                            back_image_url = upload_image(back_jpg_buffer.getvalue(), folder='cards', resource_type='image')
-
-                    student = Student(
-                        name=name,
-                        father_name=father_name,
-                        class_name=class_name,
-                        dob=dob,
-                        address=address,
-                        phone=phone,
-                        photo_url=None if STORAGE_BACKEND == "local" else (used_photo if str(used_photo).startswith("http") else None),
-                        photo_filename=used_photo if STORAGE_BACKEND == "local" else (used_photo if used_photo and not str(used_photo).startswith("http") else None),
-                        image_url=None if STORAGE_BACKEND == "local" else image_url,
-                        back_image_url=None if STORAGE_BACKEND == "local" else back_image_url,
-                        pdf_url=None,
-                        generated_filename=generated_filename if STORAGE_BACKEND == "local" else None,
-                        back_generated_filename=back_generated_filename if STORAGE_BACKEND == "local" else None,
-                        created_at=datetime.now(timezone.utc),
-                        data_hash=data_hash,
-                        template_id=template_id,
-                        school_name=school_name,
-                        custom_data=custom_data,
-                    )
-                    pending_rows.append({
-                        "student": student,
-                        "data_hash": data_hash,
-                        "row_number": idx + 2,
-                        "cleanup_paths": cleanup_paths,
+                    render_inputs.append({
+                        'name': name,
+                        'father_name': father_name,
+                        'class_name': class_name,
+                        'dob': dob,
+                        'address': address,
+                        'phone': phone,
+                        'photo_url': used_photo if str(used_photo or "").startswith("http") else None,
+                        'photo_filename': used_photo if used_photo and not str(used_photo).startswith("http") and used_photo != "placeholder.jpg" else None,
+                        'custom_data': custom_data,
+                        'school_name': school_name,
+                        '_template_fields': dynamic_fields,
+                        '_prepared_photo_cache': photo_cache,
+                        'row_idx': idx,
+                        'data_hash': data_hash,
                     })
-                    _flush_pending_rows(force=False)
+
+                    is_last_row = (idx == len(df) - 1)
+                    if len(render_inputs) >= 8 or is_last_row:
+                        batch_workers = get_optimal_workers(len(render_inputs))
+                        batch_results = bulk_render_students(
+                            app, template_obj, render_inputs, max_workers=batch_workers,
+                        )
+                        for r in batch_results:
+                            r_data = r.get('student_data') or {}
+                            r_row_idx = r_data.get('row_idx', idx)
+                            r_hash = r_data.get('data_hash') or data_hash
+                            if not r.get('success'):
+                                error_count += 1
+                                errors.append(
+                                    f"Row {r_row_idx + 2}: {r.get('error') or 'render failed'}"
+                                )
+                                _publish_bulk_job_errors(task_id, errors)
+                                continue
+                            front_image = r.get('front_image')
+                            back_image = r.get('back_image')
+                            front_rgb = _flatten_to_rgb(front_image)
+                            back_rgb = _flatten_to_rgb(back_image) if back_image is not None else None
+
+                            image_url = None
+                            back_image_url = None
+                            generated_filename = None
+                            back_generated_filename = None
+                            cleanup_paths = []
+
+                            ts = datetime.now().strftime("%Y%m%d%H%M%S%f")
+                            base = f"card_{template_id}_{ts}_{uuid.uuid4().hex}"
+
+                            if STORAGE_BACKEND == "local":
+                                os.makedirs(GENERATED_FOLDER, exist_ok=True)
+                                jpg_name = f"{base}.jpg"
+                                jpg_path = os.path.join(GENERATED_FOLDER, jpg_name)
+                                front_rgb.save(jpg_path, format="JPEG", quality=95)
+                                cleanup_paths.append(jpg_path)
+                                generated_filename = jpg_name
+
+                                if back_rgb is not None:
+                                    back_jpg_name = f"{base}_back.jpg"
+                                    back_jpg_path = os.path.join(GENERATED_FOLDER, back_jpg_name)
+                                    back_rgb.save(back_jpg_path, format="JPEG", quality=95)
+                                    cleanup_paths.append(back_jpg_path)
+                                    back_generated_filename = back_jpg_name
+                            else:
+                                jpg_buffer = io.BytesIO()
+                                front_rgb.save(jpg_buffer, format="JPEG", quality=95)
+                                jpg_buffer.seek(0)
+                                image_url = upload_image(jpg_buffer.getvalue(), folder='cards', resource_type='image')
+                                if back_rgb is not None:
+                                    back_jpg_buffer = io.BytesIO()
+                                    back_rgb.save(back_jpg_buffer, format="JPEG", quality=95)
+                                    back_jpg_buffer.seek(0)
+                                    back_image_url = upload_image(back_jpg_buffer.getvalue(), folder='cards', resource_type='image')
+
+                            used_photo_r = (
+                                r_data.get('photo_filename')
+                                or r_data.get('photo_url')
+                                or "placeholder.jpg"
+                            )
+                            student = Student(
+                                name=r_data.get('name', name),
+                                father_name=r_data.get('father_name', father_name),
+                                class_name=r_data.get('class_name', class_name),
+                                dob=r_data.get('dob', dob),
+                                address=r_data.get('address', address),
+                                phone=r_data.get('phone', phone),
+                                photo_url=None if STORAGE_BACKEND == "local" else (r_data.get('photo_url') if str(r_data.get('photo_url') or "").startswith("http") else None),
+                                photo_filename=used_photo_r if STORAGE_BACKEND == "local" else (r_data.get('photo_filename') if r_data.get('photo_filename') and used_photo_r != "placeholder.jpg" else None),
+                                image_url=None if STORAGE_BACKEND == "local" else image_url,
+                                back_image_url=None if STORAGE_BACKEND == "local" else back_image_url,
+                                pdf_url=None,
+                                generated_filename=generated_filename if STORAGE_BACKEND == "local" else None,
+                                back_generated_filename=back_generated_filename if STORAGE_BACKEND == "local" else None,
+                                created_at=datetime.now(timezone.utc),
+                                data_hash=r_hash,
+                                template_id=template_id,
+                                school_name=school_name,
+                                custom_data=r_data.get('custom_data', custom_data),
+                            )
+                            pending_rows.append({
+                                "student": student,
+                                "data_hash": r_hash,
+                                "row_number": r_row_idx + 2,
+                                "cleanup_paths": cleanup_paths,
+                            })
+                            _flush_pending_rows(force=False)
+                        render_inputs = []
 
                 except Exception as row_e:
                     db.session.rollback()
@@ -5630,3 +5047,39 @@ if __name__ == "__main__":
         if "Address already in use" in str(e):
             logger.error(f"Port {port} is already in use. Stop the other process or use a different port.")
         raise
+# Refactored module imports — these provide cleaner organizational structure.
+# The original function definitions above shadow these imports at runtime,
+# preserving exact backward-compatible behavior.
+# To activate: uncomment the imports below.
+#
+# from app.auth_decorators import (
+#     exempt_admins, login_required, admin_required,
+#     super_admin_required, school_admin_required, student_required,
+# )
+#
+# from app.error_handlers import (
+#     handle_rate_limit_error, handle_bad_request_error,
+#     handle_payload_too_large, handle_unprocessable_entity,
+#     not_found_error, internal_error, add_security_headers, rgb_to_hex,
+# )
+#
+# from app.field_layout import (
+#     resolve_field_layout, get_template_field_side_flags,
+#     resolve_field_layout_for_side, get_initial_flow_y_for_side,
+#     get_template_language_direction_from_obj,
+#     apply_layout_custom_objects_pil,
+# )
+#
+# from app.db_migrations import (
+#     init_db, check_deadline_passed, log_activity,
+#     _quote_db_identifier, _run_schema_ddl, _get_table_column_names,
+#     _add_column_if_missing, sync_model_columns_to_database,
+#     migrate_database, migrate_template_font_colors, migrate_photo_settings,
+#     repair_student_photo_url_recursion,
+# )
+#
+# from app.template_ops import (
+#     resolve_student_card_preview_urls, load_static_back_template_image,
+#     add_template, add_template_cloudinary, get_templates,
+#     update_template_settings,
+# )

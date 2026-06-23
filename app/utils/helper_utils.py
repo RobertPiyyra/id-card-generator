@@ -296,7 +296,7 @@ def get_storage_backend():
 
     if mode in {"cloudinary", "cloud"} and not configured:
         logger.error("Cloudinary credentials are missing but STORAGE_BACKEND=cloudinary was requested.")
-        return "cloudinary"
+        return "local"
 
     return "cloudinary" if configured else "local"
 

@@ -43,6 +43,16 @@
             --primary-light: #4a5568;
         }
 
+        @media (prefers-color-scheme: dark) {
+            body {
+                --bg-color: #121826;
+                --text-color: #e4e4e4;
+                --section-bg: #1e293b;
+                --section-hover: #2d3748;
+                --primary-light: #4a5568;
+            }
+        }
+
         * {
             box-sizing: border-box;
             margin: 0;
@@ -153,52 +163,6 @@
         }
 
         h3 i { color: var(--primary-color); font-size: 1.3rem; }
-
-        .theme-toggle, .home-button {
-            position: fixed;
-            top: 24px;
-            right: 24px;
-            background: var(--primary-color);
-            color: #fff;
-            border: none;
-            padding: 12px;
-            border-radius: 50%;
-            cursor: pointer;
-            transition: var(--transition);
-            z-index: 1000;
-            font-size: 1.2rem;
-            animation: scaleIn 0.5s ease-out;
-            box-shadow: var(--shadow);
-            width: 50px;
-            height: 50px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .home-button {
-            right: 84px;
-            background: linear-gradient(135deg, #10b981, #059669);
-        }
-
-        .manual-button {
-            right: 144px;
-            background: #6b7280;
-        }
-
-        .manual-button:hover {
-            background: #4b5563;
-        }
-
-        .theme-toggle:hover, .home-button:hover {
-            background: var(--primary-dark);
-            transform: translateY(-2px) rotate(15deg);
-            box-shadow: var(--shadow);
-        }
-
-        .home-button:hover {
-            background: linear-gradient(135deg, #059669, #047857);
-        }
 
         .container {
             max-width: 1400px;
@@ -894,9 +858,8 @@
             .form-row { flex-direction: column; gap: 0; }
             #searchContainer { flex-direction: column; align-items: stretch; }
             #searchInput { max-width: 100%; }
-            .theme-toggle, .home-button { top: 10px; right: 10px; width: 40px; height: 40px; }
-            .home-button { right: 60px; }
-            .manual-button { right: 110px; }
+            .home-button { top: 10px; right: 10px; width: 40px; height: 40px; }
+            .manual-button { right: 60px; }
             .container { padding: 10px; }
             body { padding: 15px; }
             h1 { font-size: 2rem; }
@@ -963,7 +926,7 @@
                 width: calc(100% - 20px);
                 font-size: 0.9rem;
             }
-            .theme-toggle, .home-button {
+            .home-button {
                 width: 35px;
                 height: 35px;
                 font-size: 1rem;
@@ -1327,12 +1290,11 @@
         <li></li><li></li><li></li><li></li><li></li><li></li><li></li><li></li><li></li><li></li>
     </ul>
     
-    <a href="/index" class="home-button" title="Back to Home"><i class="fas fa-home"></i></a>
-    <a href="/enterprise/admin/analytics" class="home-button" title="Enterprise Features" style="right: 144px; background: linear-gradient(135deg, #2563eb, #7c3aed);">
+    <a href="/index" class="home-button" title="Back to Home" style="right: 24px;"><i class="fas fa-home"></i></a>
+    <a href="/enterprise/admin/analytics" class="home-button" title="Enterprise Features" style="right: 84px; background: linear-gradient(135deg, #2563eb, #7c3aed);">
       <i class="fas fa-building"></i>
     </a>
-    <button class="theme-toggle" onclick="toggleTheme()"><i class="fas fa-moon"></i></button>
-    <a href="{{ url_for('dashboard.user_guide') }}" class="home-button manual-button" title="User Manual" target="_blank">
+    <a href="{{ url_for('dashboard.user_guide') }}" class="home-button manual-button" title="User Manual" target="_blank" style="right: 144px;">
       <i class="fas fa-book"></i>
     </a>
 

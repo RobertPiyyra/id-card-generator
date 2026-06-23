@@ -224,6 +224,49 @@ class AdminUser(db.Model):
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
 
+# ================== Serial Batch Models ==================
+class SerialBatch(db.Model):
+    __tablename__ = 'serial_batches'
+
+    id = db.Column(db.Integer, primary_key=True)
+    school_name = db.Column(db.String(255), nullable=False, index=True)
+    template_id = db.Column(db.Integer, db.ForeignKey('templates.id'), nullable=False)
+    prefix = db.Column(db.String(50), default='SCH-')
+    status = db.Column(db.String(30), default='uploading')  # uploading, ready, filling, rendering, done, error
+    created_by = db.Column(db.String(255))
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+    template = db.relationship('Template', backref=db.backref('serial_batches', lazy='dynamic'))
+    cards = db.relationship('SerialCard', backref='batch', lazy='dynamic', cascade='all, delete-orphan')
+
+
+class SerialCard(db.Model):
+    __tablename__ = 'serial_cards'
+
+    id = db.Column(db.Integer, primary_key=True)
+    batch_id = db.Column(db.Integer, db.ForeignKey('serial_batches.id', ondelete='CASCADE'), nullable=False, index=True)
+    serial_no = db.Column(db.String(50), nullable=False)  # e.g. "SCH-001"
+    photo_path = db.Column(db.String(500))
+    photo_thumbnail = db.Column(db.String(500))
+    name = db.Column(db.String(255))
+    father_name = db.Column(db.String(255))
+    class_name = db.Column(db.String(100))
+    dob = db.Column(db.String(50))
+    address = db.Column(db.Text)
+    phone = db.Column(db.String(50))
+    custom_data = db.Column(MutableDict.as_mutable(JSON), default=dict)
+    status = db.Column(db.String(30), default='photo_only')  # photo_only, details_filled, rendered, error
+    error_message = db.Column(db.Text)
+    rendered_path = db.Column(db.String(500))
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+    __table_args__ = (
+        db.UniqueConstraint('batch_id', 'serial_no', name='uq_batch_serial'),
+    )
+
+
 # ================== Phase-1 Premium Models ==================
 class TemplateVersion(db.Model):
     __tablename__ = 'template_versions'
@@ -602,3 +645,58 @@ class OcrResult(db.Model):
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), index=True)
 
     student = relationship('Student', backref=backref('ocr_results', lazy='dynamic'))
+# ================== Print Queue Models ==================
+
+class PrintQueue(db.Model):
+    __tablename__ = 'print_queue'
+    id = db.Column(db.Integer, primary_key=True)
+    template_id = db.Column(db.Integer, db.ForeignKey('templates.id'), nullable=False, index=True)
+    student_id = db.Column(db.Integer, db.ForeignKey('students.id'), nullable=True, index=True)
+    admin_id = db.Column(db.Integer, db.ForeignKey('admin_users.id'), nullable=True)
+    job_type = db.Column(db.String(20), default='single')
+    priority = db.Column(db.Integer, default=5)
+    status = db.Column(db.String(20), default='pending')
+    printer_name = db.Column(db.String(100))
+    card_side = db.Column(db.String(10), default='front')
+    copies = db.Column(db.Integer, default=1)
+    error_message = db.Column(db.Text)
+    started_at = db.Column(db.DateTime)
+    completed_at = db.Column(db.DateTime)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    template = relationship('Template', backref=db.backref('print_jobs', lazy='dynamic'))
+    student = relationship('Student', backref=db.backref('print_jobs', lazy='dynamic'))
+
+
+class PrintHistory(db.Model):
+    __tablename__ = 'print_history'
+    id = db.Column(db.Integer, primary_key=True)
+    print_queue_id = db.Column(db.Integer, db.ForeignKey('print_queue.id'), nullable=True)
+    template_id = db.Column(db.Integer, db.ForeignKey('templates.id'), nullable=False, index=True)
+    student_id = db.Column(db.Integer, db.ForeignKey('students.id'), nullable=True, index=True)
+    admin_id = db.Column(db.Integer, db.ForeignKey('admin_users.id'), nullable=True)
+    printer_name = db.Column(db.String(100))
+    job_type = db.Column(db.String(20))
+    status = db.Column(db.String(20))
+    card_side = db.Column(db.String(10))
+    copies = db.Column(db.Integer, default=1)
+    error_message = db.Column(db.Text)
+    started_at = db.Column(db.DateTime)
+    completed_at = db.Column(db.DateTime)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+
+
+class NfcEncoding(db.Model):
+    __tablename__ = 'nfc_encodings'
+    id = db.Column(db.Integer, primary_key=True)
+    student_id = db.Column(db.Integer, db.ForeignKey('students.id'), nullable=False, index=True)
+    template_id = db.Column(db.Integer, db.ForeignKey('templates.id'), nullable=False)
+    chip_type = db.Column(db.String(50), default='MIFARE_1K')
+    encoding_data = db.Column(JSON)
+    uid = db.Column(db.String(50), unique=True)
+    status = db.Column(db.String(20), default='pending')
+    encoded_at = db.Column(db.DateTime)
+    verified_at = db.Column(db.DateTime)
+    error_message = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+    student = relationship('Student', backref=db.backref('nfc_encodings', lazy='dynamic'))

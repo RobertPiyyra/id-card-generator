@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+{% block title %}API Documentation - ID Card Generator{% endblock %}
+{% block content %}
+<div class="container-fluid">
+<div class="row">
+<div class="col-md-3">
+<div class="card sticky-top" style="top:20px">
+<div class="card-header bg-primary text-white"><h5>API v1 Reference</h5></div>
+<div class="list-group list-group-flush">
+<a href="#auth" class="list-group-item list-group-item-action">Authentication</a>
+<a href="#students" class="list-group-item list-group-item-action">Students</a>
+<a href="#templates" class="list-group-item list-group-item-action">Templates</a>
+<a href="#bulk-jobs" class="list-group-item list-group-item-action">Bulk Jobs</a>
+<a href="#print-queue" class="list-group-item list-group-item-action">Print Queue</a>
+<a href="#nfc" class="list-group-item list-group-item-action">NFC Encoding</a>
+<a href="#webhooks" class="list-group-item list-group-item-action">Webhooks</a>
+</div>
+</div>
+</div>
+<div class="col-md-9">
+
+<div id="auth" class="card mb-4">
+<div class="card-header bg-dark text-white"><h5>Authentication</h5></div>
+<div class="card-body">
+<p>All API requests require an API key via the <code>X-API-Key</code> header:</p>
+<pre><code>curl -H "X-API-Key: idcard_xxxxxxxx" https://your-domain.com/api/v1/students</code></pre>
+<h6>Scopes</h6>
+<ul>
+<li><code>students:read</code> — List and view students</li>
+<li><code>students:write</code> — Create, update, delete students</li>
+<li><code>templates:read</code> — List and view templates</li>
+<li><code>templates:write</code> — Create, delete templates</li>
+<li><code>bulk:read</code> — View bulk job status</li>
+<li><code>bulk:write</code> — Start and cancel bulk jobs</li>
+<li><code>print:read</code> — View print queue and history</li>
+<li><code>print:write</code> — Add, cancel, reprint print jobs</li>
+<li><code>nfc:read</code> — View NFC encodings</li>
+<li><code>nfc:write</code> — Create and execute NFC encodings</li>
+<li><code>webhooks:manage</code> — Manage webhook endpoints</li>
+<li><code>admin</code> — Full access to all endpoints</li>
+</ul>
+</div>
+</div>
+
+<div id="students" class="card mb-4">
+<div class="card-header bg-primary text-white"><h5>Students</h5></div>
+<div class="card-body">
+<table class="table table-sm"><thead><tr><th>Method</th><th>Endpoint</th><th>Description</th><th>Scope</th></tr></thead>
+<tbody>
+<tr><td>GET</td><td>/api/v1/students</td><td>List students (paginated)</td><td>students:read</td></tr>
+<tr><td>GET</td><td>/api/v1/students/&lt;id&gt;</td><td>Get single student</td><td>students:read</td></tr>
+<tr><td>POST</td><td>/api/v1/students</td><td>Create student</td><td>students:write</td></tr>
+<tr><td>PUT</td><td>/api/v1/students/&lt;id&gt;</td><td>Update student</td><td>students:write</td></tr>
+<tr><td>DELETE</td><td>/api/v1/students/&lt;id&gt;</td><td>Delete student</td><td>students:write</td></tr>
+</tbody></table>
+<pre><code># Create a student
+POST /api/v1/students
+{
+  "name": "John Doe",
+  "school_name": "Springfield Elementary",
+  "template_id": 1,
+  "class_name": "5A",
+  "father_name": "Jane Doe",
+  "phone": "+1234567890"
+}</code></pre>
+</div>
+</div>
+
+<div id="templates" class="card mb-4">
+<div class="card-header bg-success text-white"><h5>Templates</h5></div>
+<div class="card-body">
+<table class="table table-sm"><thead><tr><th>Method</th><th>Endpoint</th><th>Description</th><th>Scope</th></tr></thead>
+<tbody>
+<tr><td>GET</td><td>/api/v1/templates</td><td>List templates</td><td>templates:read</td></tr>
+<tr><td>GET</td><td>/api/v1/templates/&lt;id&gt;</td><td>Get single template</td><td>templates:read</td></tr>
+<tr><td>POST</td><td>/api/v1/templates</td><td>Create template</td><td>templates:write</td></tr>
+<tr><td>DELETE</td><td>/api/v1/templates/&lt;id&gt;</td><td>Delete template</td><td>templates:write</td></tr>
+</tbody></table>
+</div>
+</div>
+
+<div id="bulk-jobs" class="card mb-4">
+<div class="card-header bg-warning text-dark"><h5>Bulk Jobs</h5></div>
+<div class="card-body">
+<table class="table table-sm"><thead><tr><th>Method</th><th>Endpoint</th><th>Description</th><th>Scope</th></tr></thead>
+<tbody>
+<tr><td>GET</td><td>/api/v1/bulk-jobs</td><td>List bulk jobs</td><td>bulk:read</td></tr>
+<tr><td>GET</td><td>/api/v1/bulk-jobs/&lt;task_id&gt;</td><td>Get job status</td><td>bulk:read</td></tr>
+<tr><td>POST</td><td>/api/v1/bulk-jobs/&lt;task_id&gt;/cancel</td><td>Cancel job</td><td>bulk:write</td></tr>
+</tbody></table>
+</div>
+</div>
+
+<div id="print-queue" class="card mb-4">
+<div class="card-header bg-info text-white"><h5>Print Queue</h5></div>
+<div class="card-body">
+<table class="table table-sm"><thead><tr><th>Method</th><th>Endpoint</th><th>Description</th><th>Scope</th></tr></thead>
+<tbody>
+<tr><td>GET</td><td>/api/v1/print-queue</td><td>View queue + status</td><td>print:read</td></tr>
+<tr><td>POST</td><td>/api/v1/print-queue</td><td>Add print job</td><td>print:write</td></tr>
+<tr><td>POST</td><td>/api/v1/print-queue/&lt;id&gt;/cancel</td><td>Cancel job</td><td>print:write</td></tr>
+<tr><td>POST</td><td>/api/v1/print-queue/&lt;id&gt;/reprint</td><td>Reprint job</td><td>print:write</td></tr>
+<tr><td>GET</td><td>/api/v1/print-history</td><td>Print history</td><td>print:read</td></tr>
+</tbody></table>
+</div>
+</div>
+
+<div id="nfc" class="card mb-4">
+<div class="card-header bg-secondary text-white"><h5>NFC Encoding</h5></div>
+<div class="card-body">
+<table class="table table-sm"><thead><tr><th>Method</th><th>Endpoint</th><th>Description</th><th>Scope</th></tr></thead>
+<tbody>
+<tr><td>GET</td><td>/api/v1/nfc-encodings</td><td>List encodings</td><td>nfc:read</td></tr>
+<tr><td>POST</td><td>/api/v1/nfc-encodings</td><td>Create encoding job</td><td>nfc:write</td></tr>
+<tr><td>POST</td><td>/api/v1/nfc-encodings/&lt;id&gt;/encode</td><td>Execute encoding</td><td>nfc:write</td></tr>
+<tr><td>POST</td><td>/api/v1/nfc-encodings/&lt;id&gt;/verify</td><td>Verify encoding</td><td>nfc:write</td></tr>
+<tr><td>POST</td><td>/api/v1/nfc/batch-encode</td><td>Batch encode</td><td>nfc:write</td></tr>
+</tbody></table>
+</div>
+</div>
+
+<div id="webhooks" class="card mb-4">
+<div class="card-header bg-dark text-white"><h5>Webhooks</h5></div>
+<div class="card-body">
+<table class="table table-sm"><thead><tr><th>Method</th><th>Endpoint</th><th>Description</th><th>Scope</th></tr></thead>
+<tbody>
+<tr><td>GET</td><td>/api/v1/webhooks</td><td>List webhooks</td><td>webhooks:manage</td></tr>
+<tr><td>POST</td><td>/api/v1/webhooks</td><td>Create webhook</td><td>webhooks:manage</td></tr>
+<tr><td>DELETE</td><td>/api/v1/webhooks/&lt;id&gt;</td><td>Delete webhook</td><td>webhooks:manage</td></tr>
+<tr><td>GET</td><td>/api/v1/webhooks/&lt;id&gt;/deliveries</td><td>Delivery history</td><td>webhooks:manage</td></tr>
+</tbody></table>
+<h6>Events</h6>
+<p><code>student.created</code>, <code>student.updated</code>, <code>student.deleted</code>, <code>card.generated</code>, <code>card.printed</code>, <code>bulk.started</code>, <code>bulk.completed</code>, <code>bulk.failed</code>, <code>template.created</code>, <code>template.updated</code></p>
+</div>
+</div>
+
+</div></div>
+</div>
+{% endblock %}

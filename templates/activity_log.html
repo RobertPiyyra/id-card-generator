@@ -14,6 +14,17 @@
         .badge-action { min-width: 100px; }
         .pagination .page-link { color: #0052cc; }
         .pagination .active .page-link { background-color: #0052cc; border-color: #0052cc; color: white; }
+        @media (prefers-color-scheme: dark) {
+            body { background-color: #0f172a; color: #e2e8f0; }
+            .card { background: #1e293b; }
+            .table { color: #e2e8f0; }
+            .table th { color: #94a3b8; border-bottom-color: #334155; }
+            .table td { border-color: #334155; }
+            .table-hover tbody tr:hover { background-color: #1e293b; }
+            .text-muted { color: #94a3b8; }
+            .pagination .page-link { color: #93c5fd; }
+            .pagination .active .page-link { background-color: #4f46e5; border-color: #4f46e5; }
+        }
     </style>
 </head>
 <body>
@@ -114,5 +125,12 @@
 
 </div>
 
+
+<script>
+    (function() {
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        if (prefersDark) { document.body.classList.add('dark'); }
+    })();
+</script>
 </body>
 </html>

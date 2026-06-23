@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+{% block title %}Print Queue - ID Card Generator{% endblock %}
+{% block content %}
+<div class="container-fluid mt-3">
+<div class="row mb-3">
+<div class="col"><h4><i class="fa-solid fa-print me-2"></i>Print Queue</h4></div>
+<div class="col-auto">
+<a href="{{ url_for('dashboard.admin') }}" class="btn btn-outline-secondary btn-sm"><i class="fa-solid fa-arrow-left me-1"></i>Back to Admin</a>
+</div>
+</div>
+
+<!-- Stats Cards -->
+<div class="row mb-4" id="pqStats">
+<div class="col-md-3"><div class="card bg-warning text-dark"><div class="card-body text-center"><h2 id="statPending">0</h2><small>Pending</small></div></div></div>
+<div class="col-md-3"><div class="card bg-info text-white"><div class="card-body text-center"><h2 id="statProcessing">0</h2><small>Processing</small></div></div></div>
+<div class="col-md-3"><div class="card bg-success text-white"><div class="card-body text-center"><h2 id="statCompleted">0</h2><small>Completed Today</small></div></div></div>
+<div class="col-md-3"><div class="card bg-danger text-white"><div class="card-body text-center"><h2 id="statFailed">0</h2><small>Failed Today</small></div></div></div>
+</div>
+
+<div class="row">
+<!-- Queue -->
+<div class="col-md-8">
+<div class="card">
+<div class="card-header d-flex justify-content-between align-items-center">
+<span><i class="fa-solid fa-list-ol me-1"></i>Queue</span>
+<div>
+<select id="pqFilterStatus" class="form-select form-select-sm d-inline-block" style="width:auto" onchange="loadQueue()">
+<option value="">All Status</option>
+<option value="pending" selected>Pending</option>
+<option value="processing">Processing</option>
+<option value="completed">Completed</option>
+<option value="failed">Failed</option>
+</select>
+<button class="btn btn-sm btn-outline-primary" onclick="loadQueue()"><i class="fa-solid fa-rotate"></i></button>
+</div>
+</div>
+<div class="card-body p-0">
+<table class="table table-hover table-sm mb-0">
+<thead><tr><th>ID</th><th>Template</th><th>Student</th><th>Type</th><th>Priority</th><th>Status</th><th>Created</th><th>Actions</th></tr></thead>
+<tbody id="pqTableBody"><tr><td colspan="8" class="text-center text-muted py-3">Loading...</td></tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+
+<!-- Printers & History -->
+<div class="col-md-4">
+<div class="card mb-3">
+<div class="card-header"><i class="fa-solid fa-server me-1"></i>Printers</div>
+<div class="card-body" id="printerStatus">
+<p class="text-muted text-center mb-0">No printer status data yet.</p>
+</div>
+</div>
+<div class="card">
+<div class="card-header"><i class="fa-solid fa-clock-rotate-left me-1"></i>Recent History</div>
+<div class="card-body p-0">
+<table class="table table-sm mb-0">
+<thead><tr><th>ID</th><th>Status</th><th>Time</th></tr></thead>
+<tbody id="pqHistoryBody"><tr><td colspan="3" class="text-center text-muted py-3">Loading...</td></tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+</div>
+</div>
+<script>
+function loadQueue(){
+ const status = document.getElementById('pqFilterStatus').value;
+ const params = new URLSearchParams({per_page:50});
+        // Auto dark mode based on device preference
+        (function() {
+            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            if (prefersDark) { document.body.classList.add('dark'); }
+        })();
+  fetch('/api/v1/print-queue?'+params).then(r=>r.json()).then(d=>{
+    if(!d.success) return;
+    document.getElementById('statPending').textContent = d.stats.pending;
+    document.getElementById('statProcessing').textContent = d.stats.processing;
+    document.getElementById('statCompleted').textContent = d.stats.completed_today;
+    document.getElementById('statFailed').textContent = d.stats.failed_today;
+    const tbody = document.getElementById('pqTableBody');
+    tbody.innerHTML = '';
+    if(!d.jobs.length){ tbody.innerHTML='<tr><td colspan="8" class="text-center text-muted py-3">No jobs</td></tr>'; return; }
+    d.jobs.forEach(j=>{
+      const badge = j.status==='pending'?'warning':j.status==='processing'?'info':j.status==='completed'?'success':'danger';
+      const prio = j.priority<=3?'🔴':j.priority<=6?'🟡':'🟢';
+      tbody.innerHTML+=`<tr>
+        <td>${j.id}</td><td>${j.template_id}</td><td>${j.student_id||'-'}</td>
+        <td><span class="badge bg-secondary">${j.job_type}</span></td>
+        <td>${prio} ${j.priority}</td>
+        <td><span class="badge bg-${badge}">${j.status}</span></td>
+        <td><small>${j.created_at?j.created_at.slice(0,16):'-'}</small></td>
+        <td>
+          ${j.status==='pending'?`<button class="btn btn-xs btn-outline-danger" onclick="cancelJob(${j.id})"><i class="fa-solid fa-xmark"></i></button>`:''}
+          ${j.status==='completed'?`<button class="btn btn-xs btn-outline-success" onclick="reprintJob(${j.id})"><i class="fa-solid fa-rotate-left"></i></button>`:''}
+        </td></tr>`;
+    });
+  });
+}
+
+function cancelJob(id){
+  if(!confirm('Cancel job '+id+'?')) return;
+  fetch('/api/v1/print-queue/'+id+'/cancel',{method:'POST',headers:{'X-API-Key':''}}).then(r=>r.json()).then(d=>{if(d.success)loadQueue();else alert(d.error);});
+}
+
+function reprintJob(id){
+  fetch('/api/v1/print-queue/'+id+'/reprint',{method:'POST',headers:{'X-API-Key':''}}).then(r=>r.json()).then(d=>{if(d.success){alert('Reprint job created: '+d.job_id);loadQueue();}else alert(d.error);});
+}
+
+function loadHistory(){
+  fetch('/api/v1/print-history?per_page=20').then(r=>r.json()).then(d=>{
+    if(!d.success) return;
+    const tbody = document.getElementById('pqHistoryBody');
+    tbody.innerHTML = '';
+    if(!d.history.length){ tbody.innerHTML='<tr><td colspan="3" class="text-center text-muted py-3">No history</td></tr>'; return; }
+    d.history.forEach(h=>{
+      const badge = h.status==='completed'?'success':'danger';
+      tbody.innerHTML+=`<tr><td>${h.id}</td><td><span class="badge bg-${badge}">${h.status}</span></td><td><small>${h.created_at?h.created_at.slice(0,16):'-'}</small></td></tr>`;
+    });
+  });
+}
+
+// Auto-refresh every 10s
+loadQueue(); loadHistory();
+setInterval(loadQueue, 10000);
+setInterval(loadHistory, 30000);
+</script>
+{% endblock %}

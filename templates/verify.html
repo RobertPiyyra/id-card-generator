@@ -12,16 +12,32 @@
     
     <style>
         :root {
-            --bg-gradient: linear-gradient(135deg, #090d16 0%, #15102a 50%, #060814 100%);
             --verified-color: #10b981;
             --verified-glow: rgba(16, 185, 129, 0.4);
             --error-color: #f43f5e;
             --error-glow: rgba(244, 63, 94, 0.4);
-            --text-primary: #f8fafc;
-            --text-secondary: #94a3b8;
-            --glass-bg: rgba(255, 255, 255, 0.03);
-            --glass-border: rgba(255, 255, 255, 0.08);
-            --glass-hover: rgba(255, 255, 255, 0.06);
+        }
+
+        /* Light mode (default) */
+        body {
+            --bg-gradient: linear-gradient(135deg, #f0f4ff 0%, #e8edff 50%, #f5f7ff 100%);
+            --text-primary: #1e293b;
+            --text-secondary: #64748b;
+            --glass-bg: rgba(255, 255, 255, 0.6);
+            --glass-border: rgba(0, 0, 0, 0.08);
+            --glass-hover: rgba(255, 255, 255, 0.8);
+        }
+
+        /* Dark mode */
+        @media (prefers-color-scheme: dark) {
+            body {
+                --bg-gradient: linear-gradient(135deg, #090d16 0%, #15102a 50%, #060814 100%);
+                --text-primary: #f8fafc;
+                --text-secondary: #94a3b8;
+                --glass-bg: rgba(255, 255, 255, 0.03);
+                --glass-border: rgba(255, 255, 255, 0.08);
+                --glass-hover: rgba(255, 255, 255, 0.06);
+            }
         }
 
         * {
@@ -77,14 +93,14 @@
         }
 
         .card {
-            background: rgba(13, 16, 27, 0.65);
+            background: var(--glass-bg);
             backdrop-filter: blur(25px);
             -webkit-backdrop-filter: blur(25px);
             border: 1px solid var(--glass-border);
             border-radius: 24px;
             padding: 35px 28px;
             text-align: center;
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5),
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.1),
                         0 0 40px rgba(99, 102, 241, 0.05);
             position: relative;
             overflow: hidden;
@@ -93,13 +109,10 @@
 
         .card:hover {
             transform: translateY(-5px);
-            border-color: rgba(255, 255, 255, 0.15);
-            box-shadow: 0 30px 60px -12px rgba(0, 0, 0, 0.6),
-                        0 0 50px rgba(99, 102, 241, 0.1);
+            border-color: var(--glass-hover);
+            box-shadow: 0 30px 60px -12px rgba(0, 0, 0, 0.15),
+                        0 0 50px rgba(99, 102, 241, 0.08);
         }
-
-        /* Status Header */
-        .status-header {
             position: relative;
             margin-bottom: 24px;
             display: flex;
@@ -320,7 +333,7 @@
 
         .detail-item:hover {
             background: var(--glass-hover);
-            border-color: rgba(255, 255, 255, 0.12);
+            border-color: var(--glass-border);
         }
 
         .detail-label {
@@ -347,9 +360,8 @@
             border: 1px solid rgba(16, 185, 129, 0.25);
         }
 
-        /* Security Audit Footer */
         .audit-footer {
-            border-top: 1px solid rgba(255, 255, 255, 0.08);
+            border-top: 1px solid var(--glass-border);
             padding-top: 20px;
             margin-top: 20px;
             font-size: 0.75rem;

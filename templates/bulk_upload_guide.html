@@ -430,12 +430,16 @@ Ali Raza,Ahmed Raza,9-C,2006-11-02,789 Pine Rd,9876543212,photos/ali.jpg,B+,Ches
     </div>
 
     <!-- Bootstrap JS bundle (optional for interactivity) -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
-    <script>
-        // simple touch/click enhancement for mobile menu (just ensures links work)
-        document.querySelectorAll('.btn').forEach(btn => {
+       <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+       <script>
+           // simple touch/click enhancement for mobile menu (just ensures links work)
+           document.querySelectorAll('.btn').forEach(btn => {
             btn.addEventListener('touchstart', function(e) {
-                // pass-through, just for better feedback
+            // Auto dark mode based on device preference
+            (function() {
+                const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+                if (prefersDark) { document.body.classList.add('dark'); }
+            })();
                 this.style.transform = 'scale(0.97)';
             });
             btn.addEventListener('touchend', function() {

@@ -432,33 +432,6 @@
             gap: 10px;
         }
 
-        /* Theme Toggle */
-        .theme-toggle {
-            position: fixed;
-            top: 25px;
-            right: 25px;
-            background: var(--primary-gradient);
-            color: white;
-            border: none;
-            padding: 12px;
-            border-radius: 50%;
-            cursor: pointer;
-            transition: var(--transition);
-            z-index: 1000;
-            font-size: 1.3rem;
-            width: 50px;
-            height: 50px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            box-shadow: 0 10px 20px rgba(0, 102, 255, 0.2);
-        }
-
-        .theme-toggle:hover {
-            transform: translateY(-3px) rotate(15deg);
-            box-shadow: 0 15px 25px rgba(0, 102, 255, 0.4);
-        }
-
         .loading {
             width: 20px;
             height: 20px;
@@ -492,6 +465,13 @@
         body.dark input::placeholder {
             color: rgba(255, 255, 255, 0.4);
         }
+
+        @media (prefers-color-scheme: dark) {
+            body {
+                background: #0f172a;
+                color: #e2e8f0;
+            }
+        }
     </style>
 </head>
 <body>
@@ -501,8 +481,6 @@
     <ul class="bg-bubbles">
         <li></li><li></li><li></li><li></li><li></li><li></li><li></li><li></li>
     </ul>
-
-    <button class="theme-toggle" id="themeToggle"><i class="fas fa-moon"></i></button>
 
     <div class="login-card">
         <div class="brand-header">
@@ -571,24 +549,6 @@
     </div>
 
     <script>
-        const themeToggle = document.getElementById('themeToggle');
-        const themeIcon = themeToggle.querySelector('i');
-        
-        const savedTheme = localStorage.getItem('theme') || (localStorage.getItem('darkMode') === 'true' ? 'dark' : 'light');
-        if (savedTheme === 'dark') {
-            document.body.classList.add('dark');
-            document.body.classList.add('dark-mode');
-            themeIcon.className = 'fas fa-sun';
-        }
-
-        themeToggle.addEventListener('click', function() {
-            const isDark = document.body.classList.toggle('dark');
-            document.body.classList.toggle('dark-mode', isDark);
-            themeIcon.className = isDark ? 'fas fa-sun' : 'fas fa-moon';
-            localStorage.setItem('theme', isDark ? 'dark' : 'light');
-            localStorage.setItem('darkMode', isDark);
-        });
-
         // Form feedback
         document.getElementById('loginForm').addEventListener('submit', function() {
             const btn = this.querySelector('.btn');

@@ -482,54 +482,12 @@ def get_default_qr_config():
         "qr_logo_path": "",
     }
 
-
-def _parse_rgb_color(color_val):
-    """Parse a color value into [r, g, b] integer list (local copy)."""
-    if not color_val:
-        return [0, 0, 0]
-    if isinstance(color_val, str):
-        val = color_val.strip()
-        if val.startswith("#"):
-            hex_color = val.lstrip("#")
-            try:
-                if len(hex_color) == 6:
-                    return [
-                        int(hex_color[0:2], 16),
-                        int(hex_color[2:4], 16),
-                        int(hex_color[4:6], 16),
-                    ]
-                if len(hex_color) == 3:
-                    return [
-                        int(hex_color[0] * 2, 16),
-                        int(hex_color[1] * 2, 16),
-                        int(hex_color[2] * 2, 16),
-                    ]
-            except Exception:
-                return [0, 0, 0]
-        try:
-            return [int(x.strip()) for x in val.split(",")]
-        except Exception:
-            return [0, 0, 0]
-    if isinstance(color_val, (list, tuple)):
-        try:
-            return [int(x) for x in color_val[:3]]
-        except Exception:
-            return [0, 0, 0]
-    return [0, 0, 0]
+from functools import lru_cache
+get_default_qr_config = lru_cache(maxsize=1)(get_default_qr_config)
 
 
-def _normalize_template_source_url(url):
-    """Local helper used by load_template_smart."""
-    value = str(url or "").strip()
-    if not value:
-        return value
-    try:
-        parsed = urlparse(value)
-        if parsed.scheme == "http" and parsed.netloc.lower() == "res.cloudinary.com":
-            return "https://" + value[len("http://"):]
-    except Exception:
-        return value
-    return value
+
+
 
 
 def generate_qr_code(data, qr_settings, size=120):
@@ -693,6 +651,8 @@ def get_default_photo_config():
         "photo_shape_inset": 0,
         "corel_editable_photo_mode": "frame_only",
     }
+
+get_default_photo_config = lru_cache(maxsize=1)(get_default_photo_config)
 
 
 def get_photo_settings_for_orientation(template_id, photo_settings):

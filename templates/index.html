@@ -70,6 +70,13 @@
             color: var(--text-light);
         }
 
+        @media (prefers-color-scheme: dark) {
+            body {
+                background: var(--bg-dark);
+                color: var(--text-light);
+            }
+        }
+
         /* ===== Language Direction (RTL/LTR) ===== */
         .rtl {
             direction: rtl;
@@ -1006,17 +1013,11 @@
                 <span>Admin Panel</span>
             </a>
             {% else %}
-            <a href="/login" class="nav-btn btn-primary">
+            <a href="{{ url_for('auth.login') }}" class="nav-btn btn-outline">
                 <i class="fas fa-sign-in-alt"></i>
                 <span>Admin Login</span>
             </a>
             {% endif %}
-            
-            <button class="nav-btn btn-outline" id="themeToggle">
-                <i class="fas fa-moon"></i>
-                <span>Dark Mode</span>
-            </button>
-            
             <a href="{{ url_for('auth.logout') }}" class="nav-btn btn-secondary">
                 <i class="fas fa-sign-out-alt"></i>
                 <span>Logout</span>
@@ -1357,6 +1358,11 @@
     </div>
 
     <script>
+        // Auto dark mode based on device preference
+        (function() {
+            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            if (prefersDark) { document.body.classList.add('dark-mode'); }
+        })();
         // ===== Application State =====
         const AppState = {
             currentUploadOption: 'file',
@@ -1376,7 +1382,6 @@
             idCardFormCard: document.getElementById('idCardFormCard'),
             
             // Navigation
-            themeToggle: document.getElementById('themeToggle'),
             createNewBtn: document.getElementById('createNewBtn'),
             cancelBtn: document.getElementById('cancelBtn'),
             backToFetchBtn: document.getElementById('backToFetchBtn'),
@@ -2017,42 +2022,6 @@
             }
         };
 
-        // ===== Theme Management =====
-        const ThemeManager = {
-            init() {
-                if (AppState.isDarkMode) {
-                    document.body.classList.add('dark-mode');
-                    document.body.classList.add('dark');
-                    this.updateThemeButton();
-                }
-            },
-
-            toggle() {
-                AppState.isDarkMode = !AppState.isDarkMode;
-                document.body.classList.toggle('dark-mode', AppState.isDarkMode);
-                document.body.classList.toggle('dark', AppState.isDarkMode);
-                localStorage.setItem('darkMode', AppState.isDarkMode);
-                localStorage.setItem('theme', AppState.isDarkMode ? 'dark' : 'light');
-                this.updateThemeButton();
-                
-                const theme = AppState.isDarkMode ? 'dark' : 'light';
-                Utils.showNotification(`Switched to ${theme} mode`, 'success');
-            },
-
-            updateThemeButton() {
-                const icon = elements.themeToggle.querySelector('i');
-                const text = elements.themeToggle.querySelector('span');
-                
-                if (AppState.isDarkMode) {
-                    icon.className = 'fas fa-sun';
-                    text.textContent = 'Light Mode';
-                } else {
-                    icon.className = 'fas fa-moon';
-                    text.textContent = 'Dark Mode';
-                }
-            }
-        };
-
         // ===== Security Features =====
         const SecurityManager = {
             init() {
@@ -2098,9 +2067,6 @@
         // ===== Event Handlers =====
         const EventHandlers = {
             init() {
-                // Theme toggle
-                elements.themeToggle.addEventListener('click', () => ThemeManager.toggle());
-                
                 // Form mode toggles
                 elements.createNewBtn.addEventListener('click', () => FormManager.toggleFormMode('create'));
                 elements.cancelBtn.addEventListener('click', () => FormManager.clearForm());
@@ -2247,7 +2213,6 @@
             Utils.generateBubbles();
             
             // Initialize managers
-            ThemeManager.init();
             SecurityManager.init();
             EventHandlers.init();
             

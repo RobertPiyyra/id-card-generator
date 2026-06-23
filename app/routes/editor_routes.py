@@ -17,6 +17,9 @@ import io
 import time
 import os
 from itsdangerous import URLSafeSerializer, BadSignature
+import logging
+
+logger = logging.getLogger(__name__)
 
 editor_bp = Blueprint('editor', __name__)
 

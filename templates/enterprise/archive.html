@@ -104,6 +104,11 @@
 </div>
 
 <script>
+    // Auto dark mode based on device preference
+    (function() {
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        if (prefersDark) { document.documentElement.setAttribute('data-theme', 'dark'); }
+    })();
 document.getElementById('archive-form').addEventListener('submit', function(e) {
     e.preventDefault();
     const data = {

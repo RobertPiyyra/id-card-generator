@@ -1,6 +1,6 @@
 import unittest
 
-from app.routes.corel_routes import (
+from app.services.corel_export_service import (
     DEFAULT_EXPORT_MODE,
     LAYOUT_DPI,
     PRINT_DPI,
