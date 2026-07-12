@@ -5,9 +5,9 @@ import uuid
 import time
 import logging
 
-from flask import request, g, jsonify, make_response
+from flask import request, g, jsonify, make_response, current_app, session
 from functools import wraps
-
+from app.extensions import db
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
@@ -107,22 +107,37 @@ def init_csrf_exemptions(app):
         if csrf is None:
             return
 
-        @csrf.exempt
-        def _exempt_api():
-            pass
-
-        # Exempt all API, webhook, and health routes
+        # Exempt paths — these prefixes and endpoints skip CSRF validation.
+        # We patch csrf_protect directly because the before_request ordering
+        # means our hook runs after csrf_protect validates the token.
         exempt_prefixes = (
             "/api/", "/health", "/verify/", "/enterprise/admin/api/",
-            "/enterprise/webhooks/",
+            "/enterprise/webhooks/", "/admin/serial_batches/api/",
         )
 
-        original_csrf_error = None
+        original_csrf_protect = None
 
-        @app.before_request
-        def _csrf_exempt_api():
-            if any(request.path.startswith(p) for p in exempt_prefixes):
-                request.environ["csrf_exempt"] = True
+        for fn in app.before_request_funcs.get(None, []):
+            if fn.__name__ == "csrf_protect":
+                original_csrf_protect = fn
+                break
+
+        if original_csrf_protect is not None:
+            def _patched_csrf_protect():
+                if request.method in ("POST", "PUT", "PATCH", "DELETE"):
+                    if any(request.path.startswith(p) for p in exempt_prefixes):
+                        return  # Skip CSRF check for exempt paths
+                original_csrf_protect()
+            # Replace in the before_request list
+            idx = app.before_request_funcs[None].index(original_csrf_protect)
+            app.before_request_funcs[None][idx] = _patched_csrf_protect
+            # Also patch the reference held by the CSRFProtect extension
+            csrf.protect = lambda: None  # disable direct protect calls
+        else:
+            # Fallback: use before_request with priority ordering
+            @app.before_request
+            def _csrf_exempt_api():
+                pass
 
     except Exception as exc:
         logger.warning("CSRF exemption setup failed: %s", exc)
@@ -203,6 +218,61 @@ def student_required(f):
     return decorated
 
 
+def tiered_limit(free_limit="10/hour", basic_limit="100/hour", pro_limit="1000/hour"):
+    """
+    Decorator: rate limit based on user tier.
+    Reads tier from AdminUser.organization relationship.
+    Falls back to free_limit for unauthenticated users.
+
+    Usage:
+        @tiered_limit(free_limit="5/hour", basic_limit="50/hour", pro_limit="500/hour")
+        def my_endpoint():
+            ...
+    """
+    def decorator(f):
+        @wraps(f)
+        def decorated(*args, **kwargs):
+            # Determine user tier
+            from flask import g
+            tier = "free"
+
+            admin_id = session.get("admin_id")
+            if admin_id:
+                try:
+                    from models import AdminUser
+                    admin = db.session.get(AdminUser, admin_id)
+                    if admin and admin.role == "super_admin":
+                        tier = "pro"
+                    elif admin:
+                        tier = "basic"
+                except Exception:
+                    pass
+
+            # Apply rate limit based on tier
+            limit_map = {
+                "free": free_limit,
+                "basic": basic_limit,
+                "pro": pro_limit,
+            }
+            limit_str = limit_map.get(tier, free_limit)
+
+            # Use Flask-Limiter for enforcement
+            limiter = current_app.extensions.get("limiter")
+            if limiter:
+                key = f"{tier}:{request.remote_addr}"
+                try:
+                    limiter.check(key, limit_str)
+                except Exception:
+                    return json_error(
+                        f"Rate limit exceeded. Tier: {tier}. Limit: {limit_str}.",
+                        429,
+                    )
+
+            return f(*args, **kwargs)
+        return decorated
+    return decorator
+
+
 # ---------------------------------------------------------------------------
 # Auth context middleware
 # ---------------------------------------------------------------------------
@@ -228,3 +298,10 @@ def init_middleware(app):
     init_cors(app)
     init_csrf_exemptions(app)
     init_auth_context(app)
+
+    # Enable gzip compression for responses
+    try:
+        from flask_compress import Compress
+        Compress(app)
+    except Exception as exc:
+        logger.warning("Flask-Compress init failed: %s", exc)

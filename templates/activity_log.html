@@ -129,7 +129,7 @@
 <script>
     (function() {
         const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-        if (prefersDark) { document.body.classList.add('dark'); }
+        if (prefersDark) { document.body.classList.add('dark'); document.body.setAttribute('data-bs-theme', 'dark'); }
     })();
 </script>
 </body>

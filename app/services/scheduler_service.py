@@ -26,5 +26,15 @@ def configure_notification_scheduler(check_and_notify_approaching_deadlines):
         logger.error(f"Failed to start scheduler: {e}")
 
     # Shutdown scheduler when app exits
-    atexit.register(lambda: scheduler.shutdown() if scheduler.running else None)
+    def _shutdown_scheduler():
+        if scheduler.running:
+            # Prevent "I/O operation on closed file" warnings by silencing the apscheduler logger at exit
+            logging.getLogger("apscheduler").setLevel(logging.CRITICAL)
+            try:
+                scheduler.shutdown(wait=False)
+            except Exception:
+                pass
+
+    atexit.register(_shutdown_scheduler)
     return scheduler
+

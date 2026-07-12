@@ -438,7 +438,7 @@ Ali Raza,Ahmed Raza,9-C,2006-11-02,789 Pine Rd,9876543212,photos/ali.jpg,B+,Ches
             // Auto dark mode based on device preference
             (function() {
                 const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-                if (prefersDark) { document.body.classList.add('dark'); }
+                if (prefersDark) { document.body.classList.add('dark'); document.body.setAttribute('data-bs-theme', 'dark'); }
             })();
                 this.style.transform = 'scale(0.97)';
             });

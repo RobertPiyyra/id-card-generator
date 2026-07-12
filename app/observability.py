@@ -6,7 +6,7 @@ import logging
 import functools
 from collections import defaultdict
 
-from flask import request, g, jsonify, Blueprint
+from flask import request, g, jsonify, Blueprint, has_request_context
 
 logger = logging.getLogger(__name__)
 
@@ -207,27 +207,54 @@ def get_rate_limit_key():
 
 def init_slow_query_logging(app, threshold=1.0):
     """Log database queries that exceed the threshold (seconds)."""
-    try:
+    def _register_listeners(database):
         from sqlalchemy import event
-        from models import db as database
 
-        @event.listens_for(database.engine, "before_cursor_execute")
+        with app.app_context():
+            engine = database.engine
+
+        @event.listens_for(engine, "before_cursor_execute")
         def _before_execute(conn, cursor, statement, parameters, context, executemany):
             conn.info.setdefault("query_start_time", []).append(time.monotonic())
 
-        @event.listens_for(database.engine, "after_cursor_execute")
+        @event.listens_for(engine, "after_cursor_execute")
         def _after_execute(conn, cursor, statement, parameters, context, executemany):
-            total = time.monotonic() - conn.info["query_start_time"].pop()
+            starts = conn.info.get("query_start_time") or []
+            total = time.monotonic() - starts.pop() if starts else 0.0
             if total > threshold:
                 logger.warning(
                     "slow_query",
                     extra={
                         "duration": f"{total:.4f}",
                         "statement": statement[:500],
-                        "request_id": getattr(g, "request_id", ""),
-                        "path": request.path if request else "",
+                        "request_id": getattr(g, "request_id", "") if has_request_context() else "",
+                        "path": request.path if has_request_context() else "",
                     },
                 )
+
+    try:
+        if getattr(app, "_slow_query_logging_initialized", False):
+            return
+        from models import db as database
+
+        try:
+            _register_listeners(database)
+            app._slow_query_logging_initialized = True
+        except RuntimeError as exc:
+            if "not registered with this 'SQLAlchemy' instance" not in str(exc):
+                raise
+
+            @app.before_request
+            def _deferred_slow_query_logging():
+                if getattr(app, "_slow_query_logging_initialized", False):
+                    return
+                try:
+                    _register_listeners(database)
+                    app._slow_query_logging_initialized = True
+                    logger.info("Slow query logging initialized after database setup")
+                except Exception as deferred_exc:
+                    logger.warning("Deferred slow query logging setup failed: %s", deferred_exc)
+
     except Exception as exc:
         logger.warning("Slow query logging setup failed: %s", exc)
 

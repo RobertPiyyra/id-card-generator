@@ -33,19 +33,18 @@ import base64
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 import time
-from reportlab.pdfgen import canvas
+from reportlab.pdfgen import canvas  # reportlab ~120ms — used by sheet compilation; can't easily lazy
 from rq import get_current_job
 from reportlab.lib.pagesizes import A4, landscape
-# Ensure fitz is available (it was used in load_template)
-import fitz  # PyMuPDF
-import qrcode
+# fitz (PyMuPDF ~340ms), qrcode (~80ms) lazy-imported below where first used
+import qrcode  # needed at module level for QR code generation across routes
 from itsdangerous import URLSafeTimedSerializer, SignatureExpired, BadTimeSignature
 from qrcode.image.pil import PilImage
 from qrcode.image.styles.moduledrawers import SquareModuleDrawer, RoundedModuleDrawer, CircleModuleDrawer
 from sqlalchemy import text, inspect
+from sqlalchemy.orm import joinedload
 from sqlalchemy.exc import IntegrityError
 
-import numpy as np
 from app.config import Config
 from app.extensions import csrf, limiter, scheduler
 from app.services import redis_service
@@ -225,7 +224,7 @@ from app.services.student_service import (  # noqa: E402
 
 
 # Extracted to app/services/cache_service.py — backward-compat re-export
-from app.services.cache_service import with_cache_bust  # noqa: E402
+from app.helpers import with_cache_bust  # noqa: E402
 
 class SafeRotatingFileHandler(RotatingFileHandler):
     """
@@ -251,7 +250,7 @@ from PIL import Image, ImageOps
 # ================== App Config ==================
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
 app = Flask(__name__, root_path=PROJECT_ROOT)
-app.config["MAX_CONTENT_LENGTH"] = 250 * 1024 * 1024  # 250MB upload limit for bulk generation
+app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024  # 50MB upload limit (sufficient for bulk Excel + photos)
 
 from app.config import get_config
 app.config.from_object(get_config())
@@ -1455,7 +1454,7 @@ def resolve_student_card_preview_urls(student):
     elif getattr(student, "generated_filename", None):
         preview_filename = str(student.generated_filename)
         if preview_filename.lower().endswith(".pdf"):
-            preview_filename = preview_filename[:-4] + ".jpg"
+            preview_filename = preview_filename[:-4] + ".webp"
         preview_path = os.path.join(GENERATED_FOLDER, preview_filename)
         if os.path.exists(preview_path):
             preview_url = url_for("static", filename=f"generated/{preview_filename}")
@@ -1624,8 +1623,17 @@ def add_template_cloudinary(
 
 # ================== Template Config ==================
 def get_templates():
+    # Short-lived Redis cache to avoid re-building template dicts on every page load
     try:
-        query = db.session.query(Template).order_by(Template.created_at.desc())
+        from app.services.cache_service import cache_get, cache_set
+        _cache_key = f"templates:{session.get('admin_school', 'all') if session.get('admin') and session.get('admin_role') == 'school_admin' else 'all'}"
+        _cached = cache_get(_cache_key)
+        if _cached:
+            return _cached
+    except Exception:
+        _cache_key = None
+    try:
+        query = db.session.query(Template).options(joinedload(Template.fields)).order_by(Template.created_at.desc())
         
         # RBAC Filtering: School admins only see their assigned school
         if session.get("admin") and session.get("admin_role") == "school_admin":
@@ -1729,6 +1737,11 @@ def get_templates():
                 'grid_cols': template.grid_cols or 2
             })
         
+        if _cache_key:
+            try:
+                cache_set(_cache_key, result, ttl=60)
+            except Exception:
+                pass
         return result
     except Exception as e:
         logger.error(f"Error fetching templates: {e}")
@@ -1950,8 +1963,7 @@ def check_duplicate_student(form_data, photo_filename=None, student_id=None):
         return False, None
     except Exception as e:
         logger.error(f"Error checking duplicates: {e}")
-        return True, f"Database error: {str(e)}"
-    
+        return None, f"Database error: {str(e)}"
 
 
 # Lazy mediapipe import — face_service.py handles lazy loading now
@@ -2181,18 +2193,18 @@ def student_update_photo():
         # Save to Cloudinary or local
         from app.legacy_app import UPLOAD_FOLDER, STORAGE_BACKEND
         import os, uuid
-        filename = f"student_{student.id}_{uuid.uuid4().hex[:8]}.jpg"
+        filename = f"student_{student.id}_{uuid.uuid4().hex[:8]}.webp"
 
         if STORAGE_BACKEND == "local":
             os.makedirs(UPLOAD_FOLDER, exist_ok=True)
             filepath = os.path.join(UPLOAD_FOLDER, filename)
-            processed.save(filepath, "JPEG", quality=90)
+            processed.save(filepath, "WEBP", quality=90)
             student.photo_filename = filename
             student.photo_url = None
         else:
             from cloudinary_config import upload_image
             buf = io.BytesIO()
-            processed.save(buf, format="JPEG", quality=90)
+            processed.save(buf, format="WEBP", quality=90)
             buf.seek(0)
             result = upload_image(buf.getvalue(), folder="student_photos")
             student.photo_url = result if isinstance(result, str) else result.get("url", "")
@@ -3764,14 +3776,12 @@ def admin_preview_card():
         logger.debug(f"FINAL IMAGE MODE BEFORE SAVE: {template_img.mode}")
         buffer = io.BytesIO()
         template_img.save(buffer,
-                          format="JPEG",
-                          quality=95,
-                          subsampling=0,
-                          optimize=True)
+                          format="WEBP",
+                          quality=90)
         buffer.seek(0)
         img_data = base64.b64encode(buffer.getvalue()).decode('utf-8')
         
-        return jsonify({"success": True, "image_data": f"data:image/jpeg;base64,{img_data}"})
+        return jsonify({"success": True, "image_data": f"data:image/webp;base64,{img_data}"})
         
     except Exception as e:
         logger.exception("Admin preview traceback")
@@ -3882,11 +3892,11 @@ def test_color_render():
       
         # Save and return (Cloudinary on deployed, local filesystem when running locally)
         test_buffer = io.BytesIO()
-        test_img.save(test_buffer, "JPEG", quality=95)
+        test_img.save(test_buffer, "WEBP", quality=90)
         test_buffer.seek(0)
         if STORAGE_BACKEND == "local":
             os.makedirs(GENERATED_FOLDER, exist_ok=True)
-            test_name = f"test_color_{datetime.now().strftime('%Y%m%d%H%M%S%f')}_{uuid.uuid4().hex}.jpg"
+            test_name = f"test_color_{datetime.now().strftime('%Y%m%d%H%M%S%f')}_{uuid.uuid4().hex}.webp"
             with open(os.path.join(GENERATED_FOLDER, test_name), "wb") as fh:
                 fh.write(test_buffer.getvalue())
             test_url = url_for('static', filename=f'generated/{test_name}')
@@ -4408,31 +4418,53 @@ def background_bulk_generate(task_id, template_id, excel_path, photo_map, import
                         _commit_single(meta)
                     _publish_bulk_job_errors(task_id, errors)
 
-            for idx, row in df.iterrows():
+            # Pre-build photo alias lookup for O(1) matching instead of O(n*m) per row
+            from app.services.photo_service import photo_match_aliases
+            _photo_lookup = {}
+            for _fname, _fpath in photo_map.items():
+                for _alias in photo_match_aliases(_fname):
+                    _photo_lookup[_alias] = _fpath
+
+            _id_cols = {'roll_no', 'rollno', 'roll', 'admission_no', 'admissionno', 'id', 'reg_no', 'regno', 'student_id', 'studentid'}
+            _df_col_set = set(df.columns)
+
+            for idx, row in enumerate(df.itertuples(index=False)):
                 task_state = _get_bulk_job_state(task_id) or {}
                 if bool(task_state.get("cancel_requested")):
                     raise RuntimeError("Bulk job cancelled by admin.")
                 _push_progress(idx + 1)
 
                 try:
-                    if row.isnull().all():
+                    # Convert namedtuple row to dict for compatible access
+                    row_dict = row._asdict()
+
+                    # Skip fully-null rows
+                    if all(pd.isna(v) for v in row_dict.values()):
                         continue
 
-                    name = str(row.get('name', '')).strip() if pd.notna(row.get('name')) else ''
+                    def _safe_str(val):
+                        if pd.isna(val):
+                            return ''
+                        s = str(val).strip()
+                        if s.endswith('.0') and len(s) > 2 and s[:-2].replace('.', '').replace('-', '').isdigit():
+                            s = s[:-2]
+                        return s
+
+                    name = _safe_str(row_dict.get('name', ''))
                     if not name:
                         continue
 
-                    father_name = str(row.get('father_name', '')).strip() if pd.notna(row.get('father_name')) else ''
-                    class_name = str(row.get('class_name', '')).strip() if pd.notna(row.get('class_name')) else ''
-                    dob = str(row.get('dob', '')).strip() if pd.notna(row.get('dob')) else ''
-                    address = str(row.get('address', '')).strip() if pd.notna(row.get('address')) else ''
-                    phone = str(row.get('phone', '')).strip() if pd.notna(row.get('phone')) else ''
+                    father_name = _safe_str(row_dict.get('father_name', ''))
+                    class_name = _safe_str(row_dict.get('class_name', ''))
+                    dob = _safe_str(row_dict.get('dob', ''))
+                    address = _safe_str(row_dict.get('address', ''))
+                    phone = _safe_str(row_dict.get('phone', ''))
 
                     custom_data = {}
                     field_error = False
                     for field in dynamic_fields:
                         col_name = field.field_name.lower()
-                        val = str(row[col_name]).strip() if col_name in df.columns and pd.notna(row.get(col_name)) else ''
+                        val = _safe_str(row_dict.get(col_name, ''))
                         if field.is_required and not val:
                             errors.append(f"Row {idx+2}: Missing required field '{field.field_label}'")
                             field_error = True
@@ -4473,43 +4505,29 @@ def background_bulk_generate(task_id, template_id, excel_path, photo_map, import
                             match_candidates.append(f"{clean_name}_{clean_father}")
                             match_candidates.append(f"{clean_father}_{clean_name}")
                             
-                        # 3. Roll number or ID combined with Name
-                        for col in row.index:
-                            col_lower = str(col).lower().strip()
-                            if col_lower in ['roll_no', 'rollno', 'roll', 'admission_no', 'admissionno', 'id', 'reg_no', 'regno', 'student_id', 'studentid']:
-                                val = str(row[col]).strip()
-                                # Strip trailing decimals if pandas parsed integer as float
-                                if val.endswith('.0'):
-                                    val = val[:-2]
-                                if val:
-                                    match_candidates.append(f"{val} {clean_name}")
-                                    match_candidates.append(f"{clean_name} {val}")
-                                    match_candidates.append(f"{val}_{clean_name}")
-                                    match_candidates.append(f"{clean_name}_{val}")
-
-                    # Attempt matching against photo_map aliases
-                    matched_photo = None
-                    for cand in match_candidates:
-                        for alias in photo_match_aliases(cand):
-                            if alias in photo_map:
-                                matched_photo = photo_map[alias]
-                                break
-                        if matched_photo:
-                            break
+                        # 3. Roll number or ID combined with Name — use pre-computed _id_cols
+                        for col in _df_col_set & _id_cols:
+                            val = _safe_str(row_dict.get(col, ''))
+                            if val:
+                                match_candidates.append(f"{val} {clean_name}")
+                                match_candidates.append(f"{clean_name} {val}")
+                                match_candidates.append(f"{val}_{clean_name}")
+                                match_candidates.append(f"{clean_name}_{val}")
+                        
+                    # Attempt matching against pre-built photo lookup (O(1) per candidate)
+                    matched_photo = next((_photo_lookup[c] for c in match_candidates if c in _photo_lookup), None)
                             
                     if matched_photo:
                         used_photo = matched_photo
                     else:
                         # Fallback to checking explicit photo columns in the Excel row
                         for col in ['photo_filename', 'photo_path', 'photo']:
-                            if col not in df.columns or pd.isna(row.get(col)):
+                            if col not in _df_col_set or pd.isna(row_dict.get(col)):
                                 continue
-                            ref = str(row[col]).strip()
-                            for alias in photo_match_aliases(ref):
-                                if alias in photo_map:
-                                    used_photo = photo_map[alias]
-                                    break
-                            if used_photo != "placeholder.jpg":
+                            ref = _safe_str(row_dict.get(col, ''))
+                            matched_photo = _photo_lookup.get(ref)
+                            if matched_photo:
+                                used_photo = matched_photo
                                 break
 
                     form_data = {
@@ -4547,7 +4565,7 @@ def background_bulk_generate(task_id, template_id, excel_path, photo_map, import
                     })
 
                     is_last_row = (idx == len(df) - 1)
-                    if len(render_inputs) >= 8 or is_last_row:
+                    if len(render_inputs) >= 32 or is_last_row:
                         batch_workers = get_optimal_workers(len(render_inputs))
                         batch_results = bulk_render_students(
                             app, template_obj, render_inputs, max_workers=batch_workers,
@@ -4579,26 +4597,26 @@ def background_bulk_generate(task_id, template_id, excel_path, photo_map, import
 
                             if STORAGE_BACKEND == "local":
                                 os.makedirs(GENERATED_FOLDER, exist_ok=True)
-                                jpg_name = f"{base}.jpg"
+                                jpg_name = f"{base}.webp"
                                 jpg_path = os.path.join(GENERATED_FOLDER, jpg_name)
-                                front_rgb.save(jpg_path, format="JPEG", quality=95)
+                                front_rgb.save(jpg_path, format="WEBP", quality=90)
                                 cleanup_paths.append(jpg_path)
                                 generated_filename = jpg_name
 
                                 if back_rgb is not None:
-                                    back_jpg_name = f"{base}_back.jpg"
+                                    back_jpg_name = f"{base}_back.webp"
                                     back_jpg_path = os.path.join(GENERATED_FOLDER, back_jpg_name)
-                                    back_rgb.save(back_jpg_path, format="JPEG", quality=95)
+                                    back_rgb.save(back_jpg_path, format="WEBP", quality=90)
                                     cleanup_paths.append(back_jpg_path)
                                     back_generated_filename = back_jpg_name
                             else:
                                 jpg_buffer = io.BytesIO()
-                                front_rgb.save(jpg_buffer, format="JPEG", quality=95)
+                                front_rgb.save(jpg_buffer, format="WEBP", quality=90)
                                 jpg_buffer.seek(0)
                                 image_url = upload_image(jpg_buffer.getvalue(), folder='cards', resource_type='image')
                                 if back_rgb is not None:
                                     back_jpg_buffer = io.BytesIO()
-                                    back_rgb.save(back_jpg_buffer, format="JPEG", quality=95)
+                                    back_rgb.save(back_jpg_buffer, format="WEBP", quality=90)
                                     back_jpg_buffer.seek(0)
                                     back_image_url = upload_image(back_jpg_buffer.getvalue(), folder='cards', resource_type='image')
 

@@ -146,7 +146,7 @@ curl -H "X-API-Key: your-key-here" \
     // Auto dark mode based on device preference
     (function() {
         const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-        if (prefersDark) { document.documentElement.setAttribute('data-theme', 'dark'); }
+        if (prefersDark) { document.documentElement.setAttribute('data-theme', 'dark'); document.documentElement.setAttribute('data-bs-theme', 'dark'); }
     })();
 document.getElementById('btn-create-key').addEventListener('click', function() {
     const form = document.getElementById('key-form');

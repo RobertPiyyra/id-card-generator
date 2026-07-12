@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FAQ - ID Card Generator</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f8fafc; color: #1e293b; }
+        .container { max-width: 900px; margin: 0 auto; padding: 40px 20px; }
+        h1 { font-size: 2rem; margin-bottom: 8px; color: #1e293b; }
+        .subtitle { color: #64748b; margin-bottom: 32px; font-size: 1.05rem; }
+        .search-box { width: 100%; padding: 14px 20px; font-size: 1rem; border: 2px solid #e2e8f0; border-radius: 12px; margin-bottom: 32px; outline: none; transition: border-color 0.2s; }
+        .search-box:focus { border-color: #2563eb; }
+        .category { margin-bottom: 36px; }
+        .category-title { font-size: 1.3rem; color: #1e293b; margin-bottom: 16px; padding-bottom: 8px; border-bottom: 2px solid #e2e8f0; }
+        .faq-item { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; margin-bottom: 12px; overflow: hidden; }
+        .faq-question { padding: 16px 20px; cursor: pointer; font-weight: 600; display: flex; justify-content: space-between; align-items: center; transition: background 0.15s; }
+        .faq-question:hover { background: #f1f5f9; }
+        .faq-arrow { transition: transform 0.2s; font-size: 0.8rem; color: #64748b; }
+        .faq-item.open .faq-arrow { transform: rotate(180deg); }
+        .faq-answer { padding: 0 20px; max-height: 0; overflow: hidden; transition: all 0.3s ease; color: #475569; line-height: 1.6; }
+        .faq-item.open .faq-answer { padding: 16px 20px; max-height: 500px; }
+        .home-link { display: inline-block; margin-bottom: 24px; color: #2563eb; text-decoration: none; font-weight: 500; }
+        .home-link:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="/" class="home-link">&larr; Back to Home</a>
+        <h1>Frequently Asked Questions</h1>
+        <p class="subtitle">Find answers to common questions about generating ID cards.</p>
+        <input type="text" class="search-box" placeholder="Search questions..." id="faqSearch">
+        {% for category, items in faqs.items() %}
+        <div class="category" data-category="{{ category }}">
+            <h2 class="category-title">{{ category }}</h2>
+            {% for item in items %}
+            <div class="faq-item">
+                <div class="faq-question" onclick="toggleFaq(this)">
+                    <span>{{ item.question }}</span>
+                    <span class="faq-arrow">&#9662;</span>
+                </div>
+                <div class="faq-answer">{{ item.answer }}</div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endfor %}
+    </div>
+    <script>
+        function toggleFaq(el) {
+            const item = el.parentElement;
+            item.classList.toggle('open');
+        }
+        // Search filter
+        document.getElementById('faqSearch').addEventListener('input', function() {
+            const q = this.value.toLowerCase();
+            document.querySelectorAll('.faq-item').forEach(function(item) {
+                const text = item.textContent.toLowerCase();
+                item.style.display = text.includes(q) ? '' : 'none';
+            });
+        });
+    </script>
+</body>
+</html>

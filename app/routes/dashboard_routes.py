@@ -83,7 +83,7 @@ def log_activity(*args, **kwargs):
     return get_legacy_helpers().log_activity(*args, **kwargs)
 
 
-from models import db, Student, Template, TemplateField, ActivityLog
+from models import db, Student, Template, TemplateField, ActivityLog, SerialCard
 from utils import (
     UPLOAD_FOLDER, GENERATED_FOLDER, PLACEHOLDER_PATH, FONTS_FOLDER,
     get_template_path, get_card_size, load_template_smart, get_storage_backend,
@@ -223,6 +223,24 @@ def draw_aligned_colon_pil_helper(draw, img_width, direction, value_x, y, colon_
         logger.warning(f"Error drawing aligned colon: {e}")
 
 
+def _resolve_student_preview_assets(student):
+    """Resolve preview and download URLs with local-file fallback."""
+    preview_url, back_preview_url = resolve_student_card_preview_urls(student)
+    generated_url = with_cache_bust(
+        preview_url or url_for('static', filename=os.path.basename(PLACEHOLDER_PATH))
+    )
+    back_generated_url = with_cache_bust(back_preview_url) if back_preview_url else None
+
+    download_url = getattr(student, "pdf_url", None)
+    generated_filename = str(getattr(student, "generated_filename", "") or "").strip()
+    if not download_url and generated_filename:
+        pdf_path = os.path.join(GENERATED_FOLDER, generated_filename)
+        if os.path.exists(pdf_path):
+            download_url = url_for("static", filename=f"generated/{generated_filename}")
+
+    return generated_url, back_generated_url, download_url
+
+
 # ================== Landing Page Routes ==================
 @dashboard_bp.route("/")
 def landing():
@@ -312,6 +330,15 @@ def admin():
         # FIX: Make sure get_templates() returns a list
         templates_list = get_templates()
 
+        # Get distinct class names for the school
+        classes_list = []
+        if session.get("admin"):
+            school_name = session.get("admin_school")
+            classes_query = db.session.query(Student.class_name).distinct()
+            if session.get("admin_role") == "school_admin" and school_name:
+                classes_query = classes_query.filter_by(school_name=school_name)
+            classes_list = sorted([r[0] for r in classes_query.all() if r[0]])
+
         # Log for debugging
         logger.info(f"Admin panel loaded - User: {session.get('student_email') or 'admin'}, Records: {len(rows)}/{total_students}, Page: {page}, Templates: {len(templates_list)}")
         
@@ -382,6 +409,7 @@ def admin():
             is_admin=session.get("admin", False),
             template_arrangements=template_arrangements,
             pagination=pagination,
+            classes=classes_list,
         )
     except Exception as e:
         logger.error(f"Error loading admin panel: {e}")
@@ -402,6 +430,7 @@ def admin():
             is_admin=session.get("admin", False),
             template_arrangements={},
             pagination=None,
+            classes=[],
         ), 500
 
 
@@ -428,14 +457,15 @@ def admin_student_preview(student_id):
             return jsonify({"success": False, "error": "Student not found"}), 404
         
         preview_url, back_preview_url = resolve_student_card_preview_urls(student)
-        
+        generated_url, back_generated_url, download_url = _resolve_student_preview_assets(student)
+
         return jsonify({
             "success": True,
             "name": student.name,
             "class_name": student.class_name,
-            "preview_url": with_cache_bust(preview_url or url_for('static', filename=os.path.basename(PLACEHOLDER_PATH))),
-            "back_preview_url": with_cache_bust(back_preview_url) if back_preview_url else None,
-            "pdf_url": getattr(student, 'pdf_url', None),
+            "preview_url": generated_url,
+            "back_preview_url": back_generated_url,
+            "pdf_url": download_url,
             "has_preview": preview_url is not None,
             "has_back_preview": back_preview_url is not None,
         })
@@ -862,10 +892,8 @@ def generate_student_preview(student_id):
             buf = BytesIO()
             template_img.save(
                 buf,
-                format="JPEG",
-                quality=95,
-                subsampling=0,
-                optimize=True
+                format="WEBP",
+                quality=90,
             )
             buf.seek(0)
             img_bytes = buf.getvalue()
@@ -873,7 +901,7 @@ def generate_student_preview(student_id):
             try:
                 if STORAGE_BACKEND == "local":
                     os.makedirs(GENERATED_FOLDER, exist_ok=True)
-                    preview_name = f"preview_{student_id}_{datetime.now().strftime('%Y%m%d%H%M%S%f')}_{uuid.uuid4().hex}.jpg"
+                    preview_name = f"preview_{student_id}_{datetime.now().strftime('%Y%m%d%H%M%S%f')}_{uuid.uuid4().hex}.webp"
                     with open(os.path.join(GENERATED_FOLDER, preview_name), "wb") as fh:
                         fh.write(img_bytes)
                     preview_url = url_for('static', filename=f'generated/{preview_name}')
@@ -903,10 +931,10 @@ def generate_student_preview(student_id):
                     if back_img is not None:
                         back_img = force_rgb(back_img)
                         back_buf = BytesIO()
-                        back_img.save(back_buf, format="JPEG", quality=95, subsampling=0, optimize=True)
+                        back_img.save(back_buf, format="WEBP", quality=90)
                         back_buf.seek(0)
                         if STORAGE_BACKEND == "local":
-                            back_name = f"preview_back_{student_id}_{datetime.now().strftime('%Y%m%d%H%M%S%f')}_{uuid.uuid4().hex}.jpg"
+                            back_name = f"preview_back_{student_id}_{datetime.now().strftime('%Y%m%d%H%M%S%f')}_{uuid.uuid4().hex}.webp"
                             with open(os.path.join(GENERATED_FOLDER, back_name), "wb") as fh:
                                 fh.write(back_buf.getvalue())
                             back_preview_url = url_for('static', filename=f'generated/{back_name}')
@@ -947,12 +975,12 @@ def test_preview():
         draw.text((100, 150), process_text_for_drawing(f"Time: {datetime.now()}", "english"), fill="black")
       
         buf = BytesIO()
-        test_img.save(buf, format='JPEG', quality=95)
+        test_img.save(buf, format='WEBP', quality=90)
         buf.seek(0)
         try:
             if STORAGE_BACKEND == "local":
                 os.makedirs(GENERATED_FOLDER, exist_ok=True)
-                test_name = f"test_preview_{datetime.now().strftime('%Y%m%d%H%M%S%f')}_{uuid.uuid4().hex}.jpg"
+                test_name = f"test_preview_{datetime.now().strftime('%Y%m%d%H%M%S%f')}_{uuid.uuid4().hex}.webp"
                 with open(os.path.join(GENERATED_FOLDER, test_name), "wb") as fh:
                     fh.write(buf.getvalue())
                 test_url = url_for('static', filename=f'generated/{test_name}')
@@ -1146,38 +1174,55 @@ def download_school_photos_zip(template_id):
         used_names = set()
         added_count = 0
 
-        with zipfile.ZipFile(output, "w", zipfile.ZIP_DEFLATED) as zip_file:
-            for student in students:
-                photo_url, local_path = resolve_student_photo_reference(student)
-                photo_bytes = None
-                content_type = None
+        def _fetch_photo(student):
+            """Fetch a single student's photo bytes. Returns (student, photo_bytes, extension)."""
+            photo_url, local_path = resolve_student_photo_reference(student)
+            photo_bytes = None
+            content_type = None
 
-                if local_path and os.path.exists(local_path):
-                    try:
-                        with open(local_path, "rb") as photo_file:
-                            photo_bytes = photo_file.read()
-                    except OSError as exc:
-                        logger.warning("Unable to read local photo for student %s: %s", student.id, exc)
-                elif photo_url:
-                    try:
-                        response = requests.get(photo_url, timeout=15)
-                        response.raise_for_status()
-                        photo_bytes = response.content
-                        content_type = response.headers.get("Content-Type")
-                    except Exception as exc:
-                        logger.warning("Unable to download remote photo for student %s: %s", student.id, exc)
+            if local_path and os.path.exists(local_path):
+                try:
+                    with open(local_path, "rb") as photo_file:
+                        photo_bytes = photo_file.read()
+                except OSError as exc:
+                    logger.warning("Unable to read local photo for student %s: %s", student.id, exc)
+            elif photo_url:
+                try:
+                    resp = requests.get(photo_url, timeout=15)
+                    resp.raise_for_status()
+                    photo_bytes = resp.content
+                    content_type = resp.headers.get("Content-Type")
+                except Exception as exc:
+                    logger.warning("Unable to download remote photo for student %s: %s", student.id, exc)
 
-                if not photo_bytes:
-                    continue
+            if not photo_bytes:
+                return None
 
-                extension = _guess_photo_zip_extension(local_path, photo_url, content_type)
-                member_name = _unique_zip_member_name(
-                    getattr(student, "name", None) or f"student_{student.id}",
-                    extension,
-                    used_names,
-                )
-                zip_file.writestr(member_name, photo_bytes)
-                added_count += 1
+            extension = _guess_photo_zip_extension(local_path, photo_url, content_type)
+            member_name = _unique_zip_member_name(
+                getattr(student, "name", None) or f"student_{student.id}",
+                extension,
+                set(),  # used_names not needed here; we deduplicate after
+            )
+            return (member_name, photo_bytes)
+
+        # Download photos in parallel (8 threads)
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            futures = {pool.submit(_fetch_photo, s): s for s in students}
+            for future in futures:
+                result = future.result()
+                if result:
+                    member_name, photo_bytes = result
+                    # Deduplicate names
+                    base_name = member_name
+                    counter = 1
+                    while member_name in used_names:
+                        member_name = f"{base_name}_{counter}"
+                        counter += 1
+                    used_names.add(member_name)
+                    zip_file.writestr(member_name, photo_bytes)
+                    added_count += 1
 
         if added_count == 0:
             flash('No student photos were available for this school.', 'warning')
@@ -1356,7 +1401,9 @@ def index():
         school_name = (session.get("admin_school") or "").strip()
     locked_template = _find_template_dict_by_school(templates, school_name)
     
+    is_admin = session.get("admin") == True
     is_super_admin = _is_admin_session() and session.get("admin_role") != "school_admin"
+    is_school_admin = _is_admin_session() and session.get("admin_role") == "school_admin"
     if is_super_admin:
         student_school_locked = False
         selected_template_id = locked_template["id"] if locked_template else None
@@ -1388,8 +1435,9 @@ def index():
             tmpl = next((t for t in templates if str(t['id']) == str(current_tid)), None)
             if tmpl and tmpl.get('deadline'):
                 dd = datetime.fromisoformat(tmpl['deadline'])
-                now = datetime.now()
-                
+                now = datetime.now(timezone.utc)
+                if dd.tzinfo is None:
+                    dd = dd.replace(tzinfo=timezone.utc)
                 if now < dd:
                     # Active Deadline
                     diff = dd - now
@@ -1416,6 +1464,257 @@ def index():
     # --------------------------------------------------
 
     if request.method == "POST":
+
+        # === School Admin: Serial Card Generation ===
+        serial_card_id = request.form.get("serial_card_id", "").strip()
+        serial_batch_id = request.form.get("serial_batch_id", "").strip()
+        if serial_card_id and serial_batch_id and is_admin and session.get("admin_role") == "school_admin":
+            from app.routes.serial_batch_routes import _card_to_student_dict, to_relative_static
+            serial_status_code = 400
+            template_id = None
+
+            try:
+                serial_card_id_int = int(serial_card_id)
+                serial_batch_id_int = int(serial_batch_id)
+            except ValueError:
+                error = "Invalid serial batch selection."
+            else:
+                card = SerialCard.query.filter_by(
+                    id=serial_card_id_int,
+                    batch_id=serial_batch_id_int,
+                ).first()
+                admin_school = (session.get("admin_school") or "").strip()
+
+                if not card or not card.batch:
+                    error = "Selected serial photo was not found."
+                elif admin_school and card.batch.school_name != admin_school:
+                    error = "You are not allowed to use this serial photo."
+                    serial_status_code = 403
+                else:
+                    # Update card details from form fields and render using the stored batch photo.
+                    name = request.form.get("name", "").strip()
+                    father_name = request.form.get("father_name", "").strip()
+                    class_name = request.form.get("class_name", "").strip()
+                    dob = request.form.get("dob", "").strip()
+                    address = request.form.get("address", "").strip()
+                    phone = request.form.get("phone", "").strip()
+
+                    template_id = card.batch.template_id
+                    template = db.session.get(Template, template_id)
+                    if not template:
+                        error = "Template not found for the selected serial photo."
+                        serial_status_code = 404
+                    else:
+                        custom_data = {}
+                        for field in TemplateField.query.filter_by(template_id=template.id).order_by(TemplateField.display_order.asc()).all():
+                            f_name = field.field_name
+                            custom_data[f_name] = request.form.get(f_name, "").strip()
+
+                        card.name = name
+                        card.father_name = father_name
+                        card.class_name = class_name
+                        card.dob = dob
+                        card.address = address
+                        card.phone = phone
+                        card.custom_data = custom_data
+                        card.status = 'details_filled'
+
+                        try:
+                            font_settings, photo_settings, qr_settings, card_orientation = get_template_settings(template_id)
+                            override_photo_path = None
+                            if 'photo' in request.files and request.files['photo'].filename:
+                                photo = request.files['photo']
+                                photo_fn = secure_filename(photo.filename)
+                                timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+                                photo_bytes = _prepare_uploaded_student_photo_bytes(photo, photo_settings)
+                                photo_stored = f"{timestamp}_{photo_fn}"
+                                local_photo_path = os.path.join(UPLOAD_FOLDER, photo_stored)
+                                _write_binary_file_atomic(local_photo_path, photo_bytes)
+                                override_photo_path = local_photo_path
+                            elif request.form.get('photo_data'):
+                                photo_fn = "camera_capture.jpg"
+                                timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+                                photo_bytes = _prepare_camera_student_photo_bytes(request.form.get('photo_data'), photo_settings)
+                                photo_stored = f"{timestamp}_{photo_fn}"
+                                local_photo_path = os.path.join(UPLOAD_FOLDER, photo_stored)
+                                _write_binary_file_atomic(local_photo_path, photo_bytes)
+                                override_photo_path = local_photo_path
+
+                            if override_photo_path:
+                                card.photo_path = override_photo_path
+                                from app.services.serial_batch_service import _generate_thumbnail
+                                _generate_thumbnail(card.batch, card)
+                        except Exception as pe:
+                            logger.error(f"Failed to process serial override photo: {pe}", exc_info=True)
+
+                        db.session.commit()
+
+                        from app.services.render_service import render_student_card_side
+                        student_data = _card_to_student_dict(card, template.id)
+                        student_like = type('StudentLike', (), student_data)()
+                        try:
+                            rendered_img = render_student_card_side(
+                                template_obj=template,
+                                student_like=student_like,
+                                side='front',
+                                include_photo=True,
+                                include_qr=True,
+                                include_barcode=True,
+                            )
+                            if rendered_img:
+                                rendered_img = rendered_img.convert('RGB')
+
+                                back_img = None
+                                if getattr(template, "is_double_sided", False):
+                                    try:
+                                        back_img = render_student_card_side(
+                                            template_obj=template,
+                                            student_like=student_like,
+                                            side='back',
+                                            include_photo=True,
+                                            include_qr=True,
+                                            include_barcode=True,
+                                        )
+                                        if back_img:
+                                            back_img = back_img.convert('RGB')
+                                    except Exception as be:
+                                        logger.warning(f"Failed to render back card image for serial card: {be}")
+                                        back_img = None
+
+                                pdf_io = io.BytesIO()
+                                if back_img:
+                                    rendered_img.save(pdf_io, format='PDF', save_all=True, append_images=[back_img], quality=90)
+                                else:
+                                    rendered_img.save(pdf_io, format='PDF', quality=90)
+                                pdf_io.seek(0)
+
+                                from app.services.serial_batch_service import _batch_dir
+                                output_dir = _batch_dir(card.batch_id)
+                                rendered_dir = os.path.join(output_dir, 'rendered')
+                                os.makedirs(rendered_dir, exist_ok=True)
+                                output_path = os.path.join(rendered_dir, f'card_{card.id}.pdf')
+                                with open(output_path, 'wb') as f:
+                                    f.write(pdf_io.getvalue())
+                                card.rendered_path = output_path
+                                card.status = 'rendered'
+
+                                student = Student.query.filter(
+                                    Student.template_id == template.id,
+                                    Student.custom_data['serial_no'].as_string() == card.serial_no
+                                ).first()
+                                if not student:
+                                    student = Student()
+                                    db.session.add(student)
+
+                                student.name = card.name
+                                student.father_name = card.father_name
+                                student.class_name = card.class_name
+                                student.dob = card.dob
+                                student.address = card.address
+                                student.phone = card.phone
+                                student.template_id = template.id
+                                student.school_name = template.school_name
+                                student.custom_data = dict(card.custom_data or {})
+                                student.custom_data['serial_no'] = card.serial_no
+                                student.photo_filename = to_relative_static(card.photo_path)
+                                student.photo_url = to_relative_static(card.photo_path)
+
+                                os.makedirs(GENERATED_FOLDER, exist_ok=True)
+                                ts_now = datetime.now().strftime("%Y%m%d%H%M%S%f")
+                                base = f"card_{template.id}_{ts_now}_{uuid.uuid4().hex}"
+                                jpg_name = f"{base}.webp"
+                                pdf_name = f"{base}.pdf"
+
+                                rendered_img.save(os.path.join(GENERATED_FOLDER, jpg_name), 'WEBP', quality=90)
+                                if back_img:
+                                    back_jpg_name = f"{base}_back.webp"
+                                    back_img.save(os.path.join(GENERATED_FOLDER, back_jpg_name), 'WEBP', quality=90)
+                                    student.back_generated_filename = back_jpg_name
+
+                                with open(os.path.join(GENERATED_FOLDER, pdf_name), 'wb') as f:
+                                    f.write(pdf_io.getvalue())
+
+                                storage_backend = get_storage_backend()
+                                if storage_backend == "local":
+                                    student.generated_filename = pdf_name
+                                    student.image_url = None
+                                    student.pdf_url = None
+                                    if back_img:
+                                        student.back_image_url = None
+                                else:
+                                    try:
+                                        from app.services.photo_service import upload_image
+                                        jpg_bytes = open(os.path.join(GENERATED_FOLDER, jpg_name), "rb").read()
+                                        jpg_result = upload_image(jpg_bytes, folder='generated')
+                                        student.image_url = jpg_result if isinstance(jpg_result, str) else jpg_result.get('url')
+
+                                        if back_img:
+                                            back_bytes = open(os.path.join(GENERATED_FOLDER, back_jpg_name), "rb").read()
+                                            back_result = upload_image(back_bytes, folder='generated')
+                                            student.back_image_url = back_result if isinstance(back_result, str) else back_result.get('url')
+
+                                        pdf_bytes_content = pdf_io.getvalue()
+                                        pdf_result = upload_image(pdf_bytes_content, folder='generated', resource_type='raw')
+                                        student.pdf_url = pdf_result if isinstance(pdf_result, str) else pdf_result.get('url')
+                                        uploaded_photo = upload_image(open(card.photo_path, "rb").read(), folder='photos')
+                                        student.photo_url = uploaded_photo if isinstance(uploaded_photo, str) else uploaded_photo.get('url')
+                                    except Exception as cl_err:
+                                        logger.error(f"Failed to upload serial generated card to Cloudinary: {cl_err}")
+                                        student.generated_filename = pdf_name
+                                        student.image_url = None
+                                        student.back_image_url = None
+                                        student.pdf_url = None
+
+                                db.session.commit()
+
+                                unique_edit_id = student.id
+                                generated_url, back_generated_url, download_url = _resolve_student_preview_assets(student)
+                                success = (
+                                    "Card Updated Successfully!"
+                                    if was_existing_student
+                                    else f"Card Generated Successfully! (ID: {unique_edit_id})."
+                                )
+                                form_data = {'template_id': template_id}
+                                return render_template(
+                                    "index.html",
+                                    generated_url=generated_url,
+                                    back_generated_url=back_generated_url,
+                                    download_url=download_url,
+                                    form_data=form_data,
+                                    success=success,
+                                    error=None,
+                                    templates=templates,
+                                    show_fetch=show_fetch,
+                                    unique_edit_id=unique_edit_id,
+                                    selected_template_id=template_id,
+                                    deadline_info=deadline_info,
+                                    is_school_admin=is_school_admin,
+                                )
+
+                            error = "Failed to generate the selected serial card."
+                            serial_status_code = 500
+                        except Exception as e:
+                            logger.error(f"Serial card generation error: {e}", exc_info=True)
+                            error = f"Generation failed: {str(e)}"
+                            serial_status_code = 500
+
+            safe_template_id = template_id if template_id else selected_template_id
+            return render_template(
+                "index.html",
+                generated_url=generated_url,
+                back_generated_url=back_generated_url,
+                download_url=download_url,
+                form_data=request.form,
+                success=success,
+                error=error or "Serial card generation failed.",
+                templates=templates,
+                show_fetch=False,
+                unique_edit_id=unique_edit_id,
+                selected_template_id=safe_template_id,
+                deadline_info=deadline_info,
+                is_school_admin=is_school_admin,
+            ), serial_status_code
+
         template_id = None
         try:
             # === LIMIT CHECK: Admins bypass, users limited to 3 ===
@@ -1652,6 +1951,10 @@ def index():
             elif request.form.get('photo_filename'):
                 # Legacy local filename
                 photo_stored = request.form.get('photo_filename')
+            elif is_admin:
+                # Fall back to photo placeholder for admin-generated cards
+                photo_stored = "static/photo_placeholder.png"
+                photo_url = "static/photo_placeholder.png"
             else:
                 raise ValueError("Photo is required")
 
@@ -2122,21 +2425,22 @@ def index():
 
             # Save image to bytes
             jpg_buf = io.BytesIO()
-            template_img.save(jpg_buf, format='JPEG', quality=95)
+            template_img.save(jpg_buf, format='WEBP', quality=90)
             jpg_buf.seek(0)
             jpg_bytes = jpg_buf.getvalue()
             back_jpg_bytes = None
             if back_template_img is not None:
                 back_jpg_buf = io.BytesIO()
-                back_template_img.save(back_jpg_buf, format='JPEG', quality=95)
+                back_template_img.save(back_jpg_buf, format='WEBP', quality=90)
                 back_jpg_buf.seek(0)
                 back_jpg_bytes = back_jpg_buf.getvalue()
 
+            # PDF compilation uses in-memory PIL images directly — quality is unaffected by preview format
             pdf_buf = io.BytesIO()
             if back_template_img is not None:
-                template_img.save(pdf_buf, format='PDF', save_all=True, append_images=[back_template_img], quality=95)
+                template_img.save(pdf_buf, format='PDF', save_all=True, append_images=[back_template_img], resolution=300)
             else:
-                template_img.save(pdf_buf, format='PDF', quality=95)
+                template_img.save(pdf_buf, format='PDF', resolution=300)
             pdf_buf.seek(0)
             pdf_bytes = pdf_buf.getvalue()
 
@@ -2151,9 +2455,9 @@ def index():
                     os.makedirs(GENERATED_FOLDER, exist_ok=True)
                     ts = datetime.now().strftime("%Y%m%d%H%M%S%f")
                     base = f"card_{template_id}_{ts}_{uuid.uuid4().hex}"
-                    jpg_name = f"{base}.jpg"
+                    jpg_name = f"{base}.webp"
                     pdf_name = f"{base}.pdf"
-                    back_jpg_name = f"{base}_back.jpg" if back_jpg_bytes is not None else None
+                    back_jpg_name = f"{base}_back.webp" if back_jpg_bytes is not None else None
 
                     with open(os.path.join(GENERATED_FOLDER, jpg_name), "wb") as fh:
                         fh.write(jpg_bytes)
@@ -2315,7 +2619,8 @@ NOOR GRAPHICS AND PRINTERS
     return render_template("index.html", generated_url=generated_url, back_generated_url=back_generated_url, download_url=download_url,
                            form_data=form_data, success=success, error=error, templates=templates, 
                            show_fetch=show_fetch, unique_edit_id=unique_edit_id, 
-                           selected_template_id=selected_template_id, deadline_info=deadline_info) # Added deadline_info
+                           selected_template_id=selected_template_id, deadline_info=deadline_info,
+                           is_school_admin=is_school_admin) # Added deadline_info
 
 
 @dashboard_bp.route("/fetch_record", methods=["POST"])
@@ -2499,11 +2804,7 @@ def edit_student(student_id):
             'custom_data': student.custom_data or {} 
         }
         
-        preview_url, back_preview_url = resolve_student_card_preview_urls(student)
-        generated_url = with_cache_bust(preview_url or url_for('static', filename=os.path.basename(PLACEHOLDER_PATH)))
-        back_generated_url = with_cache_bust(back_preview_url) if back_preview_url else None
-        
-        download_url = student.pdf_url if student.pdf_url else None
+        generated_url, back_generated_url, download_url = _resolve_student_preview_assets(student)
     
     except Exception as e:
         error = f"Error fetching student data: {str(e)}"
@@ -3131,8 +3432,8 @@ def edit_student(student_id):
                 ) or load_static_back_template_image(template_obj, card_width, card_height)
 
             timestamp = datetime.now().strftime("%Y%m%d%H%M%S%f")
-            jpg_name = f"card_{template_id}_{student_id}_{timestamp}.jpg"
-            back_jpg_name = f"card_{template_id}_{student_id}_{timestamp}_back.jpg" if back_image is not None else None
+            jpg_name = f"card_{template_id}_{student_id}_{timestamp}.webp"
+            back_jpg_name = f"card_{template_id}_{student_id}_{timestamp}_back.webp" if back_image is not None else None
             pdf_name = f"card_{template_id}_{student_id}_{timestamp}.pdf"
 
             template = force_rgb(template)
@@ -3147,14 +3448,14 @@ def edit_student(student_id):
                 os.makedirs(GENERATED_FOLDER, exist_ok=True)
                 with open(os.path.join(GENERATED_FOLDER, jpg_name), "wb") as fh:
                     buf = io.BytesIO()
-                    template.save(buf, "JPEG", quality=95)
+                    template.save(buf, "WEBP", quality=90)
                     buf.seek(0)
                     fh.write(buf.getvalue())
 
                 if back_jpg_name and back_image is not None:
                     with open(os.path.join(GENERATED_FOLDER, back_jpg_name), "wb") as fh:
                         buf = io.BytesIO()
-                        back_image.save(buf, "JPEG", quality=95)
+                        back_image.save(buf, "WEBP", quality=90)
                         buf.seek(0)
                         fh.write(buf.getvalue())
 
@@ -3174,7 +3475,7 @@ def edit_student(student_id):
             else:
                 # Convert image to bytes and upload to Cloudinary
                 jpg_buffer = io.BytesIO()
-                template.save(jpg_buffer, "JPEG", quality=95)
+                template.save(jpg_buffer, "WEBP", quality=90)
                 jpg_buffer.seek(0)
                 jpg_url = upload_image(jpg_buffer.getvalue(), folder='cards', resource_type='image')
 
@@ -3183,7 +3484,7 @@ def edit_student(student_id):
 
                 if back_image is not None:
                     back_jpg_buffer = io.BytesIO()
-                    back_image.save(back_jpg_buffer, "JPEG", quality=95)
+                    back_image.save(back_jpg_buffer, "WEBP", quality=90)
                     back_jpg_buffer.seek(0)
                     back_jpg_url = upload_image(back_jpg_buffer.getvalue(), folder='cards', resource_type='image')
                     back_generated_url = with_cache_bust(back_jpg_url)

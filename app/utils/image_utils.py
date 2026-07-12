@@ -40,7 +40,7 @@ logger = logging.getLogger(__name__)
 # ================== Template Loaders ==================
 def load_template_from_url(url):
     """Load a template image from Cloudinary URL. Handles PDF and image formats."""
-    import requests
+    from app.services.http_pool import http_get as _http_get
     try:
         if not url:
             raise ValueError("Template URL is required")
@@ -48,7 +48,7 @@ def load_template_from_url(url):
         response = None
         for attempt in range(3):
             try:
-                response = requests.get(url, timeout=10)
+                response = _http_get(url, timeout=10)
                 response.raise_for_status()
                 last_err = None
                 break
@@ -83,7 +83,7 @@ def load_template_from_url(url):
 
 def load_template_smart(path_or_url):
     """Smart template loader that handles both Cloudinary URLs and local file paths."""
-    import requests
+    from app.services.http_pool import http_get as _http_get
     try:
         if not path_or_url:
             raise ValueError("Template path or URL is required")
@@ -94,7 +94,7 @@ def load_template_smart(path_or_url):
             response = None
             for attempt in range(3):
                 try:
-                    response = requests.get(source_url, timeout=12)
+                    response = _http_get(source_url, timeout=12)
                     response.raise_for_status()
                     last_network_error = None
                     break

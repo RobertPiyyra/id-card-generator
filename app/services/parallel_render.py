@@ -201,8 +201,8 @@ def render_cards_parallel(template_obj, students, side='front', render_scale=1.0
 
 
 def render_cards_parallel_to_bytes(template_obj, students, side='front',
-                                    render_scale=1.0, output_format='JPEG',
-                                    quality=95, max_workers=None):
+                                    render_scale=1.0, output_format='WEBP',
+                                    quality=90, max_workers=None):
     """
     Render cards in parallel and convert to bytes (for download/upload).
 

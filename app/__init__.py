@@ -24,18 +24,22 @@ def create_app(config_object=None):
         from app.routes import auth_bp, api_bp, dashboard_bp, corel_bp, editor_bp, verify_bp, enterprise_bp, ai_bp
         from app.routes.rest_api import rest_api_bp
         from app.routes.serial_batch_routes import serial_batch_bp
-        _app.register_blueprint(auth_bp)
-        _app.register_blueprint(api_bp)
+        from app.routes.analytics_routes import analytics_bp
+        from app.routes.faq_routes import faq_bp
+        _app.register_blueprint(serial_batch_bp, url_prefix='/admin/serial_batches')
+        _app.register_blueprint(analytics_bp)
+        _app.register_blueprint(faq_bp)
         from app.legacy_app import student_bp
         _app.register_blueprint(rest_api_bp)
         _app.register_blueprint(dashboard_bp)
+        _app.register_blueprint(api_bp)
         _app.register_blueprint(corel_bp, url_prefix='/corel')
         _app.register_blueprint(editor_bp)
         _app.register_blueprint(student_bp)
         _app.register_blueprint(verify_bp)
         _app.register_blueprint(enterprise_bp, url_prefix='/enterprise')
         _app.register_blueprint(ai_bp)
-        _app.register_blueprint(serial_batch_bp, url_prefix='/admin/serial_batches')
+        _app.register_blueprint(auth_bp)
 
     if config_object:
         _app.config.from_object(config_object)

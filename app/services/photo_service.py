@@ -2,6 +2,7 @@ import os
 import io
 import logging
 import requests
+from app.services.http_pool import http_get
 import re
 import base64
 from PIL import Image, ImageOps
@@ -133,7 +134,7 @@ def load_student_photo_rgba_prepared(
             import time
             for attempt in range(max_retries):
                 try:
-                    response = requests.get(photo_url, timeout=timeout)
+                    response = http_get(photo_url, timeout=timeout)
                     response.raise_for_status()
                     photo_img = _load_detached_image(response.content)
                     break

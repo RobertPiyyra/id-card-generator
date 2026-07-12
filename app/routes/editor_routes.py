@@ -270,12 +270,12 @@ def get_template_image(template_id):
         if img.mode != 'RGB':
             img = img.convert('RGB')
             
-        # 3. Save to memory buffer as JPEG
+        # 3. Save to memory buffer as WebP (smaller than JPEG, same visual quality)
         buffer = io.BytesIO()
-        img.save(buffer, format="JPEG", quality=95)
+        img.save(buffer, format="WEBP", quality=90)
         buffer.seek(0)
         
-        response = send_file(buffer, mimetype='image/jpeg')
+        response = send_file(buffer, mimetype='image/webp')
         response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
         response.headers["Pragma"] = "no-cache"
         response.headers["Expires"] = "0"

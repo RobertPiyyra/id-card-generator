@@ -998,8 +998,8 @@
     <!-- Main Navigation -->
     <nav class="main-nav">
         <a href="{{ url_for('dashboard.landing') }}" class="nav-brand">
-            <i class="fas fa-arrow-left"></i>
-            <span>Back to Home</span>
+            <img src="{{ url_for('static', filename='images/logo.jpg') }}" alt="Noor Graphics Logo" style="width: 30px; height: 30px; border-radius: 50%; object-fit: cover; border: 1.5px solid var(--primary); padding: 1px; background: white; margin-right: 6px;">
+            <span>Noor Graphics</span>
         </a>
         
         <div class="nav-actions">
@@ -1094,9 +1094,27 @@
             
             <form method="POST" enctype="multipart/form-data" id="idCardForm" class="form-grid">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                <input type="hidden" name="student_id" id="student_id" 
+                <input type="hidden" name="student_id" id="student_id"
                        value="{{ form_data.get('student_id', '') if form_data else '' }}">
-                
+
+                <!-- School Admin: Serial Number Search -->
+                {% if is_school_admin %}
+                <div class="form-group serial-search-box" style="background:#f0f7ff; padding:16px; border-radius:8px; border:1px solid #d0e3f0;">
+                    <label for="serial_search_input"><i class="fas fa-search"></i> Find Student by Serial Number</label>
+                    <div style="display:flex; gap:8px; margin-top:8px;">
+                        <input type="text" id="serial_search_input" placeholder="e.g. SCH-001" class="form-control" style="max-width:250px;"
+                               onkeydown="if(event.key==='Enter'){event.preventDefault();lookupSerial();}">
+                        <button type="button" onclick="lookupSerial()" class="btn btn-primary btn-sm">
+                            <i class="fas fa-search"></i> Find
+                        </button>
+                    </div>
+                    <div id="serial_search_result" style="margin-top:8px; font-size:14px;"></div>
+                    <!-- Hidden fields for serial card generation -->
+                    <input type="hidden" id="serial_card_id" name="serial_card_id" value="">
+                    <input type="hidden" id="serial_batch_id" name="serial_batch_id" value="">
+                </div>
+                {% endif %}
+
                 <!-- School Selection -->
                 {% set school_locked = session.get('student_school_name') and templates|length == 1 %}
                 <div class="form-group">
@@ -1262,8 +1280,19 @@
                     
                     <!-- File Upload Section -->
                     <div class="upload-section" id="fileUploadSection">
+                        <!-- Photo Preview (both for selected files, and fetched serial photos) -->
+                        <div id="photoPreviewContainer" style="display: none; margin-bottom: 15px; background: rgba(128,128,128,0.05); padding: 12px; border-radius: 8px; border: 1px dashed var(--border-light); align-items: center; gap: 15px; max-width: 320px;">
+                            <img id="formPhotoPreview" src="" alt="Photo Preview" style="width: 80px; height: 100px; object-fit: cover; border-radius: 6px; box-shadow: var(--shadow-light);">
+                            <div style="flex-grow: 1;">
+                                <div id="photoPreviewInfo" style="font-size: 13px; font-weight: 600; color: var(--text-primary);">Batch Photo</div>
+                                <span id="photoPreviewSource" style="font-size: 11px; color: var(--text-secondary);">Fetched from Serial Batch</span>
+                                <button type="button" id="clearPhotoPreviewBtn" class="btn btn-sm btn-outline-danger" style="display: block; margin-top: 6px; font-size: 11px; padding: 2px 8px; border-radius: 4px; border: 1px solid #dc3545; color: #dc3545; background: transparent; cursor: pointer;">
+                                    <i class="fas fa-trash-alt"></i> Clear
+                                </button>
+                            </div>
+                        </div>
                         <input type="file" id="photo" name="photo" class="form-control"
-                               accept="image/*" required>
+                               accept="image/*" {% if not (is_school_admin or session.get('admin_role') == 'school_admin' or session.get('admin') == True) %}required{% endif %}>
                         <div class="file-info" id="fileInfo">
                             <span data-i18n="supported_formats">Supported formats: JPG, PNG, JPEG. Max size: 5MB</span>
                         </div>
@@ -1361,7 +1390,10 @@
         // Auto dark mode based on device preference
         (function() {
             const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-            if (prefersDark) { document.body.classList.add('dark-mode'); }
+            if (prefersDark) {
+                document.body.classList.add('dark-mode');
+                document.body.setAttribute('data-bs-theme', 'dark');
+            }
         })();
         // ===== Application State =====
         const AppState = {
@@ -1400,6 +1432,13 @@
             photoInput: document.getElementById('photo'),
             photoDataInput: document.getElementById('photoData'),
             fileInfo: document.getElementById('fileInfo'),
+            
+            // Photo Preview
+            photoPreviewContainer: document.getElementById('photoPreviewContainer'),
+            formPhotoPreview: document.getElementById('formPhotoPreview'),
+            photoPreviewInfo: document.getElementById('photoPreviewInfo'),
+            photoPreviewSource: document.getElementById('photoPreviewSource'),
+            clearPhotoPreviewBtn: document.getElementById('clearPhotoPreviewBtn'),
             
             // Camera
             cameraVideo: document.getElementById('cameraVideo'),
@@ -1851,6 +1890,14 @@
                 elements.photoDataInput.value = photoData;
                 elements.photoInput.required = false;
                 
+                // Show in the photo preview container too!
+                if (elements.formPhotoPreview && elements.photoPreviewContainer) {
+                    elements.formPhotoPreview.src = photoData;
+                    elements.photoPreviewContainer.style.display = 'flex';
+                    if (elements.photoPreviewInfo) elements.photoPreviewInfo.textContent = 'Captured Photo';
+                    if (elements.photoPreviewSource) elements.photoPreviewSource.textContent = 'Camera Capture';
+                }
+                
                 video.style.display = 'none';
                 canvas.style.display = 'block';
                 canvas.classList.remove('hidden');
@@ -1887,6 +1934,16 @@
 
         // ===== Form Management =====
         const FormManager = {
+            hasSerialSelection() {
+                const serialCardId = document.getElementById('serial_card_id');
+                const serialBatchId = document.getElementById('serial_batch_id');
+                return Boolean(
+                    serialCardId && serialBatchId &&
+                    serialCardId.value.trim() &&
+                    serialBatchId.value.trim()
+                );
+            },
+
             toggleFormMode(mode) {
                 AppState.formMode = mode;
                 
@@ -1905,7 +1962,11 @@
                 const isEditMode = elements.studentId.value !== '';
                 elements.submitBtnText.textContent = isEditMode ? I18n.t('update_id') : I18n.t('generate_id');
                 elements.formTitle.textContent = isEditMode ? I18n.t('edit_id') : I18n.t('create_new');
-                elements.photoInput.required = !isEditMode && AppState.currentUploadOption === 'file';
+                elements.photoInput.required = (
+                    !isEditMode &&
+                    AppState.currentUploadOption === 'file' &&
+                    !this.hasSerialSelection()
+                );
             },
 
             handleClassChange() {
@@ -2008,6 +2069,18 @@
                 elements.customClassInput.style.display = 'none';
                 elements.dynamicFieldsContainer.innerHTML = '';
                 
+                // Clear serial fields
+                if (document.getElementById('serial_card_id')) document.getElementById('serial_card_id').value = '';
+                if (document.getElementById('serial_batch_id')) document.getElementById('serial_batch_id').value = '';
+                if (document.getElementById('serial_search_input')) document.getElementById('serial_search_input').value = '';
+                if (document.getElementById('serial_search_result')) document.getElementById('serial_search_result').innerHTML = '';
+                
+                // Clear photo preview
+                if (elements.photoPreviewContainer) elements.photoPreviewContainer.style.display = 'none';
+                if (elements.formPhotoPreview) elements.formPhotoPreview.src = '';
+                if (elements.photoPreviewInfo) elements.photoPreviewInfo.textContent = 'Batch Photo';
+                if (elements.photoPreviewSource) elements.photoPreviewSource.textContent = 'Fetched from Serial Batch';
+                
                 if (AppState.currentUploadOption === 'camera') {
                     CameraManager.stop();
                 }
@@ -2016,7 +2089,13 @@
                 this.toggleFormMode('fetch');
                 
                 // Clear edit session
-                fetch('/clear_edit_session', { method: 'POST' });
+                const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+                fetch('/clear_edit_session', { 
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': csrfToken
+                    }
+                });
                 
                 Utils.showNotification('Form cleared successfully', 'success');
             }
@@ -2106,9 +2185,48 @@
                 // File validation
                 elements.photoInput.addEventListener('change', (e) => {
                     elements.photoDataInput.value = '';
-                    Utils.validateFile(e.target.files[0]);
+                    const file = e.target.files[0];
+                    if (Utils.validateFile(file)) {
+                        const reader = new FileReader();
+                        reader.onload = (event) => {
+                            if (elements.formPhotoPreview && elements.photoPreviewContainer) {
+                                elements.formPhotoPreview.src = event.target.result;
+                                elements.photoPreviewContainer.style.display = 'flex';
+                                if (elements.photoPreviewInfo) elements.photoPreviewInfo.textContent = 'Selected Photo';
+                                if (elements.photoPreviewSource) elements.photoPreviewSource.textContent = file.name;
+                            }
+                        };
+                        reader.readAsDataURL(file);
+                    } else {
+                        if (elements.photoPreviewContainer) {
+                            elements.photoPreviewContainer.style.display = 'none';
+                        }
+                    }
                     FormManager.updateFormState();
                 });
+
+                // Clear photo preview button click listener
+                if (elements.clearPhotoPreviewBtn) {
+                    elements.clearPhotoPreviewBtn.addEventListener('click', () => {
+                        elements.photoInput.value = '';
+                        elements.photoDataInput.value = '';
+                        if (elements.photoPreviewContainer) elements.photoPreviewContainer.style.display = 'none';
+                        if (elements.formPhotoPreview) elements.formPhotoPreview.src = '';
+                        const serialCardId = document.getElementById('serial_card_id');
+                        const serialBatchId = document.getElementById('serial_batch_id');
+                        const serialSearchInput = document.getElementById('serial_search_input');
+                        const serialSearchResult = document.getElementById('serial_search_result');
+                        if (serialCardId) serialCardId.value = '';
+                        if (serialBatchId) serialBatchId.value = '';
+                        if (serialSearchInput) serialSearchInput.value = '';
+                        if (serialSearchResult) serialSearchResult.innerHTML = '';
+                        if (elements.photoPreviewInfo) elements.photoPreviewInfo.textContent = 'Batch Photo';
+                        if (elements.photoPreviewSource) elements.photoPreviewSource.textContent = 'Fetched from Serial Batch';
+                        elements.fileInfo.textContent = I18n.t('supported_formats');
+                        elements.fileInfo.classList.remove('error');
+                        FormManager.updateFormState();
+                    });
+                }
                 
                 // Camera controls
                 elements.startCameraBtn.addEventListener('click', () => CameraManager.start());
@@ -2241,8 +2359,43 @@
                     CameraManager.stop();
                 }
             });
-        });
 
+            // ===== Deadline Banner =====
+            const templateSelect = document.getElementById('template_id');
+            const banner = document.getElementById('deadlineBanner');
+            if (templateSelect && banner) {
+                function updateDeadlineBanner() {
+                    const selectedOption = templateSelect.options[templateSelect.selectedIndex];
+                    const deadlineStr = selectedOption ? selectedOption.getAttribute('data-deadline') : null;
+                    if (!deadlineStr || deadlineStr === "None" || deadlineStr === "null" || deadlineStr === "undefined") {
+                        banner.style.display = 'none';
+                        return;
+                    }
+                    const deadlineDate = new Date(deadlineStr);
+                    if (isNaN(deadlineDate.getTime())) {
+                        banner.style.display = 'none';
+                        return;
+                    }
+                    const now = new Date();
+                    const diff = deadlineDate - now;
+                    const dateDisplay = deadlineDate.toLocaleDateString('en-GB', {
+                        day: 'numeric', month: 'long', year: 'numeric',
+                        hour: '2-digit', minute: '2-digit', hour12: true
+                    });
+                    if (diff < 0) {
+                        banner.innerHTML = `<div style="background: linear-gradient(135deg, #dc3545, #c82333); color: white; padding: 1.5rem; border-radius: 12px; box-shadow: 0 10px 30px rgba(220, 53, 69, 0.3); text-align: center;"><h3 style="margin-bottom: 0.5rem; display: flex; align-items: center; justify-content: center; gap: 0.5rem; font-weight: 700;"><i class="fas fa-ban"></i> Submission Closed</h3><p style="font-size: 1.1rem;">The deadline for this ID card was <strong>${dateDisplay}</strong>.</p><div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid rgba(255,255,255,0.3); font-size: 0.9rem; opacity: 0.9;"><i class="fas fa-lock"></i> New generations and edits are disabled.</div></div>`;
+                    } else {
+                        const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+                        const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+                        banner.innerHTML = `<div style="background: linear-gradient(135deg, #ffc107, #ff9800); color: #1a1a1a; padding: 1.5rem; border-radius: 12px; box-shadow: 0 10px 30px rgba(255, 193, 7, 0.3); text-align: center;"><h3 style="margin-bottom: 0.5rem; display: flex; align-items: center; justify-content: center; gap: 0.5rem; font-weight: 700;"><i class="fas fa-clock"></i> Submission Deadline</h3><p style="font-size: 1.1rem;">This ID card must be submitted by <strong>${dateDisplay}</strong>.</p><div style="margin-top: 1rem; font-size: 1.5rem; font-weight: 700;"><i class="fas fa-hourglass-half"></i> ${days}d ${hours}h ${minutes}m remaining</div></div>`;
+                    }
+                    banner.style.display = 'block';
+                }
+                templateSelect.addEventListener('change', updateDeadlineBanner);
+                updateDeadlineBanner();
+            }
+        });
         // ===== Error Handling =====
         window.addEventListener('error', (e) => {
             console.error('Global error:', e.error);
@@ -2255,93 +2408,87 @@
         });
         
 
-       document.addEventListener('DOMContentLoaded', function() {
-           const templateSelect = document.getElementById('template_id');
-           const banner = document.getElementById('deadlineBanner');
-   
-           // Function to update the banner
-           function updateDeadlineBanner() {
-               const selectedOption = templateSelect.options[templateSelect.selectedIndex];
-               const deadlineStr = selectedOption ? selectedOption.getAttribute('data-deadline') : null;
-   
-               if (!deadlineStr || deadlineStr === "None" || deadlineStr === "null" || deadlineStr === "undefined") {
-                   banner.style.display = 'none';
-                   return;
-               }
-   
-               const deadlineDate = new Date(deadlineStr);
-               if (isNaN(deadlineDate.getTime())) {
-                   banner.style.display = 'none';
-                   return;
-               }
-               const now = new Date();
-               const diff = deadlineDate - now;
-   
-               // Format Date for display (e.g., "25 December 2025, 05:00 PM")
-               const dateDisplay = deadlineDate.toLocaleDateString('en-GB', {
-                   day: 'numeric', month: 'long', year: 'numeric',
-                   hour: '2-digit', minute: '2-digit', hour12: true
-               });
-   
-               if (diff < 0) {
-                   // --- DEADLINE EXPIRED (RED) ---
-                   banner.innerHTML = `
-                       <div style="background: linear-gradient(135deg, #dc3545, #c82333); color: white; padding: 1.5rem; border-radius: 12px; box-shadow: 0 10px 30px rgba(220, 53, 69, 0.3); text-align: center;">
-                           <h3 style="margin-bottom: 0.5rem; display: flex; align-items: center; justify-content: center; gap: 0.5rem; font-weight: 700;">
-                               <i class="fas fa-ban"></i> Submission Closed
-                           </h3>
-                           <p style="font-size: 1.1rem;">The deadline for this ID card was <strong>${dateDisplay}</strong>.</p>
-                           <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid rgba(255,255,255,0.3); font-size: 0.9rem; opacity: 0.9;">
-                               <i class="fas fa-lock"></i> New generations and edits are disabled.
-                           </div>
-                       </div>
-                   `;
-               } else {
-                   // --- COUNTDOWN ACTIVE (YELLOW) ---
-                   const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-                   const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-                   const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-   
-                   banner.innerHTML = `
-                       <div style="background: linear-gradient(135deg, #ffc107, #ffdb4d); color: #333; padding: 1.5rem; border-radius: 12px; box-shadow: 0 10px 30px rgba(255, 193, 7, 0.3); text-align: center;">
-                           <h3 style="margin-bottom: 0.5rem; display: flex; align-items: center; justify-content: center; gap: 0.5rem; color: #000; font-weight: 700;">
-                               <i class="fas fa-clock fa-spin" style="--fa-animation-duration: 3s;"></i> 
-                               Submission Deadline Approaching
-                           </h3>
-                           <p style="margin-bottom: 1.5rem; color: #444; font-weight: 500;">
-                               Please complete your ID card generation before: <br>
-                               <span style="background: rgba(0,0,0,0.1); padding: 2px 8px; border-radius: 4px; font-weight: 700;">${dateDisplay}</span>
-                           </p>
-                           
-                           <div style="display: flex; justify-content: center; gap: 1rem; flex-wrap: wrap;">
-                               <div style="background: rgba(255,255,255,0.9); padding: 0.8rem; border-radius: 8px; min-width: 80px; box-shadow: 0 4px 10px rgba(0,0,0,0.05);">
-                                   <span style="display: block; font-size: 1.8rem; font-weight: 800; color: #dc3545; line-height: 1;">${days}</span>
-                                   <small style="font-size: 0.75rem; text-transform: uppercase; font-weight: 600; color: #666;">Days</small>
-                               </div>
-                               <div style="background: rgba(255,255,255,0.9); padding: 0.8rem; border-radius: 8px; min-width: 80px; box-shadow: 0 4px 10px rgba(0,0,0,0.05);">
-                                   <span style="display: block; font-size: 1.8rem; font-weight: 800; color: #dc3545; line-height: 1;">${hours}</span>
-                                   <small style="font-size: 0.75rem; text-transform: uppercase; font-weight: 600; color: #666;">Hours</small>
-                               </div>
-                               <div style="background: rgba(255,255,255,0.9); padding: 0.8rem; border-radius: 8px; min-width: 80px; box-shadow: 0 4px 10px rgba(0,0,0,0.05);">
-                                   <span style="display: block; font-size: 1.8rem; font-weight: 800; color: #dc3545; line-height: 1;">${minutes}</span>
-                                   <small style="font-size: 0.75rem; text-transform: uppercase; font-weight: 600; color: #666;">Mins</small>
-                               </div>
-                           </div>
-                       </div>
-                   `;
-               }
-               banner.style.display = 'block';
+       // ================== School Admin Serial Lookup ==================
+       {% if is_school_admin %}
+       window.lookupSerial = async function() {
+           const serial = document.getElementById('serial_search_input').value.trim();
+           if (!serial) {
+               document.getElementById('serial_search_result').innerHTML = '<span style="color:#e74c3c;">Please enter a serial number</span>';
+               return;
            }
-   
-           // Run instantly on page load
-           updateDeadlineBanner();
-   
-           // Run whenever the user changes the school
-           templateSelect.addEventListener('change', updateDeadlineBanner);
-   
-           // Keep the timer updating live every minute
-           setInterval(updateDeadlineBanner, 60000);
-       });
+           document.getElementById('serial_search_result').innerHTML = '<i class="fas fa-spinner fa-spin"></i> Searching...';
+           try {
+               const resp = await fetch('/admin/serial_batches/api/serial_lookup/' + encodeURIComponent(serial));
+               const data = await resp.json();
+               if (resp.ok) {
+                   if (AppState.isCameraActive) {
+                       CameraManager.stop();
+                   }
+                   AppState.currentUploadOption = 'file';
+                   elements.uploadOptions.forEach(opt => opt.classList.remove('active'));
+                   const fileOption = document.querySelector('.upload-option[data-option="file"]');
+                   if (fileOption) fileOption.classList.add('active');
+                   elements.fileUploadSection.classList.remove('hidden');
+                   elements.cameraSection.classList.add('hidden');
+                   elements.photoInput.value = '';
+                   elements.photoDataInput.value = '';
+
+                   // Populate form fields
+                   if (data.name) document.querySelector('#idCardForm input[name="name"]').value = data.name;
+                   if (data.father_name) document.querySelector('#idCardForm input[name="father_name"]').value = data.father_name;
+                   if (data.class_name) {
+                       const classSelect = document.querySelector('#idCardForm select[name="class_name"]');
+                       if (classSelect) classSelect.value = data.class_name;
+                   }
+                   if (data.dob) document.querySelector('#idCardForm input[name="dob"]').value = data.dob;
+                   if (data.address) document.querySelector('#idCardForm textarea[name="address"]').value = data.address;
+                   if (data.phone) document.querySelector('#idCardForm input[name="phone"]').value = data.phone;
+                   // Store batch/card ID for generation
+                   document.getElementById('serial_card_id').value = data.id;
+                   document.getElementById('serial_batch_id').value = data.batch_id;
+                   // Show photo and info
+                   let photoHtml = '';
+                   if (data.photo_thumbnail) {
+                       photoHtml = '<img src="/' + data.photo_thumbnail + '" style="width:60px;height:75px;object-fit:cover;border-radius:4px;margin-right:12px;"/>';
+                   }
+                   document.getElementById('serial_search_result').innerHTML =
+                       '<div style="display:flex;align-items:center;">' + photoHtml +
+                       '<div><strong>' + data.serial_no + '</strong> — ' + (data.status || 'photo_only') +
+                       '<br><small style="color:#27ae60;">Form filled. Click Generate to create card.</small></div></div>';
+                   
+                   // Show photo preview inside upload card
+                   if (data.photo_path) {
+                       const previewImg = document.getElementById('formPhotoPreview');
+                       const container = document.getElementById('photoPreviewContainer');
+                       const label = document.getElementById('photoPreviewInfo');
+                       const source = document.getElementById('photoPreviewSource');
+                       if (previewImg && container) {
+                           previewImg.src = '/' + data.photo_path;
+                           container.style.display = 'flex';
+                           if (label) label.textContent = 'Batch Photo';
+                           if (source) source.textContent = 'Serial: ' + data.serial_no;
+                       }
+                   }
+                   FormManager.updateFormState();
+               } else {
+                   document.getElementById('serial_search_result').innerHTML = '<span style="color:#e74c3c;">' + (data.error || 'Not found') + '</span>';
+                   // Clear hidden fields on not found
+                   document.getElementById('serial_card_id').value = '';
+                   document.getElementById('serial_batch_id').value = '';
+                   
+                   // Hide preview on error
+                   const container = document.getElementById('photoPreviewContainer');
+                   if (container) container.style.display = 'none';
+                   if (elements.formPhotoPreview) elements.formPhotoPreview.src = '';
+                   if (elements.photoPreviewInfo) elements.photoPreviewInfo.textContent = 'Batch Photo';
+                   if (elements.photoPreviewSource) elements.photoPreviewSource.textContent = 'Fetched from Serial Batch';
+                   FormManager.updateFormState();
+               }
+           } catch (err) {
+               document.getElementById('serial_search_result').innerHTML = '<span style="color:#e74c3c;">Search error: ' + err.message + '</span>';
+           }
+       };
+       {% endif %}
 
     </script>
     

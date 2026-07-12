@@ -76,7 +76,7 @@ function loadStats(){
         // Auto dark mode based on device preference
         (function() {
             const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-            if (prefersDark) { document.body.classList.add('dark'); }
+            if (prefersDark) { document.body.classList.add('dark'); document.body.setAttribute('data-bs-theme', 'dark'); }
         })();
       document.getElementById('nfcPending').textContent=d.stats.pending;
       document.getElementById('nfcEncoded').textContent=d.stats.encoded;

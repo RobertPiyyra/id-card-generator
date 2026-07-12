@@ -32,15 +32,20 @@ def _get_mediapipe_face():
     return _mp_face
 
 _detector_lock = threading.Lock()
+_detector = None
 
 
 def _get_face_detector():
-    """Create a MediaPipe FaceDetection instance."""
+    """Create a MediaPipe FaceDetection instance or return the cached one."""
+    global _detector
+    if _detector is not None:
+        return _detector
     face_module = _get_mediapipe_face()
     if face_module is None:
         return None
     try:
-        return face_module.FaceDetection(model_selection=0, min_detection_confidence=0.5)
+        _detector = face_module.FaceDetection(model_selection=0, min_detection_confidence=0.5)
+        return _detector
     except Exception as e:
         logger.warning("Error initializing MediaPipe face detector: %s", e)
         return None
@@ -55,7 +60,7 @@ def _fallback_center_crop(pil_img, save_path, target_w, target_h):
         final = rgb
     elif final.mode != "RGB":
         final = final.convert("RGB")
-    final.save(save_path, "JPEG", quality=95)
+    final.save(save_path, "WEBP", quality=90)
     return True
 
 
@@ -108,13 +113,7 @@ def _detect_face_crop_box(pil_img, target_width, target_height):
             detector = _get_face_detector()
             if detector is None:
                 return None
-            try:
-                results = detector.process(img_np.copy())
-            finally:
-                try:
-                    detector.close()
-                except Exception:
-                    pass
+            results = detector.process(img_np.copy())
 
         if not results or not results.detections:
             return None

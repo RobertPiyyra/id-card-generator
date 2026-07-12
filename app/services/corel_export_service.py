@@ -1,6 +1,7 @@
 """CorelDRAW export utility functions. Extracted from app/routes/corel_routes.py."""
 
-import io, json, logging, math, os, re, sys, unicodedata, base64, html, requests
+import io, json, logging, math, os, re, sys, unicodedata, base64, html, requests, hashlib, threading
+from collections import OrderedDict
 from types import SimpleNamespace
 from functools import lru_cache
 
@@ -32,10 +33,18 @@ from utils import (
     get_layout_flow_start_y, get_localized_standard_labels, normalize_photo_shape,
 )
 from utils import load_template_smart
+from app.services.corel_text import process_text_for_vector as _shared_process_text_for_vector
+from app.services.numeral_localization import (
+    localize_digits_for_language,
+    normalize_template_language,
+)
 
 logger = logging.getLogger(__name__)
 GOOGLE_TRANSLATE_API_KEY=(os.environ.get("GOOGLE_TRANSLATE_API_KEY") or "").strip()
 LAYOUT_DPI = 300
+_RASTER_TEMPLATE_CACHE_MAX = int(os.environ.get("COREL_RASTER_TEMPLATE_CACHE_MAX", "16") or 16)
+_raster_template_pdf_cache = OrderedDict()
+_raster_template_pdf_cache_lock = threading.Lock()
 
 try:
     _ARABIC_RESHAPER = arabic_reshaper.ArabicReshaper(
@@ -59,23 +68,23 @@ except Exception:
 # Guard against duplicate patching in case of reloads/multiple imports
 if not hasattr(reportlab_pdfdoc.PDFPage, "_patched_by_corel"):
     orig_check_format = reportlab_pdfdoc.PDFPage.check_format
-    
+
     def _my_check_format(self, document):
         orig_check_format(self, document)
         if hasattr(self, "_patternsUsed") and self._patternsUsed:
             for name, ref in self._patternsUsed.items():
                 self.Resources.Pattern[name] = ref
-                
+
     reportlab_pdfdoc.PDFPage.check_format = _my_check_format
     reportlab_pdfdoc.PDFPage._patched_by_corel = True
 
 if not hasattr(reportlab_canvas.Canvas, "_patched_by_corel"):
     orig_setShadingUsed = reportlab_canvas.Canvas._setShadingUsed
-    
+
     def _my_setShadingUsed(self, page):
         orig_setShadingUsed(self, page)
         page._patternsUsed = getattr(self, "_patternsUsed", {})
-        
+
     reportlab_canvas.Canvas._setShadingUsed = _my_setShadingUsed
     reportlab_canvas.Canvas._patched_by_corel = True
 
@@ -507,7 +516,35 @@ def _template_pdf_has_corel_hostile_features(pdf_bytes: bytes) -> bool:
 
 
 
-def _rasterize_template_pdf_for_editable_overlay(pdf_bytes: bytes, *, dpi: int = 300) -> bytes:
+def _raster_template_cache_key(pdf_bytes: bytes, dpi: int, finalize_corel: bool) -> tuple[str, int, bool]:
+    digest = hashlib.sha256(pdf_bytes).hexdigest()
+    return digest, int(dpi), bool(finalize_corel)
+
+
+def _get_cached_raster_template_pdf(cache_key):
+    with _raster_template_pdf_cache_lock:
+        cached = _raster_template_pdf_cache.get(cache_key)
+        if cached is not None:
+            _raster_template_pdf_cache.move_to_end(cache_key)
+        return cached
+
+
+def _set_cached_raster_template_pdf(cache_key, pdf_bytes: bytes) -> None:
+    if not pdf_bytes:
+        return
+    with _raster_template_pdf_cache_lock:
+        _raster_template_pdf_cache[cache_key] = pdf_bytes
+        _raster_template_pdf_cache.move_to_end(cache_key)
+        while len(_raster_template_pdf_cache) > max(1, _RASTER_TEMPLATE_CACHE_MAX):
+            _raster_template_pdf_cache.popitem(last=False)
+
+
+def _rasterize_template_pdf_for_editable_overlay(
+    pdf_bytes: bytes,
+    *,
+    dpi: int = 300,
+    finalize_corel: bool = False,
+) -> bytes:
     """
     Convert a template PDF page into a simple image-backed PDF page.
 
@@ -518,13 +555,19 @@ def _rasterize_template_pdf_for_editable_overlay(pdf_bytes: bytes, *, dpi: int =
     if not pdf_bytes:
         return pdf_bytes
 
+    render_dpi = max(200, min(300, int(dpi or 300)))
+    cache_key = _raster_template_cache_key(pdf_bytes, render_dpi, finalize_corel)
+    cached = _get_cached_raster_template_pdf(cache_key)
+    if cached is not None:
+        logger.info("Corel editable template fallback: rasterized template cache hit dpi=%s", render_dpi)
+        return cached
+
     template_doc = fitz.open(stream=pdf_bytes, filetype="pdf")
     out_doc = fitz.open()
     try:
         if len(template_doc) < 1:
             return pdf_bytes
         src_page = template_doc[0]
-        render_dpi = max(600, int(dpi or 300) * 2)
         pix = src_page.get_pixmap(
             dpi=render_dpi,
             alpha=False,
@@ -540,7 +583,9 @@ def _rasterize_template_pdf_for_editable_overlay(pdf_bytes: bytes, *, dpi: int =
             pix.height,
             render_dpi,
         )
-        return _make_corel_friendly(raster_pdf, mode="editable")
+        result = _make_corel_friendly(raster_pdf, mode="editable") if finalize_corel else raster_pdf
+        _set_cached_raster_template_pdf(cache_key, result)
+        return result
     except Exception as exc:
         logger.warning("Editable template rasterization failed: %s", exc)
         return pdf_bytes
@@ -724,7 +769,7 @@ def _draw_raster_text_run_on_canvas(
     pad_y = max(1, int(math.ceil(max(1, getattr(pil_font, "size", 0)) * 0.14)))
     anchor_offset_x = pad_x - bbox[0]
     anchor_offset_y = pad_y - bbox[1]
-    
+
     img, _baseline_y_px, _width_px = _build_text_image(
         text,
         pil_font,
@@ -867,7 +912,7 @@ def _pil_image_reader(image: Image.Image, *, preserve_alpha: bool = False) -> Im
     elif prepared.mode != "RGB":
         prepared = prepared.convert("RGB")
     buffer = io.BytesIO()
-    prepared.save(buffer, format="PNG")
+    prepared.save(buffer, format="PNG", compress_level=1)
     buffer.seek(0)
     return ImageReader(buffer)
 
@@ -1135,6 +1180,7 @@ def _build_compiled_sheet_via_app_renderer(
     cols: int,
     rows: int,
     scale: float,
+    finalize_corel: bool = True,
 ) -> bytes:
     helpers = _get_app_card_render_helpers()
     render_full = helpers["render_student_card_side"]
@@ -1167,6 +1213,45 @@ def _build_compiled_sheet_via_app_renderer(
             )
             shared_editable_background = None
 
+    # Pre-load template fields once to avoid database N+1 queries per card
+    template_fields = TemplateField.query.filter_by(template_id=template.id).order_by(TemplateField.display_order.asc()).all()
+    for s in students:
+        s._template_fields = template_fields
+
+    rendered_images = [None] * len(students)
+    if mode == "print" and students:
+        from flask import current_app
+        app = current_app._get_current_object()
+
+        def render_student_task(args):
+            idx, s = args
+            with app.app_context():
+                try:
+                    img = render_full(
+                        template,
+                        s,
+                        side=side,
+                        student_id=getattr(s, "id", None),
+                        school_name=getattr(template, "school_name", None),
+                    )
+                    return idx, img
+                except Exception as exc:
+                    logger.error("Parallel card render error: %s", exc)
+                    return idx, None
+
+        from app.services.parallel_render import get_optimal_workers
+        workers = get_optimal_workers(len(students))
+
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=workers) as executor:
+            tasks = [(i, s) for i, s in enumerate(students)]
+            for idx, img in executor.map(render_student_task, tasks):
+                rendered_images[idx] = img
+
+    shared_editable_background_reader = None
+    if mode == "editable" and shared_editable_background is not None:
+        shared_editable_background_reader = _pil_image_reader(shared_editable_background)
+
     buffer = io.BytesIO()
     c = reportlab_canvas.Canvas(
         buffer,
@@ -1188,15 +1273,21 @@ def _build_compiled_sheet_via_app_renderer(
         student_id = getattr(student, "id", None)
         school_name = getattr(template, "school_name", None)
         if mode == "print":
-            rendered = render_full(template, student, side=side, student_id=student_id, school_name=school_name)
+            rendered = rendered_images[idx]
         else:
             rendered = shared_editable_background
 
         if rendered is None:
             continue
 
+        rendered_reader = (
+            shared_editable_background_reader
+            if mode == "editable" and rendered is shared_editable_background and shared_editable_background_reader is not None
+            else _pil_image_reader(rendered)
+        )
+
         c.drawImage(
-            _pil_image_reader(rendered),
+            rendered_reader,
             card_x,
             card_bottom_y,
             width=float(card_w_pt),
@@ -1240,7 +1331,7 @@ def _build_compiled_sheet_via_app_renderer(
         mode,
         len(students),
     )
-    return _make_corel_friendly(final_bytes, mode=mode)
+    return _make_corel_friendly(final_bytes, mode=mode) if finalize_corel else final_bytes
 
 
 
@@ -1309,6 +1400,7 @@ def _compose_card_pages_to_sheet_pypdf(
     sheet_h_pt: float,
     *,
     mode: str = "editable",
+    finalize_corel: bool = True,
 ) -> bytes:
     if not placements:
         return card_pages_pdf_bytes
@@ -1340,7 +1432,7 @@ def _compose_card_pages_to_sheet_pypdf(
                     overlay=True,
                 )
             merged = _corel_safe_pdf_bytes(out_doc, garbage=4, clean=False)
-            return _make_corel_friendly(merged, mode=mode) if mode == "editable" else merged
+            return _make_corel_friendly(merged, mode=mode) if mode == "editable" and finalize_corel else merged
         finally:
             try:
                 card_doc.close()
@@ -1476,12 +1568,19 @@ def _compose_card_pages_to_sheet_pypdf(
     _rebuild_optional_content_catalog(writer)
     out = io.BytesIO()
     writer.write(out)
-    return _make_corel_friendly(out.getvalue(), mode=mode) if mode == "editable" else out.getvalue()
+    result = out.getvalue()
+    return _make_corel_friendly(result, mode=mode) if mode == "editable" and finalize_corel else result
 
 
 
 
-def _interleave_pdf_bytes(front_pdf_bytes: bytes, back_pdf_bytes: bytes, *, mode: str = "editable") -> bytes:
+def _interleave_pdf_bytes(
+    front_pdf_bytes: bytes,
+    back_pdf_bytes: bytes,
+    *,
+    mode: str = "editable",
+    finalize_corel: bool = True,
+) -> bytes:
     if PdfReader is None or PdfWriter is None:
         front_doc = fitz.open(stream=front_pdf_bytes, filetype="pdf")
         back_doc = fitz.open(stream=back_pdf_bytes, filetype="pdf")
@@ -1494,7 +1593,7 @@ def _interleave_pdf_bytes(front_pdf_bytes: bytes, back_pdf_bytes: bytes, *, mode
                 if page_index < len(back_doc):
                     merged_doc.insert_pdf(back_doc, from_page=page_index, to_page=page_index)
             merged = _corel_safe_pdf_bytes(merged_doc, garbage=4, clean=False)
-            return _make_corel_friendly(merged, mode=mode) if mode == "editable" else merged
+            return _make_corel_friendly(merged, mode=mode) if mode == "editable" and finalize_corel else merged
         finally:
             try:
                 back_doc.close()
@@ -1521,7 +1620,8 @@ def _interleave_pdf_bytes(front_pdf_bytes: bytes, back_pdf_bytes: bytes, *, mode
     _rebuild_optional_content_catalog(writer)
     out = io.BytesIO()
     writer.write(out)
-    return _make_corel_friendly(out.getvalue(), mode=mode) if mode == "editable" else out.getvalue()
+    result = out.getvalue()
+    return _make_corel_friendly(result, mode=mode) if mode == "editable" and finalize_corel else result
 
 
 LANGUAGE_TO_TRANSLATE_CODE = {
@@ -1629,17 +1729,24 @@ def _translate_value_for_export(raw_value, *, source_language: str, target_langu
     text = str(raw_value or "")
     actual_source = _detect_translation_source_language(text, fallback=source_language)
     actual_target = _normalize_language(target_language)
-    if actual_source == actual_target:
-        return text
-    if _should_skip_translation(text, field_key=field_key, field_type=field_type):
-        return text
-    return _google_translate_text(text, actual_source, actual_target)
+    translated_text = text
+    if actual_source != actual_target and not _should_skip_translation(
+        text,
+        field_key=field_key,
+        field_type=field_type,
+    ):
+        translated_text = _google_translate_text(text, actual_source, actual_target)
+    return localize_digits_for_language(
+        translated_text,
+        actual_target,
+        field_type=field_type,
+    )
 
 
 
 
 def _normalize_language(language: str) -> str:
-    return (language or "english").strip().lower()
+    return normalize_template_language(language)
 
 
 _ARABIC_RANGES = (
@@ -1998,38 +2105,12 @@ def _clean_bidi_controls(text: str) -> str:
 
 
 
-def process_text_for_vector(text: str, language: str) -> str:
-    """
-    Prepare text for ReportLab drawing.
-
-    Why this exists:
-    - ReportLab does not do complex shaping (joining) or BiDi reordering by itself.
-    - Arabic/Urdu need reshaping (glyph joining) + BiDi to display correctly.
-    - Hindi (Devanagari) is LTR and does not need BiDi, so return unchanged.
-    """
-    text = _clean_bidi_controls(text)
-    if not text:
-        return ""
-    language = _normalize_language(language)
-
-    # If template language is English but the value contains Arabic-script, still process it.
-    if language not in {"arabic", "urdu"} and _contains_arabic_script(text):
-        language = "arabic"
-
-    if language in {"arabic", "urdu"}:
-        try:
-            if _ARABIC_RESHAPER is not None:
-                reshaped = _ARABIC_RESHAPER.reshape(text)
-            else:
-                reshaped = arabic_reshaper.reshape(text)
-            # base_dir='R' ensures stable RTL display for ReportLab (which draws LTR only).
-            return _clean_bidi_controls(_safe_bidi_get_display(reshaped, base_dir="R"))
-        except Exception as exc:
-            logger.warning("Vector text shaping failed for Arabic/Urdu: %s", exc)
-            return text
-
-    # Hindi / English / others
-    return text
+def process_text_for_vector(text: str, language: str, *, for_native_bidi: bool = False) -> str:
+    return _shared_process_text_for_vector(
+        text,
+        language,
+        for_native_bidi=for_native_bidi,
+    )
 
 
 
@@ -2211,7 +2292,7 @@ def _build_text_image(
     text = "" if text is None else str(text)
     draw_kwargs = get_draw_text_kwargs(text, language)
     bbox, w, h, baseline_y_px, width_px = _measure_raster_text_metrics(text, pil_font, language)
-    
+
     char_spacing_px = 0.0
     if char_spacing and direction != "rtl" and language not in ("urdu", "arabic") and not any(ord(c) >= 0x0600 and ord(c) <= 0x06FF for c in text):
         font_size = float(getattr(pil_font, "size", 24) or 24)
@@ -2235,7 +2316,7 @@ def _build_text_image(
     # Render
     img = Image.new("RGBA", (img_w, img_h), (0, 0, 0, 0))
     dr = ImageDraw.Draw(img)
-    
+
     if char_spacing_px > 0:
         cursor_x = pad_x - bbox[0]
         for char in text:
@@ -2273,7 +2354,7 @@ def _build_text_image(
             )
         else:
             dr.text((pad_x - bbox[0], pad_y - bbox[1]), text, font=pil_font, fill=fill_rgba, **draw_kwargs)
-            
+
     return img, baseline_y_px, float(max(width_px + (pad_x * 2), img_w))
 
 
@@ -2283,7 +2364,7 @@ def draw_custom_rounded_rect(c, x, y, w, h, radii):
     path = c.beginPath()
     path.moveTo(x, y + h - tl)
     if tl > 0: path.arcTo(x, y + h - 2*tl, x + 2*tl, y + h, 180, -90)
-    else: path.lineTo(x, y + h) 
+    else: path.lineTo(x, y + h)
     path.lineTo(x + w - tr, y + h)
     if tr > 0: path.arcTo(x + w - 2*tr, y + h - 2*tr, x + w, y + h, 90, -90)
     else: path.lineTo(x + w, y + h)
@@ -3009,6 +3090,7 @@ def _generate_direct_editable_pdf_template_export(
     source_language: str = "english",
     include_template_background: bool = True,
     mode: str = "editable",
+    finalize_corel: bool = True,
 ) -> bytes:
     template_doc = fitz.open(stream=template_pdf_bytes, filetype="pdf")
     out_doc = fitz.open()
@@ -3027,6 +3109,8 @@ def _generate_direct_editable_pdf_template_export(
         native_reg_font_name = "helv"
         native_bold_font_name = "hebo"
         safe_editable_builtin_text = mode == "editable" and _normalize_language(lang) not in {"urdu", "arabic", "hindi"}
+        overlay_on_uploaded_template = bool(include_template_background)
+        draw_field_labels = not overlay_on_uploaded_template
         app_helpers = _get_app_card_render_helpers()
         load_student_photo_rgba_fn = app_helpers["load_student_photo_rgba"]
 
@@ -3090,7 +3174,7 @@ def _generate_direct_editable_pdf_template_export(
                 return None, has_real_student_photo
 
             buf = io.BytesIO()
-            prepared.save(buf, format="PNG")
+            prepared.save(buf, format="PNG", compress_level=1)
             buf.seek(0)
             return buf, has_real_student_photo
 
@@ -3169,7 +3253,7 @@ def _generate_direct_editable_pdf_template_export(
                 y0 = rect.y0
                 target_rect = fitz.Rect(float(x0), float(y0), float(x0 + draw_w), float(y0 + draw_h))
                 png_buf = io.BytesIO()
-                img.save(png_buf, format="PNG")
+                img.save(png_buf, format="PNG", compress_level=1)
                 page.insert_image(target_rect, stream=png_buf.getvalue(), overlay=True, keep_proportion=False)
             except Exception:
                 logger.warning("Raster text fallback failed for editable PDF text")
@@ -3242,7 +3326,7 @@ def _generate_direct_editable_pdf_template_export(
                 normalized_radii = [int(float(r or 0)) for r in (radii or [])]
                 img = round_photo(img, normalized_radii, shape=photo_shape, shape_inset=photo_shape_inset)
                 out = io.BytesIO()
-                img.save(out, format="PNG")
+                img.save(out, format="PNG", compress_level=1)
                 return out.getvalue()
             except Exception:
                 return None
@@ -3703,8 +3787,8 @@ def _generate_direct_editable_pdf_template_export(
                 {"k": "NAME", "l": local_apply_text_case(labels_map["NAME"], text_case), "v": local_apply_text_case(_translate_value_for_export(student.name, source_language=source_language, target_language=lang, field_key="NAME", field_type="text"), text_case), "ord": 10, "field_type": "text", "translate_label": False},
                 {"k": "F_NAME", "l": local_apply_text_case(labels_map["F_NAME"], text_case), "v": local_apply_text_case(_translate_value_for_export(student.father_name, source_language=source_language, target_language=lang, field_key="F_NAME", field_type="text"), text_case), "ord": 20, "field_type": "text", "translate_label": False},
                 {"k": "CLASS", "l": local_apply_text_case(labels_map["CLASS"], text_case), "v": local_apply_text_case(_translate_value_for_export(student.class_name, source_language=source_language, target_language=lang, field_key="CLASS", field_type="text"), text_case), "ord": 30, "field_type": "text", "translate_label": False},
-                {"k": "DOB", "l": local_apply_text_case(labels_map["DOB"], text_case), "v": local_apply_text_case(student.dob, text_case), "ord": 40, "field_type": "date", "translate_label": False},
-                {"k": "MOBILE", "l": local_apply_text_case(labels_map["MOBILE"], text_case), "v": local_apply_text_case(student.phone, text_case), "ord": 50, "field_type": "tel", "translate_label": False},
+                {"k": "DOB", "l": local_apply_text_case(labels_map["DOB"], text_case), "v": local_apply_text_case(_translate_value_for_export(student.dob, source_language=source_language, target_language=lang, field_key="DOB", field_type="date"), text_case), "ord": 40, "field_type": "date", "translate_label": False},
+                {"k": "MOBILE", "l": local_apply_text_case(labels_map["MOBILE"], text_case), "v": local_apply_text_case(_translate_value_for_export(student.phone, source_language=source_language, target_language=lang, field_key="MOBILE", field_type="tel"), text_case), "ord": 50, "field_type": "tel", "translate_label": False},
                 {"k": "ADDRESS", "l": local_apply_text_case(labels_map["ADDRESS"], text_case), "v": local_apply_text_case(_translate_value_for_export(student.address, source_language=source_language, target_language=lang, field_key="ADDRESS", field_type="textarea"), text_case), "ord": 60, "field_type": "textarea", "translate_label": False},
             ]
             from app.services.render_service import normalize_custom_data
@@ -3762,12 +3846,15 @@ def _generate_direct_editable_pdf_template_export(
                     side=side,
                     text_direction=direction,
                 )
+                if overlay_on_uploaded_template:
+                    layout_item = dict(layout_item)
+                    layout_item["value_visible"] = True
                 label_x_eff = layout_item["label_x"]
                 value_x_eff = layout_item["value_x"]
                 label_y_eff = layout_item["label_y"]
                 value_y_eff = layout_item["value_y"]
                 label_visible = layout_item["label_visible"]
-                value_visible = layout_item["value_visible"]
+                value_visible = bool(layout_item["value_visible"]) or overlay_on_uploaded_template
                 label_grow = layout_item.get("label_grow")
                 value_grow = layout_item.get("value_grow")
                 label_rgb = layout_item.get("label_color") or label_default_rgb
@@ -3792,9 +3879,16 @@ def _generate_direct_editable_pdf_template_export(
                 if advances_flow:
                     current_y_px = max(int(current_y_px), int(label_y_eff), int(value_y_eff))
 
-                if label_visible:
+                use_complex_pdf_text = _normalize_language(lang) in {"hindi", "urdu", "arabic"}
+
+                if label_visible and draw_field_labels:
+                    label_source_for_split = (
+                        process_text_for_drawing(field["l"], lang)
+                        if use_complex_pdf_text
+                        else process_text_for_vector(field["l"], lang, for_native_bidi=True)
+                    )
                     label_text, colon_text = split_label_and_colon(
-                        process_text_for_vector(field["l"], lang, for_native_bidi=True),
+                        label_source_for_split,
                         lang,
                         direction,
                         include_colon=show_label_colon,
@@ -3802,7 +3896,7 @@ def _generate_direct_editable_pdf_template_export(
                     )
                     baseline_y_pt = (label_y_eff * y_scale) + lbl_size_pt_eff
                     if label_text:
-                        if lang == "hindi" or (enable_label_gradient and mode != "editable"):
+                        if use_complex_pdf_text or (enable_label_gradient and mode != "editable"):
                             label_rect = _text_rect(
                                 card_x,
                                 card_w_pt,
@@ -3823,7 +3917,7 @@ def _generate_direct_editable_pdf_template_export(
                                 color_rgb=label_rgb,
                                 direction=direction,
                                 align="center" if label_grow == "center" else ("right" if direction == "rtl" else "left"),
-                                prefer_native_text=not enable_label_gradient,
+                                prefer_native_text=False,
                                 enable_gradient=enable_label_gradient,
                                 gradient_color_bottom=label_fill_bottom,
                             )
@@ -3850,7 +3944,7 @@ def _generate_direct_editable_pdf_template_export(
                             )
                     if colon_text:
                         colon_anchor_px, colon_grow = colon_anchor_for_value(value_x_eff, direction, gap_px=label_colon_gap)
-                        if lang == "hindi" or (enable_colon_gradient and mode != "editable"):
+                        if use_complex_pdf_text or (enable_colon_gradient and mode != "editable"):
                             colon_rect = _text_rect(
                                 card_x,
                                 card_w_pt,
@@ -3871,7 +3965,7 @@ def _generate_direct_editable_pdf_template_export(
                                 color_rgb=colon_rgb,
                                 direction=direction,
                                 align="center" if colon_grow == "center" else ("right" if direction == "rtl" else "left"),
-                                prefer_native_text=not enable_colon_gradient,
+                                prefer_native_text=False,
                                 enable_gradient=enable_colon_gradient,
                                 gradient_color_bottom=colon_fill_bottom,
                             )
@@ -3897,7 +3991,11 @@ def _generate_direct_editable_pdf_template_export(
                                 overlay=True,
                             )
 
-                val_text = process_text_for_vector(field["v"], lang, for_native_bidi=True)
+                val_text = (
+                    process_text_for_drawing(field["v"], lang)
+                    if use_complex_pdf_text
+                    else process_text_for_vector(field["v"], lang, for_native_bidi=True)
+                )
                 if field.get("k") == "ADDRESS" and text_case == "normal" and val_text and val_text.isupper() and len(val_text) > 10:
                     val_text = val_text.title()
 
@@ -3930,6 +4028,22 @@ def _generate_direct_editable_pdf_template_export(
                         int(remaining_h_pt / max(min_font_size_pt * line_height_factor, text_scale)),
                     ),
                 )
+                if use_complex_pdf_text:
+                    value_measure_builder = lambda size_pt: (
+                        lambda s, _size=size_pt: _measure_raster_text_width(
+                            s,
+                            font_path_or_name=reg_font_path or bold_font_path or "",
+                            font_size_pt=_size,
+                            language=lang,
+                            scale=text_scale,
+                            raster_multiplier=1,
+                        )
+                    )
+                else:
+                    value_measure_builder = lambda size_pt: (
+                        lambda s, _size=size_pt: _measure_vector_text_width(s, measure_reg_font_name, _size)
+                    )
+
                 curr_font_size, lines = _fit_wrapped_text(
                     val_text,
                     font_name=measure_reg_font_name,
@@ -3939,6 +4053,7 @@ def _generate_direct_editable_pdf_template_export(
                     max_lines=field_max_lines,
                     max_height_pt=remaining_h_pt,
                     line_height_factor=line_height_factor,
+                    measure_builder=value_measure_builder,
                 )
                 line_spacing = curr_font_size * line_height_factor
 
@@ -3946,7 +4061,7 @@ def _generate_direct_editable_pdf_template_export(
                     if not value_visible:
                         continue
                     baseline_y_pt = (value_y_eff * y_scale) + curr_font_size + (i * line_spacing)
-                    if lang == "hindi" or (enable_value_gradient and mode != "editable"):
+                    if use_complex_pdf_text or (enable_value_gradient and mode != "editable"):
                          line_rect = _text_rect(
                              card_x,
                              card_w_pt,
@@ -3967,7 +4082,7 @@ def _generate_direct_editable_pdf_template_export(
                              color_rgb=value_rgb,
                              direction=direction,
                              align="center" if value_grow == "center" else ("right" if direction == "rtl" else "left"),
-                             prefer_native_text=not enable_value_gradient,
+                             prefer_native_text=False,
                              enable_gradient=enable_value_gradient,
                              gradient_color_bottom=value_fill_bottom,
                          )
@@ -4000,7 +4115,7 @@ def _generate_direct_editable_pdf_template_export(
                     current_y_px += line_height_px
 
         export_bytes = _corel_safe_pdf_bytes(out_doc, garbage=4, clean=False)
-        return _make_corel_friendly(export_bytes, mode=mode) if mode == "editable" else export_bytes
+        return _make_corel_friendly(export_bytes, mode=mode) if mode == "editable" and finalize_corel else export_bytes
     finally:
         try:
             template_doc.close()

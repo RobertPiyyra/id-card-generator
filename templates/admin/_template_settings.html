@@ -1053,7 +1053,12 @@
                 </div>
                 <div class="form-group">
                     <label><i class="fas fa-school"></i> School Name</label>
-                    <input type="text" name="school_name" id="schoolAdminSchoolName" placeholder="Enter school name" required>
+                    <select name="school_name" id="schoolAdminSchoolName" required>
+                        <option value="" disabled selected>Select school template...</option>
+                        {% for school_name in templates | map(attribute='school_name') | unique | sort %}
+                            <option value="{{ school_name }}">{{ school_name }}</option>
+                        {% endfor %}
+                    </select>
                 </div>
                 <button type="submit" class="btn btn-upload">
                     <i class="fas fa-user-plus"></i> Register School Admin

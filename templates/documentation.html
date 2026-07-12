@@ -122,9 +122,14 @@
         }
 
         .navbar-brand img {
-            max-height: 52px;
-            width: auto;
-            transition: max-height 0.2s;
+            width: 45px;
+            height: 45px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid var(--primary);
+            background: white;
+            padding: 1px;
+            transition: transform 0.2s;
         }
 
         @media (max-width: 576px) {
@@ -133,7 +138,8 @@
                 gap: 6px;
             }
             .navbar-brand img {
-                max-height: 38px;
+                width: 38px;
+                height: 38px;
             }
         }
 
@@ -512,7 +518,7 @@
     <nav class="navbar navbar-expand-lg navbar-light nav-custom fixed-top">
         <div class="container">
             <a class="navbar-brand" href="{{ url_for('dashboard.landing') }}">
-                <img src="{{ url_for('static', filename='images/logo.jpg') }}" alt="Noor Graphics Logo" style="height: auto; max-height: 55px; width: auto;">
+                <img src="{{ url_for('static', filename='images/logo.jpg') }}" alt="Noor Graphics Logo">
                 Noor Graphics
             </a>
         </div>
@@ -667,7 +673,7 @@
         // Auto dark mode based on device preference
         (function() {
             const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-            if (prefersDark) { document.body.classList.add('dark'); }
+            if (prefersDark) { document.body.classList.add('dark'); document.body.setAttribute('data-bs-theme', 'dark'); }
         })();
             const cards = document.querySelectorAll('.step-card');
             cards.forEach(card => {

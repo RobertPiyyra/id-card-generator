@@ -162,12 +162,14 @@
         body.dark {
             background: var(--bg-dark);
             color: var(--text-light);
+            --text: var(--text-light);
         }
 
         @media (prefers-color-scheme: dark) {
             body {
                 background: var(--bg-dark);
                 color: var(--text-light);
+                --text: var(--text-light);
             }
         }
 
@@ -257,6 +259,23 @@
             gap: 6px;
             position: relative;
             overflow: hidden;
+        }
+
+        .navbar-brand img {
+            width: 45px;
+            height: 45px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid var(--primary);
+            background: white;
+            padding: 1px;
+            display: inline-block;
+            vertical-align: middle;
+            transition: transform 0.3s ease;
+        }
+
+        .navbar-brand:hover img {
+            transform: scale(1.05);
         }
 
         .navbar-brand::after {
@@ -351,6 +370,14 @@
             max-width: 700px;
             animation: slideUp 1s ease-out 0.2s both;
             opacity: 0;
+        }
+
+        .how-it-works-section {
+            background: var(--bg-light);
+            transition: var(--transition);
+        }
+        body.dark .how-it-works-section {
+            background: var(--bg-dark);
         }
 
         /* ==================== HOW IT WORKS SECTION ==================== */
@@ -1002,7 +1029,7 @@
 
         /* Mobile Get Touch Section */
         .mobile-touch-section {
-            display: none;
+            display: none !important;
             position: fixed;
             bottom: 0;
             left: 0;
@@ -1097,6 +1124,11 @@
 
         /* ==================== RESPONSIVE DESIGN ==================== */
         @media (max-width: 991px) {
+            .navbar-brand img {
+                width: 38px;
+                height: 38px;
+            }
+
             .hero-title {
                 font-size: 3rem;
             }
@@ -1170,7 +1202,7 @@
 
             /* Show mobile touch section */
             .mobile-touch-section {
-                display: block;
+                display: none !important;
                 z-index: 9999;
             }
             
@@ -1362,8 +1394,8 @@
 
     <nav class="navbar navbar-expand-lg navbar-light nav-custom fixed-top">
         <div class="container">
-            <a class="navbar-brand" href="#home">
-                <img src="{{ url_for('static', filename='images/logo.jpg') }}" style="height: 50px; width: auto;" class="me-2">
+            <a class="navbar-brand" href="/">
+                <img src="{{ url_for('static', filename='images/logo.jpg') }}" class="me-2">
                 Noor Graphics
             </a>
             <button class="navbar-toggler border-0 shadow-none px-2" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
@@ -1441,7 +1473,7 @@
         </div>
     </section>
 
-    <section class="how-it-works-section" id="how-it-works" style="padding: 100px 0; background: var(--bg-light); position: relative;">
+    <section class="how-it-works-section" id="how-it-works" style="padding: 100px 0; position: relative;">
         <div class="container">
             <div class="row mb-5">
                 <div class="col-12 text-center">
@@ -2082,10 +2114,8 @@
         // Mobile touch section hide on desktop
         function checkScreenSize() {
             const mobileTouchSection = document.querySelector('.mobile-touch-section');
-            if (window.innerWidth > 768) {
+            if (mobileTouchSection) {
                 mobileTouchSection.style.display = 'none';
-            } else {
-                mobileTouchSection.style.display = 'block';
             }
         }
 
@@ -2139,8 +2169,12 @@
         // Auto dark mode based on device preference
         (function() {
             const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-            if (prefersDark) { document.body.classList.add('dark'); }
+            if (prefersDark) {
+                document.body.classList.add('dark');
+                document.body.setAttribute('data-bs-theme', 'dark');
+            }
         })();
     </script>
+    {% include 'faq/widget.html' %}
 </body>
 </html>

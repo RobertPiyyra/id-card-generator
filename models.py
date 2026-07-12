@@ -1,6 +1,7 @@
 # SQLAlchemy imports
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, Boolean, JSON, Float
+from sqlalchemy import Index
 from sqlalchemy.orm import relationship, backref
 from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.sql import func
@@ -106,8 +107,8 @@ class Student(db.Model):
     generated_filename = Column(String(255))  # Legacy: local generated card filename
     back_generated_filename = Column(String(255))
     
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    data_hash = Column(String(255), unique=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+    data_hash = Column(String(255), unique=True, index=True)
     
     # Relationships
     template_id = Column(Integer, ForeignKey('templates.id'), index=True)
@@ -116,6 +117,10 @@ class Student(db.Model):
     # User Auth
     email = Column(String(255), unique=False, index=True)
     password = Column(String(255))
+    
+    __table_args__ = (
+        Index('idx_student_template_school', 'template_id', 'school_name'),
+    )
     
     # Dynamic Data
     custom_data = Column(MutableDict.as_mutable(JSON), default=dict)
@@ -232,6 +237,7 @@ class SerialBatch(db.Model):
     school_name = db.Column(db.String(255), nullable=False, index=True)
     template_id = db.Column(db.Integer, db.ForeignKey('templates.id'), nullable=False)
     prefix = db.Column(db.String(50), default='SCH-')
+    class_name = db.Column(db.String(100), nullable=True)
     status = db.Column(db.String(30), default='uploading')  # uploading, ready, filling, rendering, done, error
     created_by = db.Column(db.String(255))
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
@@ -348,6 +354,10 @@ class BulkJobItem(db.Model):
     payload_json = db.Column(MutableDict.as_mutable(JSON), nullable=False, default=dict)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), nullable=False, onupdate=lambda: datetime.now(timezone.utc))
+
+    __table_args__ = (
+        Index('idx_bulk_job_items_status', 'bulk_job_id', 'status', 'row_index'),
+    )
 
     bulk_job = db.relationship('BulkJob', backref=db.backref('items', lazy='dynamic', cascade='all, delete-orphan'))
     student = db.relationship('Student', backref=db.backref('bulk_job_items', lazy='dynamic'))
@@ -655,7 +665,7 @@ class PrintQueue(db.Model):
     admin_id = db.Column(db.Integer, db.ForeignKey('admin_users.id'), nullable=True)
     job_type = db.Column(db.String(20), default='single')
     priority = db.Column(db.Integer, default=5)
-    status = db.Column(db.String(20), default='pending')
+    status = db.Column(db.String(20), default='pending', index=True)
     printer_name = db.Column(db.String(100))
     card_side = db.Column(db.String(10), default='front')
     copies = db.Column(db.Integer, default=1)

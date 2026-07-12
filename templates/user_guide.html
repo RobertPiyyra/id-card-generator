@@ -653,10 +653,13 @@
     <div class="texture"></div>
     <main class="page">
         <div class="topbar">
+            <a href="/" style="text-decoration: none; color: inherit; display: inline-flex; align-items: center; gap: 8px; margin-right: auto; font-weight: 700; font-family: 'Fraunces', serif; font-size: 1.25rem;">
+                <img src="{{ url_for('static', filename='images/logo.jpg') }}" alt="Noor Graphics Logo" style="width: 35px; height: 35px; border-radius: 50%; object-fit: cover; border: 2.5px solid var(--primary); padding: 1px; background: white; vertical-align: middle;">
+                <span>Noor Graphics</span>
+            </a>
             <a class="btn primary" href="/admin"><i class="fas fa-arrow-left"></i> Back to Admin</a>
-            <a class="btn" href="/admin/bulk_upload_guide" target="_blank"><i class="fas fa-file-csv"></i> Bulk Upload Guide</a>
-            <a class="btn" href="/documentation" target="_blank"><i class="fas fa-book-open"></i> Public Docs</a>
-        </div>
+            <a class="btn" href="/admin/bulk_upload_guide" target="_blank" rel="noopener noreferrer"><i class="fas fa-file-csv"></i> Bulk Upload Guide</a>
+            <a class="btn" href="/documentation" target="_blank" rel="noopener noreferrer"><i class="fas fa-book-open"></i> Public Docs</a>
 
         <section class="hero">
             <h1><i class="fas fa-user-shield"></i> Admin Panel User Guide & Project Overview</h1>
@@ -1462,7 +1465,7 @@
         // Auto dark mode based on device preference
         (function() {
             const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-            if (prefersDark) { document.body.classList.add('dark'); document.body.classList.add('dark-mode'); }
+            if (prefersDark) { document.body.classList.add('dark'); document.body.classList.add('dark-mode'); document.body.setAttribute('data-bs-theme', 'dark'); }
         })();
     </script>
 </body>

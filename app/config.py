@@ -1,5 +1,5 @@
 import os
-
+from sqlalchemy.pool import StaticPool
 
 def _database_url():
     # Prefer modern `DATABASE_URL` (Railway/Heroku style), but also support the more typical
@@ -26,11 +26,18 @@ class Config:
 
     SQLALCHEMY_DATABASE_URI = _database_url()
     SQLALCHEMY_TRACK_MODIFICATIONS = False
-    SQLALCHEMY_ENGINE_OPTIONS = {
-        "pool_pre_ping": True,
-        "pool_recycle": 300,
-    }
-
+    SQLALCHEMY_ENGINE_OPTIONS = (
+        {"pool_pre_ping": True, "poolclass": StaticPool, "connect_args": {"check_same_thread": False}}
+        if _database_url().startswith("sqlite")
+        else {
+            "pool_pre_ping": True,
+            "pool_recycle": 300,
+            "pool_size": int(os.environ.get("DB_POOL_SIZE", "10")),
+            "max_overflow": int(os.environ.get("DB_MAX_OVERFLOW", "5")),
+            "pool_timeout": int(os.environ.get("DB_POOL_TIMEOUT", "30")),
+            "echo": os.environ.get("SQL_ECHO", "false").lower() == "true",
+        }
+    )
     EMAIL_FROM = os.environ.get("EMAIL_FROM")
     EMAIL_PASSWORD = os.environ.get("EMAIL_PASSWORD")
     SMTP_SERVER = os.environ.get("SMTP_SERVER", "smtp.gmail.com")
@@ -67,15 +74,11 @@ class ProductionConfig(Config):
     # Session
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = "Lax"
-    PERMANENT_SESSION_LIFETIME = int(os.environ.get("SESSION_LIFETIME", "3600"))
-
-    # SQLAlchemy production tuning
+    # SQLAlchemy production tuning — extends base Config engine options
     SQLALCHEMY_ENGINE_OPTIONS = {
-        "pool_pre_ping": True,
-        "pool_recycle": 300,
-        "pool_size": int(os.environ.get("DB_POOL_SIZE", "10")),
-        "max_overflow": int(os.environ.get("DB_MAX_OVERFLOW", "20")),
-        "pool_timeout": int(os.environ.get("DB_POOL_TIMEOUT", "30")),
+        **Config.SQLALCHEMY_ENGINE_OPTIONS,
+        "pool_size": int(os.environ.get("DB_POOL_SIZE", "20")),
+        "max_overflow": int(os.environ.get("DB_MAX_OVERFLOW", "10")),
     }
 
 

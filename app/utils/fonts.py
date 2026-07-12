@@ -382,13 +382,17 @@ def load_font_dynamic(font_path, text, max_width, start_size, language="english"
                     try:
                         dummy = Image.new("RGB", (1, 1), "white")
                         d = ImageDraw.Draw(dummy)
-                        while True:
+                        _max_iter = 500
+                        _iter = 0
+                        while _iter < _max_iter:
                             bbox = d.textbbox((0, 0), text, font=font)
                             w = (bbox[2] - bbox[0]) if bbox else 0
                             if w <= max_width or size <= min_size:
                                 break
                             size -= 1
                             font = _load_truetype(candidate_path, size)
+                            _iter += 1
+                        pass
                     except Exception:
                         pass
 

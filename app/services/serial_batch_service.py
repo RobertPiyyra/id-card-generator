@@ -18,7 +18,7 @@ import logging
 from datetime import datetime, timezone
 from threading import Thread
 
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageOps
 from flask import current_app
 from sqlalchemy import and_
 
@@ -59,9 +59,18 @@ def _ensure_dirs(batch_id):
 
 
 def _get_next_serial(batch):
-    """Get the next serial number for a batch."""
-    existing = db.session.query(SerialCard.serial_no).filter_by(batch_id=batch.id).all()
+    """Get the next serial number for a batch. Class-wise if class_name is set."""
     existing_numbers = set()
+    
+    if batch.class_name:
+        # Query from SerialCard table for the same school and class
+        existing = db.session.query(SerialCard.serial_no).join(SerialBatch).filter(
+            SerialBatch.school_name == batch.school_name,
+            SerialBatch.class_name == batch.class_name
+        ).all()
+    else:
+        existing = db.session.query(SerialCard.serial_no).filter_by(batch_id=batch.id).all()
+        
     for (serial_no,) in existing:
         if serial_no and serial_no.startswith(batch.prefix):
             try:
@@ -69,25 +78,43 @@ def _get_next_serial(batch):
                 existing_numbers.add(num)
             except ValueError:
                 pass
+
+    if batch.class_name:
+        # Also check Student table for existing serial numbers in this class
+        students = db.session.query(Student.custom_data).filter(
+            Student.school_name == batch.school_name,
+            Student.class_name == batch.class_name
+        ).all()
+        for (custom_data,) in students:
+            if custom_data and 'serial_no' in custom_data:
+                serial_no = str(custom_data['serial_no'])
+                if serial_no.startswith(batch.prefix):
+                    try:
+                        num = int(serial_no[len(batch.prefix):])
+                        existing_numbers.add(num)
+                    except ValueError:
+                        pass
+
     next_num = 1
     while next_num in existing_numbers:
         next_num += 1
     return f"{batch.prefix}{next_num:03d}"
 
 
-def create_batch(school_name, template_id, prefix='SCH-', created_by=None):
+def create_batch(school_name, template_id, prefix='SCH-', class_name=None, created_by=None):
     """Create a new SerialBatch."""
     batch = SerialBatch(
         school_name=school_name,
         template_id=template_id,
         prefix=prefix,
+        class_name=class_name,
         status='uploading',
         created_by=created_by,
     )
     db.session.add(batch)
     db.session.commit()
     _ensure_dirs(batch.id)
-    logger.info(f"Created SerialBatch {batch.id} for school={school_name}, template={template_id}")
+    logger.info(f"Created SerialBatch {batch.id} (class={class_name}) for school={school_name}, template={template_id}")
     return batch
 
 
@@ -154,10 +181,12 @@ def upload_photos(batch_id, files, school_name=None):
             batch_id=batch.id,
             serial_no=serial_no,
             photo_path=filepath,
+            class_name=batch.class_name,
             status='photo_only',
         )
         db.session.add(card)
         created_cards.append(card)
+
 
     if created_cards:
         batch.status = 'ready'
@@ -174,60 +203,24 @@ def upload_photos(batch_id, files, school_name=None):
 
 
 def _generate_thumbnail(batch, card):
-    """Generate a photo-on-template thumbnail for a card."""
+    """Generate a clean raw photo thumbnail for a card (without template background)."""
     if not card.photo_path or not os.path.exists(card.photo_path):
         return
 
-    template = db.session.get(Template, batch.template_id)
-    if not template:
-        return
-
     try:
-        font_settings, photo_settings, qr_settings, orientation = get_template_settings(
-            template.id, side='front'
-        )
-    except Exception:
-        photo_settings = get_default_photo_config()
-
-    # Load template image
-    from app.legacy_app import get_template_path, _load_template_image_for_render
-    template_path = get_template_path(template.id, side='front')
-    if not template_path or not os.path.exists(template_path):
-        # Fallback: just resize the photo
-        thumb = _resize_photo_thumbnail(card.photo_path, template, photo_settings)
-    else:
-        card_width, card_height = get_card_size(template.id)
-        template_img = _load_template_image_for_render(template_path, card_width, card_height, render_scale=1.0)
-
-        # Load and place photo
-        photo_img = Image.open(card.photo_path).convert('RGBA')
-        photo_w, photo_h = photo_settings.get('photo_width', 200), photo_settings.get('photo_height', 250)
-        photo_x = photo_settings.get('photo_x', 50)
-        photo_y = photo_settings.get('photo_y', 50)
-
-        # Resize photo to fit
-        photo_img.thumbnail((photo_w, photo_h), Image.LANCZOS)
-
-        # Create circular mask if needed
-        shape = photo_settings.get('photo_shape', 'circle')
-        if shape == 'circle':
-            mask = Image.new('L', photo_img.size, 0)
-            draw = ImageDraw.Draw(mask)
-            draw.ellipse((0, 0, photo_img.width, photo_img.height), fill=255)
-            template_img.paste(photo_img, (photo_x, photo_y), mask)
-        else:
-            template_img.paste(photo_img, (photo_x, photo_y), photo_img if photo_img.mode == 'RGBA' else None)
-
-        # Scale to thumbnail
-        thumb = template_img.copy()
-        thumb.thumbnail((THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT), Image.LANCZOS)
-
-    # Save thumbnail
-    thumb_path = _thumbnail_path(batch.id, card.id)
-    thumb = thumb.convert('RGB')
-    thumb.save(thumb_path, 'JPEG', quality=85)
-    card.photo_thumbnail = thumb_path
-    db.session.commit()
+        # Load and resize the photo directly to fit the thumbnail bounding box
+        img = Image.open(card.photo_path).convert('RGB')
+        
+        # Fit image cleanly into the thumbnail dimensions using LANCZOS
+        thumb = ImageOps.fit(img, (THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT), Image.Resampling.LANCZOS)
+        
+        # Save thumbnail
+        thumb_path = _thumbnail_path(batch.id, card.id)
+        thumb.save(thumb_path, 'JPEG', quality=85)
+        card.photo_thumbnail = thumb_path
+        db.session.commit()
+    except Exception as e:
+        logger.warning(f"Thumbnail generation failed for card {card.id}: {e}")
 
 
 def _resize_photo_thumbnail(photo_path, template, photo_settings):

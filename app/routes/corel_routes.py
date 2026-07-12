@@ -11,6 +11,8 @@ import unicodedata
 import requests
 import base64
 import traceback
+import time
+import hashlib
 import fitz
 from types import SimpleNamespace
 from functools import lru_cache
@@ -107,6 +109,51 @@ from app.services.corel_export_service import _extract_google_translate_text  # 
 
 from flask import Blueprint
 corel_bp = Blueprint('corel', __name__)
+
+
+def _compiled_pdf_cache_path(template, students, *, mode, suffix="app_renderer"):
+    """Return a stable cache path for a compiled Corel PDF export."""
+    try:
+        os.makedirs(GENERATED_FOLDER, exist_ok=True)
+        student_state = []
+        for student in students:
+            student_state.append({
+                "id": getattr(student, "id", None),
+                "name": getattr(student, "name", ""),
+                "father_name": getattr(student, "father_name", ""),
+                "class_name": getattr(student, "class_name", ""),
+                "dob": getattr(student, "dob", ""),
+                "address": getattr(student, "address", ""),
+                "phone": getattr(student, "phone", ""),
+                "photo_url": getattr(student, "photo_url", ""),
+                "photo_filename": getattr(student, "photo_filename", ""),
+                "custom_data": getattr(student, "custom_data", None) or {},
+                "data_hash": getattr(student, "data_hash", ""),
+            })
+        payload = {
+            "template_id": getattr(template, "id", None),
+            "template_updated_at": str(getattr(template, "updated_at", "") or ""),
+            "mode": mode,
+            "suffix": suffix,
+            "double_sided": bool(getattr(template, "is_double_sided", False)),
+            "grid": [
+                getattr(template, "sheet_width", None),
+                getattr(template, "sheet_height", None),
+                getattr(template, "card_width", None),
+                getattr(template, "card_height", None),
+                getattr(template, "grid_cols", None),
+                getattr(template, "grid_rows", None),
+            ],
+            "students": student_state,
+        }
+        digest = hashlib.sha256(
+            json.dumps(payload, sort_keys=True, default=str, ensure_ascii=False).encode("utf-8")
+        ).hexdigest()[:24]
+        filename = f"corel_compiled_{getattr(template, 'id', 'unknown')}_{mode}_{suffix}_{digest}.pdf"
+        return os.path.join(GENERATED_FOLDER, filename)
+    except Exception as exc:
+        logger.warning("Compiled PDF cache key failed: %s", exc)
+        return None
 # Extracted to app/services/corel_export_service.py
 from app.services.corel_export_service import _google_translate_text  # noqa: E402
 # Extracted to app/services/corel_export_service.py
@@ -215,7 +262,7 @@ def corel_preview(template_id):
         if os.path.exists(PLACEHOLDER_PATH):
             placeholder_img = Image.open(PLACEHOLDER_PATH).convert('RGB')
             buf = io.BytesIO()
-            placeholder_img.save(buf, format='JPEG', quality=95)
+            placeholder_img.save(buf, format='JPEG', quality=90)
             buf.seek(0)
             return Response(buf.getvalue(), mimetype='image/jpeg')
         return "Template not found", 404
@@ -312,10 +359,10 @@ def download_compiled_vector_pdf(template_id):
         template = db.session.get(Template, template_id)
         if not template:
             return "No data found", 404
-            
+
         if session.get("admin_role") == "school_admin" and template.school_name != session.get("admin_school"):
             return "Unauthorized access to this school's data", 403
-            
+
         try:
             from app.services.premium_service import run_design_qa
             qa_settings = (getattr(template, "qa_settings", None) or {})
@@ -335,7 +382,7 @@ def download_compiled_vector_pdf(template_id):
         back_font_settings, back_photo_settings, back_qr_settings, _ = get_template_settings(template_id, side="back")
         template_path = get_template_path(template_id)
         back_template_path = get_template_path(template_id, side="back") if getattr(template, "is_double_sided", False) else None
-        
+
         buffer = io.BytesIO()
         template_pdf_bytes = _read_template_pdf_bytes(template_path)
         preserve_vector_template = bool(template_pdf_bytes)
@@ -344,29 +391,41 @@ def download_compiled_vector_pdf(template_id):
         editable_template_pdf_bytes = template_pdf_bytes
         editable_back_template_pdf_bytes = back_template_pdf_bytes
         if mode == "editable" and template_pdf_bytes:
-            flattened_front_template = _flatten_optional_content_pdf_bytes(template_pdf_bytes)
             editable_template_pdf_bytes = _rasterize_template_pdf_for_editable_overlay(
-                flattened_front_template,
+                template_pdf_bytes,
                 dpi=asset_dpi,
             )
         if mode == "editable" and back_template_pdf_bytes:
-            flattened_back_template = _flatten_optional_content_pdf_bytes(back_template_pdf_bytes)
             editable_back_template_pdf_bytes = _rasterize_template_pdf_for_editable_overlay(
-                flattened_back_template,
+                back_template_pdf_bytes,
                 dpi=asset_dpi,
             )
 
         students = Student.query.filter_by(template_id=template_id).all()
         if not students:
             return "No data found", 404
-        
+
+        prefix = "COREL_EDITABLE" if mode == "editable" else "COREL_PRINT_600DPI"
+        filename = f"{prefix}_{template.school_name}.pdf"
+        cache_path = _compiled_pdf_cache_path(template, students, mode=mode, suffix="app_renderer")
+        bypass_cache = str(request.args.get("nocache") or request.form.get("nocache") or "").lower() in {"1", "true", "yes"}
+        if cache_path and not bypass_cache and os.path.exists(cache_path):
+            logger.info(
+                "Corel compiled PDF cache hit template_id=%s mode=%s cards=%s path=%s",
+                template_id,
+                mode,
+                len(students),
+                cache_path,
+            )
+            return send_file(cache_path, as_attachment=True, download_name=filename, mimetype='application/pdf')
+
         # =========================================================
         # 3. DYNAMIC DIMENSIONS & GRID
         # =========================================================
         # Get Dimensions from DB (Pixels @ 300 DPI)
         sheet_w_px = template.sheet_width if template.sheet_width else 2480
         sheet_h_px = template.sheet_height if template.sheet_height else 3508
-        
+
         card_w_px = template.card_width if template.card_width else 1015
         card_h_px = template.card_height if template.card_height else 661
 
@@ -379,22 +438,23 @@ def download_compiled_vector_pdf(template_id):
 
         if min(sheet_w_px, sheet_h_px, card_w_px, card_h_px, cols, rows) <= 0:
             return "Invalid template dimensions/grid settings. Width/height/rows/cols must be > 0.", 400
-        
+
         sheet_w_pt = sheet_w_px * scale
         sheet_h_pt = sheet_h_px * scale
         card_w_pt = card_w_px * scale
         card_h_pt = card_h_px * scale
         gap_pt = 10 * scale
-        
+
         # Calculate Layout & Centering
         total_grid_w_pt = (cols * card_w_pt) + ((cols - 1) * gap_pt)
         total_grid_h_pt = (rows * card_h_pt) + ((rows - 1) * gap_pt)
-        
+
         start_x_pt = (sheet_w_pt - total_grid_w_pt) / 2
         bottom_margin = (sheet_h_pt - total_grid_h_pt) / 2
         start_y_pt = bottom_margin + total_grid_h_pt
 
         try:
+            compile_start = time.monotonic()
             front_bytes = _build_compiled_sheet_via_app_renderer(
                 template=template,
                 students=students,
@@ -410,6 +470,7 @@ def download_compiled_vector_pdf(template_id):
                 cols=cols,
                 rows=rows,
                 scale=scale,
+                finalize_corel=False,
             )
 
             final_bytes = front_bytes
@@ -429,19 +490,26 @@ def download_compiled_vector_pdf(template_id):
                     cols=cols,
                     rows=rows,
                     scale=scale,
+                    finalize_corel=False,
                 )
-                final_bytes = _interleave_pdf_bytes(front_bytes, back_bytes, mode=mode)
-                final_bytes = _make_corel_friendly(final_bytes, mode=mode)
+                final_bytes = _interleave_pdf_bytes(front_bytes, back_bytes, mode=mode, finalize_corel=False)
+
+            final_bytes = _make_corel_friendly(final_bytes, mode=mode)
+            if cache_path:
+                try:
+                    with open(cache_path, "wb") as cache_file:
+                        cache_file.write(final_bytes)
+                except Exception as cache_exc:
+                    logger.warning("Corel compiled PDF cache write failed path=%s: %s", cache_path, cache_exc)
 
             buffer = io.BytesIO(final_bytes)
             buffer.seek(0)
-            prefix = "COREL_EDITABLE" if mode == "editable" else "COREL_PRINT_600DPI"
-            filename = f"{prefix}_{template.school_name}.pdf"
             logger.info(
-                "Generated Corel PDF via app renderer template_id=%s mode=%s cards=%s",
+                "Generated Corel PDF via app renderer template_id=%s mode=%s cards=%s seconds=%.2f",
                 template_id,
                 mode,
                 len(students),
+                time.monotonic() - compile_start,
             )
             return send_file(buffer, as_attachment=True, download_name=filename, mimetype='application/pdf')
         except Exception as renderer_exc:
@@ -488,10 +556,7 @@ def download_compiled_vector_pdf(template_id):
         # Hindi always needs raster fallback because ReportLab does not shape Devanagari.
         # For editable Corel export with PDF templates, rasterize Urdu/Arabic overlay text too:
         # this keeps the template itself editable while avoiding Corel import issues on complex-script text objects.
-        rasterize_complex_text = (
-            lang in {"hindi"} or
-            (mode != "editable" and lang in {"urdu", "arabic"})
-        )
+        rasterize_complex_text = lang in {"hindi", "urdu", "arabic"}
         force_vector_for_language = mode == "editable" and lang in {"urdu", "arabic"}
 
         def _is_ttf(path: str) -> bool:
@@ -521,7 +586,7 @@ def download_compiled_vector_pdf(template_id):
             )
 
         if lang in {"urdu", "arabic"} and not rasterize_complex_text and not pf_safe_fonts:
-            raise RuntimeError(                    
+            raise RuntimeError(
                 "Urdu/Arabic vector export requires a Presentation-Forms-compatible `.ttf` in `static/fonts/` "
                 "(arabtype.ttf, ARABIAN.TTF, ARABIA.TTF, ARB.TTF)."
             )
@@ -813,6 +878,7 @@ def download_compiled_vector_pdf(template_id):
                 source_language=lang,
                 include_template_background=True,
                 mode=mode,
+                finalize_corel=False,
             )
             editable_bytes = _compose_card_pages_to_sheet_pypdf(
                 front_card_pages_bytes,
@@ -820,6 +886,7 @@ def download_compiled_vector_pdf(template_id):
                 sheet_w_pt,
                 sheet_h_pt,
                 mode=mode,
+                finalize_corel=False,
             )
             if getattr(template, "is_double_sided", False) and preserve_vector_back_template:
                 back_card_pages_bytes = _generate_direct_editable_pdf_template_export(
@@ -853,6 +920,7 @@ def download_compiled_vector_pdf(template_id):
                     source_language=lang,
                     include_template_background=True,
                     mode=mode,
+                    finalize_corel=False,
                 )
                 back_editable_bytes = _compose_card_pages_to_sheet_pypdf(
                     back_card_pages_bytes,
@@ -860,8 +928,14 @@ def download_compiled_vector_pdf(template_id):
                     sheet_w_pt,
                     sheet_h_pt,
                     mode=mode,
+                    finalize_corel=False,
                 )
-                editable_bytes = _interleave_pdf_bytes(editable_bytes, back_editable_bytes, mode=mode)
+                editable_bytes = _interleave_pdf_bytes(
+                    editable_bytes,
+                    back_editable_bytes,
+                    mode=mode,
+                    finalize_corel=False,
+                )
 
             if mode == "editable":
                 editable_bytes = _make_corel_friendly(editable_bytes, mode=mode)
@@ -874,14 +948,15 @@ def download_compiled_vector_pdf(template_id):
                 len(students),
             )
             return send_file(buffer, as_attachment=True, download_name=filename, mimetype='application/pdf')
-        
+
         # 6. Process Loop
         cards_per_sheet = cols * rows
         card_count = 0
         card_warnings: list[dict] = []
         hb_overlay_runs: list[dict] = []
         template_card_placements: list[dict] = []
-        
+        db_fields_for_export = TemplateField.query.filter_by(template_id=template_id).order_by(TemplateField.display_order.asc()).all()
+
         # PRELOAD BACKGROUND
         bg_image_reader = None
         if template_path and (mode == "editable" or not preserve_vector_template):
@@ -897,11 +972,13 @@ def download_compiled_vector_pdf(template_id):
                 if bg_pil is None:
                     raise RuntimeError("Template background failed to load")
                 bg_stream = io.BytesIO()
-                bg_pil.save(bg_stream, format="PNG")
+                bg_pil.save(bg_stream, format="PNG", compress_level=1)
                 bg_stream.seek(0)
                 bg_image_reader = ImageReader(bg_stream)
             except Exception as e:
                 logger.warning("Background preload error (template_id=%s, mode=%s): %s", template_id, mode, e)
+        overlay_on_uploaded_template = bool(bg_image_reader or preserve_vector_template)
+        draw_field_labels = not overlay_on_uploaded_template
 
         back_bg_image_reader = None
         if back_template_path:
@@ -917,7 +994,7 @@ def download_compiled_vector_pdf(template_id):
                 if back_bg_pil is None:
                     raise RuntimeError("Back template background failed to load")
                 back_bg_stream = io.BytesIO()
-                back_bg_pil.save(back_bg_stream, format="PNG")
+                back_bg_pil.save(back_bg_stream, format="PNG", compress_level=1)
                 back_bg_stream.seek(0)
                 back_bg_image_reader = ImageReader(back_bg_stream)
             except Exception as e:
@@ -1024,7 +1101,7 @@ def download_compiled_vector_pdf(template_id):
                         shape_inset=photo_settings.get("photo_shape_inset", 0),
                     )
                     photo_bytes_io = io.BytesIO()
-                    prepared_photo.save(photo_bytes_io, format="PNG")
+                    prepared_photo.save(photo_bytes_io, format="PNG", compress_level=1)
                     photo_bytes_io.seek(0)
 
                 if photo_bytes_io and (has_real_student_photo or not draw_editable_photo_frame):
@@ -1205,28 +1282,127 @@ def download_compiled_vector_pdf(template_id):
             align_label_colon = bool(font_settings.get("align_label_colon", True))
             config_address_max_lines = int(font_settings.get("address_max_lines", 2) or 2)
             label_colon_gap = int(font_settings.get("label_colon_gap", 8) or 8)
-            
+
             fields = [
-                {'k': "NAME", 'l': local_apply_text_case(labels_map['NAME'], text_case), 'v': local_apply_text_case(student.name, text_case), 'ord': 10},
-                {'k': "F_NAME", 'l': local_apply_text_case(labels_map['F_NAME'], text_case), 'v': local_apply_text_case(student.father_name, text_case), 'ord': 20},
-                {'k': "CLASS", 'l': local_apply_text_case(labels_map['CLASS'], text_case), 'v': local_apply_text_case(student.class_name, text_case), 'ord': 30},
-                {'k': "DOB", 'l': local_apply_text_case(labels_map['DOB'], text_case), 'v': local_apply_text_case(student.dob, text_case), 'ord': 40},
-                {'k': "MOBILE", 'l': local_apply_text_case(labels_map['MOBILE'], text_case), 'v': local_apply_text_case(student.phone, text_case), 'ord': 50},
-                {'k': "ADDRESS", 'l': local_apply_text_case(labels_map['ADDRESS'], text_case), 'v': local_apply_text_case(student.address, text_case), 'ord': 60}
+                {
+                    'k': "NAME",
+                    'l': local_apply_text_case(labels_map['NAME'], text_case),
+                    'v': local_apply_text_case(
+                        _translate_value_for_export(
+                            student.name,
+                            source_language=lang,
+                            target_language=lang,
+                            field_key="NAME",
+                            field_type="text",
+                        ),
+                        text_case,
+                    ),
+                    'ord': 10,
+                    'field_type': 'text',
+                },
+                {
+                    'k': "F_NAME",
+                    'l': local_apply_text_case(labels_map['F_NAME'], text_case),
+                    'v': local_apply_text_case(
+                        _translate_value_for_export(
+                            student.father_name,
+                            source_language=lang,
+                            target_language=lang,
+                            field_key="F_NAME",
+                            field_type="text",
+                        ),
+                        text_case,
+                    ),
+                    'ord': 20,
+                    'field_type': 'text',
+                },
+                {
+                    'k': "CLASS",
+                    'l': local_apply_text_case(labels_map['CLASS'], text_case),
+                    'v': local_apply_text_case(
+                        _translate_value_for_export(
+                            student.class_name,
+                            source_language=lang,
+                            target_language=lang,
+                            field_key="CLASS",
+                            field_type="text",
+                        ),
+                        text_case,
+                    ),
+                    'ord': 30,
+                    'field_type': 'text',
+                },
+                {
+                    'k': "DOB",
+                    'l': local_apply_text_case(labels_map['DOB'], text_case),
+                    'v': local_apply_text_case(
+                        _translate_value_for_export(
+                            student.dob,
+                            source_language=lang,
+                            target_language=lang,
+                            field_key="DOB",
+                            field_type="date",
+                        ),
+                        text_case,
+                    ),
+                    'ord': 40,
+                    'field_type': 'date',
+                },
+                {
+                    'k': "MOBILE",
+                    'l': local_apply_text_case(labels_map['MOBILE'], text_case),
+                    'v': local_apply_text_case(
+                        _translate_value_for_export(
+                            student.phone,
+                            source_language=lang,
+                            target_language=lang,
+                            field_key="MOBILE",
+                            field_type="tel",
+                        ),
+                        text_case,
+                    ),
+                    'ord': 50,
+                    'field_type': 'tel',
+                },
+                {
+                    'k': "ADDRESS",
+                    'l': local_apply_text_case(labels_map['ADDRESS'], text_case),
+                    'v': local_apply_text_case(
+                        _translate_value_for_export(
+                            student.address,
+                            source_language=lang,
+                            target_language=lang,
+                            field_key="ADDRESS",
+                            field_type="textarea",
+                        ),
+                        text_case,
+                    ),
+                    'ord': 60,
+                    'field_type': 'textarea',
+                },
             ]
-            
+
             from app.services.render_service import normalize_custom_data
             custom_data = normalize_custom_data(getattr(student, "custom_data", None))
-            db_fields = TemplateField.query.filter_by(template_id=template_id).order_by(TemplateField.display_order.asc()).all()
-            for f in db_fields:
+            for f in db_fields_for_export:
                 val = custom_data.get(f.field_name, "")
                 fields.append({
                     'k': f.field_name,
                     'l': local_apply_text_case(f.field_label, text_case),
-                    'v': local_apply_text_case(val, text_case),
-                    'ord': f.display_order
+                    'v': local_apply_text_case(
+                        _translate_value_for_export(
+                            val,
+                            source_language=lang,
+                            target_language=lang,
+                            field_key=f.field_name,
+                            field_type=f.field_type,
+                        ),
+                        text_case,
+                    ),
+                    'ord': f.display_order,
+                    'field_type': f.field_type,
                 })
-            
+
             fields.sort(key=lambda x: int(x.get('ord') or 0))
 
             start_y_text_px = font_settings.get('start_y', 200)
@@ -1256,6 +1432,9 @@ def download_compiled_vector_pdf(template_id):
                     side="front",
                     text_direction=direction,
                 )
+                if overlay_on_uploaded_template:
+                    layout_item = dict(layout_item)
+                    layout_item["value_visible"] = True
                 label_x_eff = layout_item["label_x"]
                 value_x_eff = layout_item["value_x"]
                 label_y_eff = layout_item["label_y"]
@@ -1287,7 +1466,7 @@ def download_compiled_vector_pdf(template_id):
 
                 label_pdf_y = _baseline_y(label_y_eff, lbl_size_pt_eff)
                 # Draw Label
-                if label_visible and not use_harfbuzz_overlay:
+                if label_visible and draw_field_labels and not use_harfbuzz_overlay:
                     c.setFillColor(_rl_color_from_rgb(label_rgb))
                     if rasterize_complex_text:
                         shaped_label = process_text_for_drawing(field["l"], lang)
@@ -1396,7 +1575,7 @@ def download_compiled_vector_pdf(template_id):
                             c.drawString(colon_x, label_pdf_y, colon_text)
                             c.setFillColor(_rl_color_from_rgb(label_rgb))
                             c.setFont(bold_font_name, lbl_size_pt_eff)
-                
+
                 c.setFillColor(_rl_color_from_rgb(value_rgb))
                 val_text = process_text_for_drawing(field["v"], lang) if rasterize_complex_text else process_text_for_vector(field["v"], lang)
 
@@ -1448,7 +1627,7 @@ def download_compiled_vector_pdf(template_id):
                 # ------------------------------------
 
                 if use_harfbuzz_overlay:
-                    if label_visible:
+                    if label_visible and draw_field_labels:
                         hb_label_text, hb_colon_text = split_label_and_colon(
                             field["l"],
                             lang,
@@ -1558,7 +1737,7 @@ def download_compiled_vector_pdf(template_id):
                         c.setFont(reg_font_name, curr_font_size)
                     line_spacing = curr_font_size * line_height_factor
                     value_base_y = _baseline_y(value_y_eff, curr_font_size)
-                    
+
                     for i, line in enumerate(lines[:address_max_lines]):
                         draw_y = value_base_y - (i * line_spacing)
                         if not value_visible:
@@ -1603,7 +1782,7 @@ def download_compiled_vector_pdf(template_id):
                                 grow_mode=value_grow,
                             )
                             c.drawString(vx, draw_y, line)
-                    
+
                     # If we used 2 lines, add a little extra spacing for the next field
                     if len(lines) > 1:
                         # Add half a line height extra
@@ -1685,11 +1864,11 @@ def download_compiled_vector_pdf(template_id):
                         extra_h_px = ((len(lines) - 1) * line_spacing) / scale
                         if advances_flow:
                             current_y_px += extra_h_px
-                
+
                 # Move to next field position
                 if advances_flow:
                     current_y_px += line_height_px
-                
+
             card_count += 1
             if card_count % cards_per_sheet == 0:
                 c.showPage()

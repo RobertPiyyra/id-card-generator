@@ -19,36 +19,46 @@ def fit_loaded_font_to_single_line(
     draw, font_loader, display_text, max_width, start_size,
     language="english", min_size=6,
 ):
-    """Shrink a font until the text fits on one line."""
+    """Find the largest font size that fits text on one line using binary search.
+
+    Replaces the previous linear descent (O(n) font loads) with O(log n).
+    """
     display_text = str(display_text or "")
     try:
         safe_width = max(1, int(float(max_width)))
     except Exception:
         safe_width = 1
     try:
-        size = max(int(float(start_size or min_size)), int(min_size))
+        hi = max(int(float(start_size or min_size)), int(min_size))
     except Exception:
-        size = int(min_size)
-    min_size = max(1, int(min_size))
+        hi = int(min_size)
+    lo = max(1, int(min_size))
 
-    last_font = None
-    while size >= min_size:
-        font = font_loader(size)
-        last_font = font
+    best_font = font_loader(lo)
+    best_size = lo
+
+    while lo <= hi:
+        mid = (lo + hi) // 2
+        font = font_loader(mid)
         try:
             text_len = draw.textlength(
                 display_text, font=font,
                 **get_draw_text_kwargs(display_text, language),
             )
             if text_len <= safe_width:
-                return font, int(getattr(font, "size", size) or size)
+                # Text fits — try larger
+                best_font = font
+                best_size = mid
+                lo = mid + 1
+            else:
+                # Text overflows — try smaller
+                hi = mid - 1
         except Exception:
-            return font, int(getattr(font, "size", size) or size)
-        size -= 1
+            best_font = font
+            best_size = mid
+            break
 
-    if last_font is None:
-        last_font = font_loader(min_size)
-    return last_font, int(getattr(last_font, "size", min_size) or min_size)
+    return best_font, int(getattr(best_font, "size", best_size) or best_size)
 
 
 def fit_dynamic_font_to_single_line(

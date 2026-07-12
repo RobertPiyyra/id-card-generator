@@ -665,7 +665,10 @@
     // Auto dark mode based on device preference
     (function() {
         const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-        if (prefersDark) { document.body.classList.add('dark'); }
+        if (prefersDark) {
+            document.body.classList.add('dark');
+            document.body.setAttribute('data-bs-theme', 'dark');
+        }
     })();
     document.addEventListener('DOMContentLoaded', function() {
       // 1. Initial Setup
@@ -697,11 +700,11 @@
 
       // Check for server-side messages
       {% if success and success != '' %}
-      showNotification('{{ success }}', 'success');
+      showNotification({{ success|tojson }}, 'success');
       {% endif %}
       
       {% if error and error != '' %}
-      showNotification('{{ error }}', 'error');
+      showNotification({{ error|tojson }}, 'error');
       {% endif %}
       
       // 3. Security (Disable Screenshot)

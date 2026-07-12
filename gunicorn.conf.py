@@ -45,8 +45,25 @@ def on_starting(server):
 
 
 def post_fork(server, worker):
-    """Called just after a worker has been forked."""
+    """Called just after a worker has been forked.
+
+    Reset database and Redis connections inherited from the master process
+    to avoid shared-file-descriptor corruption across workers.
+    """
     server.log.info("Worker spawned (pid: %s)", worker.pid)
+    try:
+        from models import db
+        db.engine.dispose()
+        server.log.info("Worker %s: DB engine disposed for fresh pool", worker.pid)
+    except Exception:
+        pass
+    try:
+        from app.services.redis_service import redis_client
+        if redis_client and hasattr(redis_client, "connection_pool"):
+            redis_client.connection_pool.disconnect()
+            server.log.info("Worker %s: Redis pool disconnected for fresh connections", worker.pid)
+    except Exception:
+        pass
 
 
 def pre_exec(server):

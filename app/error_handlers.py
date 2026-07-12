@@ -58,7 +58,7 @@ def handle_bad_request_error(e, app, db):
     if request.is_json or request.path.startswith('/api') or request.path.startswith('/admin'):
         return jsonify({
             "success": False,
-            "error": f"Bad request: {error_desc}"
+            "error": "Bad request. Please check your input and try again."
         }), 400
     return "400 - Bad Request", 400
 

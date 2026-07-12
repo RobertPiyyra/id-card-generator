@@ -1060,7 +1060,10 @@
           // Auto dark mode based on device preference
           (function() {
               const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-              if (prefersDark) { document.body.classList.add('dark'); }
+              if (prefersDark) {
+                  document.body.classList.add('dark');
+                  document.body.setAttribute('data-bs-theme', 'dark');
+              }
           })();
     const CARD_W = {{ template.card_width or 1015 }};
     const CARD_H = {{ template.card_height or 661 }};

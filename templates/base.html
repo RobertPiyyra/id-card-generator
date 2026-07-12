@@ -84,14 +84,16 @@
         body.dark .text-dark{color:var(--text) !important}
         body.dark .border{border-color:var(--border) !important}
         body.dark .input-group-text{background:#1e293b;border-color:var(--border);color:var(--muted)}
+        body.dark .bg-warning, body.dark .bg-warning *, body.dark .alert-warning, body.dark .alert-warning * { color: #1e293b !important; }
     </style>
     {% block extra_head %}{% endblock %}
 </head>
 <body>
     <nav class="navbar navbar-expand-lg" style="background:var(--card);border-bottom:1px solid var(--border);padding:12px 0">
         <div class="container">
-            <a class="navbar-brand" href="/" style="font-weight:700;color:var(--primary)">
-                <i class="fa-solid fa-id-card me-2"></i>ID Card Generator
+            <a class="navbar-brand d-flex align-items-center" href="/" style="font-weight:700;color:var(--primary);text-decoration:none;">
+                <img src="{{ url_for('static', filename='images/logo.jpg') }}" alt="Noor Graphics Logo" style="width: 35px; height: 35px; border-radius: 50%; object-fit: cover; border: 2px solid var(--primary); padding: 1px; background: white; margin-right: 8px;">
+                Noor Graphics
             </a>
             <div class="navbar-nav ms-auto">
                 {% if session.get('admin') %}
@@ -127,9 +129,13 @@
         // Auto dark mode based on device preference
         (function() {
             const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-            if (prefersDark) { document.body.classList.add('dark'); }
+            if (prefersDark) {
+                document.body.classList.add('dark');
+                document.body.setAttribute('data-bs-theme', 'dark');
+            }
         })();
     </script>
     {% block extra_js %}{% endblock %}
+    {% include 'faq/widget.html' %}
 </body>
 </html>

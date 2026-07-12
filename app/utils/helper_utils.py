@@ -277,8 +277,7 @@ def generate_data_hash(form_data, photo_identifier=None):
     )
     if photo_identifier:
         data_string += str(photo_identifier)
-    return hashlib.md5(data_string.encode()).hexdigest()
-
+    return hashlib.sha256(data_string.encode()).hexdigest()
 
 def get_storage_backend():
     mode = (os.getenv("STORAGE_BACKEND") or "auto").strip().lower()

@@ -241,10 +241,12 @@
 
     <!-- Sidebar -->
     <div class="sidebar" id="sidebar">
-        <div class="brand">
-            <i class="fas fa-id-card"></i>
-            <span class="brand-text">ID Card Pro</span>
-        </div>
+        <a href="/" style="text-decoration: none; color: inherit; display: block;">
+            <div class="brand">
+                <img src="{{ url_for('static', filename='images/logo.jpg') }}" alt="Noor Graphics Logo" style="width: 32px; height: 32px; border-radius: 50%; object-fit: cover; border: 1.5px solid var(--primary); padding: 1px; background: white; margin-right: 10px;">
+                <span class="brand-text">Noor Graphics</span>
+            </div>
+        </a>
         <nav>
             <a href="/enterprise/admin/analytics" class="{% if 'analytics' in request.path %}active{% endif %}">
                 <i class="fas fa-chart-line"></i> <span>Analytics</span>
@@ -310,7 +312,7 @@
     // Auto dark mode based on device preference
     (function() {
         const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-        if (prefersDark) { document.documentElement.setAttribute('data-theme', 'dark'); }
+        if (prefersDark) { document.documentElement.setAttribute('data-theme', 'dark'); document.documentElement.setAttribute('data-bs-theme', 'dark'); }
     })();
     // ===== CSRF Helper =====
     function getCSRFToken() {

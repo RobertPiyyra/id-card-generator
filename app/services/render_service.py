@@ -5,7 +5,8 @@ import logging
 import json
 import base64
 import threading
-import requests
+import requests  # kept for legacy compat; prefer app.services.http_pool
+from app.services.http_pool import http_get
 import fitz
 import time
 import textwrap
@@ -1053,6 +1054,20 @@ def render_student_card_side(
     if not template_obj:
         return None
 
+    # Fast path: if back side has no dynamic content, just return the template image
+    side_name = (side or "front").strip().lower()
+    if side_name == "back":
+        back_layout = parse_layout_config(getattr(template_obj, 'back_layout_config', None))
+        has_fields = bool(back_layout.get('fields'))
+        has_objects = bool(back_layout.get('objects'))
+        if not has_fields and not has_objects:
+            template_path = get_template_path(template_id if 'template_id' in dir() else template_obj.id, side=side)
+            if template_path:
+                card_width, card_height = get_card_size(template_obj.id)
+                template_img = _load_template_image_for_render(template_path, card_width, card_height, render_scale=render_scale)
+                return template_img
+            return None
+
     template_id = template_obj.id
     template_path = get_template_path(template_id, side=side)
     if not template_path:
@@ -1151,7 +1166,7 @@ def _load_template_image_for_render_cached(path_or_url, target_w, target_h, scal
     if _looks_like_pdf_template_source(path_or_url):
         try:
             if str(path_or_url).startswith(("http://", "https://")):
-                resp = requests.get(path_or_url, timeout=15)
+                resp = http_get(path_or_url, timeout=15)
                 resp.raise_for_status()
                 payload = resp.content or b""
                 pdf_header_pos = payload.find(b"%PDF")

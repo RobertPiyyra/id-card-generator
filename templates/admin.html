@@ -26,6 +26,8 @@
             --warning-text: #856404;
             --info-bg: #d1ecf1;
             --info-text: #0c5460;
+            --border-color: #ced6e0;
+            --border-light: #e5e7eb;
             --purple-gradient: linear-gradient(135deg, #8b5cf6, #7c3aed);
             --purple-dark: #6213e1;
             --border-radius: 16px;
@@ -41,6 +43,16 @@
             --section-bg: #1e293b;
             --section-hover: #2d3748;
             --primary-light: #4a5568;
+            --border-color: #475569;
+            --border-light: #334155;
+            --success-bg: rgba(16, 185, 129, 0.15);
+            --success-text: #34d399;
+            --error-bg: rgba(239, 68, 68, 0.15);
+            --error-text: #f87171;
+            --warning-bg: rgba(245, 158, 11, 0.15);
+            --warning-text: #fbbf24;
+            --info-bg: rgba(59, 130, 246, 0.15);
+            --info-text: #60a5fa;
         }
 
         @media (prefers-color-scheme: dark) {
@@ -50,6 +62,16 @@
                 --section-bg: #1e293b;
                 --section-hover: #2d3748;
                 --primary-light: #4a5568;
+                --border-color: #475569;
+                --border-light: #334155;
+                --success-bg: rgba(16, 185, 129, 0.15);
+                --success-text: #34d399;
+                --error-bg: rgba(239, 68, 68, 0.15);
+                --error-text: #f87171;
+                --warning-bg: rgba(245, 158, 11, 0.15);
+                --warning-text: #fbbf24;
+                --info-bg: rgba(59, 130, 246, 0.15);
+                --info-text: #60a5fa;
             }
         }
 
@@ -163,6 +185,42 @@
         }
 
         h3 i { color: var(--primary-color); font-size: 1.3rem; }
+
+        .home-button {
+            position: fixed;
+            top: 24px;
+            color: #fff;
+            border: none;
+            padding: 12px;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: var(--transition);
+            z-index: 1000;
+            font-size: 1.2rem;
+            animation: scaleIn 0.5s ease-out;
+            box-shadow: var(--shadow);
+            width: 50px;
+            height: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-decoration: none;
+            background: linear-gradient(135deg, #10b981, #059669);
+        }
+
+        .manual-button {
+            background: #6b7280;
+        }
+
+        .manual-button:hover {
+            background: #4b5563;
+        }
+
+        .home-button:hover {
+            transform: translateY(-2px) rotate(15deg);
+            box-shadow: var(--shadow);
+            color: #fff;
+        }
 
         .container {
             max-width: 1400px;
@@ -286,7 +344,7 @@
             padding: 12px 16px;
             margin: 8px 0;
             border-radius: var(--border-radius-sm);
-            border: 2px solid #ced6e0;
+            border: 2px solid var(--border-color);
             background: var(--section-bg);
             color: var(--text-color);
             transition: var(--transition);
@@ -361,7 +419,7 @@
 
         th, td {
             padding: 16px;
-            border-bottom: 1px solid #e5e7eb;
+            border-bottom: 1px solid var(--border-light);
             text-align: center;
         }
 
@@ -948,7 +1006,7 @@
             }
         }
 
-        .tabs { display: flex; margin-bottom: 20px; border-bottom: 1px solid #e5e7eb; flex-wrap: wrap; }
+        .tabs { display: flex; margin-bottom: 20px; border-bottom: 1px solid var(--border-light); flex-wrap: wrap; }
 
         .tab {
             padding: 12px 20px;
@@ -976,7 +1034,7 @@
             -webkit-appearance: none;
             width: 18px;
             height: 18px;
-            border: 2px solid #ced6e0;
+            border: 2px solid var(--border-color);
             border-radius: 4px;
             background: var(--section-bg);
             position: relative;
@@ -1014,7 +1072,7 @@
             width: 100%;
             height: 6px;
             border-radius: 3px;
-            background: #ced6e0;
+            background: var(--border-color);
             outline: none;
         }
 
@@ -1360,6 +1418,7 @@
             <div class="tab" onclick="switchTab('data')"><i class="fas fa-database"></i> Data Management</div>
             <div class="tab" onclick="switchTab('preview')"><i class="fas fa-eye"></i> Preview</div>
             <div class="tab" onclick="switchTab('formFields')"><i class="fas fa-list-alt"></i> Form Fields</div>
+            <div class="tab" onclick="switchTab('photoBatch')"><i class="fas fa-camera"></i> Photo Batch</div>
         </div>
 
         <div id="settings-tab" class="tab-content active">
@@ -1653,10 +1712,213 @@
 
         {% include 'admin/_preview_tab.html' %}
         {% include 'admin/_dynamic_fields.html' %}
+
+        <div id="photoBatch-tab" class="tab-content">
+            <div class="grid-container">
+                <div class="section">
+                    <h3><i class="fas fa-camera"></i> Photo Batch — ID Card Generation</h3>
+                    <p class="subtitle">Upload photos, auto-assign serial numbers, fill details, and generate ID cards.</p>
+
+                    <!-- Create Batch -->
+                    <div class="batch-create-section" style="margin-bottom:24px; padding:16px; background:#f8f9fa; border-radius:8px;">
+                        <h4>Create New Batch</h4>
+                        <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
+                            <select id="pb_template_id" class="form-control" style="min-width:200px;">
+                                <option value="">Select Template</option>
+                                {% for t in templates %}
+                                <option value="{{ t.id }}">{{ t.school_name }} - {{ t.template_name or 'Default' }}</option>
+                                {% endfor %}
+                            </select>
+                            <select id="pb_class_name" class="form-control" style="min-width:180px;" onchange="PhotoBatch.onClassSelectChange()">
+                                <option value="">Select Class (Optional)</option>
+                                {% for c in classes %}
+                                <option value="{{ c }}">{{ c }}</option>
+                                {% endfor %}
+                                <option value="__custom__">-- Type Custom Class --</option>
+                            </select>
+                            <input type="text" id="pb_class_name_custom" placeholder="Class Name" class="form-control" style="width:120px; display:none;">
+                            <input type="text" id="pb_prefix" placeholder="Prefix (e.g. SCH-)" value="SCH-" class="form-control" style="width:100px;">
+                            <button onclick="PhotoBatch.createBatch()" class="btn btn-primary">
+                                <i class="fas fa-plus"></i> Create Batch
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Batch List -->
+                    <div class="batch-list-section">
+                        <h4>Existing Batches</h4>
+                        <div id="pb_batch_list">
+                            <p>Loading batches...</p>
+                        </div>
+                    </div>
+
+                    <!-- Batch Detail (hidden until selected) -->
+                    <div id="pb_batch_detail" style="display:none; margin-top:24px;">
+                        <hr>
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+                            <h4 id="pb_detail_title">Batch Detail</h4>
+                            <div>
+                                <button onclick="PhotoBatch.downloadAll()" class="btn btn-sm btn-success">
+                                    <i class="fas fa-download"></i> Download All Cards
+                                </button>
+                                <button onclick="PhotoBatch.deleteBatch()" class="btn btn-sm btn-danger" style="margin-left:4px;">
+                                    <i class="fas fa-trash-alt"></i> Delete Batch
+                                </button>
+                                <button onclick="PhotoBatch.closeBatch()" class="btn btn-sm btn-secondary" style="margin-left:4px;">
+                                    <i class="fas fa-times"></i> Close
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Photo Upload -->
+                        <div class="upload-section" style="margin-bottom:20px; padding:16px; background:#f0f7ff; border-radius:8px;">
+                            <h5>Upload Photos</h5>
+                            <div id="pb_upload_zone" class="upload-zone" style="border:2px dashed #ccc; padding:32px; text-align:center; border-radius:8px; cursor:pointer;">
+                                <i class="fas fa-cloud-upload-alt" style="font-size:32px; color:#888;"></i>
+                                <p>Drag & drop photos here or click to browse</p>
+                                <input type="file" id="pb_photo_input" multiple accept="image/*" style="display:none;">
+                            </div>
+                            <div id="pb_upload_status" style="margin-top:8px;"></div>
+                        </div>
+
+                        <!-- Serial Search -->
+                        <div class="search-section" style="margin-bottom:20px; padding:16px; background:#fff8f0; border-radius:8px;">
+                            <h5>Find by Serial Number</h5>
+                            <div style="display:flex; gap:8px;">
+                                <input type="text" id="pb_serial_search" placeholder="e.g. SCH-001" class="form-control" style="max-width:200px;">
+                                <button onclick="PhotoBatch.searchSerial()" class="btn btn-primary btn-sm">
+                                    <i class="fas fa-search"></i> Find
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Card Grid -->
+                        <div id="pb_card_grid" class="card-grid">
+                            <p style="color:#888;">Upload photos to see cards here...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     {% include 'admin/_scripts.html' %}
-</body>
 
+    <style>
+        /* Photo Batch Tab Styles */
+        .upload-zone:hover { border-color: #4a90d9 !important; background: #f0f7ff; }
+        .upload-zone.drag-over { border-color: #2ecc71 !important; background: #f0fff0; }
+
+        .card-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+            gap: 16px;
+            margin-top: 16px;
+        }
+        .card-thumb {
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            overflow: hidden;
+            background: white;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .card-thumb:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        .card-thumb img {
+            width: 100%;
+            height: 150px;
+            object-fit: cover;
+            display: block;
+        }
+        .card-thumb .serial-badge {
+            background: var(--primary-color);
+            color: white;
+            padding: 4px 8px;
+            font-weight: bold;
+            font-size: 13px;
+            text-align: center;
+        }
+        .card-thumb .card-actions {
+            padding: 8px;
+            display: flex;
+            gap: 4px;
+            justify-content: center;
+        }
+        .batch-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px;
+            border-bottom: 1px solid #f0f0f0;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .batch-row:hover { background: #f8f9fa; }
+        .batch-status {
+            display: inline-block;
+            padding: 2px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .status-uploading { background: #fff3cd; color: #856404; }
+        .status-ready { background: #d4edda; color: #155724; }
+        .status-filling { background: #cce5ff; color: #004085; }
+        .status-done { background: #e2e3e5; color: #383d41; }
+
+        /* Dark Mode Styling Enhancements */
+        body.dark .status-pending {
+            background: rgba(245, 158, 11, 0.15);
+            color: #fbbf24;
+        }
+        body.dark .status-uploading {
+            background: rgba(245, 158, 11, 0.15) !important;
+            color: #fbbf24 !important;
+        }
+        body.dark .status-ready {
+            background: rgba(16, 185, 129, 0.15) !important;
+            color: #34d399 !important;
+        }
+        body.dark .status-filling {
+            background: rgba(59, 130, 246, 0.15) !important;
+            color: #60a5fa !important;
+        }
+        body.dark .status-done {
+            background: rgba(100, 116, 139, 0.2) !important;
+            color: #cbd5e1 !important;
+        }
+        body.dark .batch-create-section {
+            background: #1e293b !important;
+            border: 1px solid #334155 !important;
+        }
+        body.dark .upload-section {
+            background: rgba(0, 82, 204, 0.05) !important;
+        }
+        body.dark .search-section {
+            background: rgba(245, 158, 11, 0.05) !important;
+        }
+        body.dark .batch-row {
+            border-bottom-color: #334155 !important;
+        }
+        body.dark .card-thumb {
+            background: #1e293b !important;
+            border-color: #334155 !important;
+        }
+        body.dark .upload-zone {
+            border-color: #475569 !important;
+        }
+        body.dark .upload-zone:hover {
+            border-color: var(--primary-color) !important;
+            background: rgba(0, 82, 204, 0.08) !important;
+        }
+        body.dark tr:hover {
+            background: rgba(255, 255, 255, 0.02) !important;
+        }
+    </style>
+    <script src="{{ url_for('static', filename='js/photo_batch.js') }}"></script>
+</body>
 </html>
 `

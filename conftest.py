@@ -8,7 +8,12 @@ import pytest
 # Ensure project root is on the path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+# Force SQLite in-memory database for testing BEFORE importing the app
+os.environ["SQLALCHEMY_DATABASE_URI"] = "sqlite:///:memory:"
+os.environ["FLASK_ENV"] = "testing"
+
 from app import app as flask_app, db as database
+
 
 
 @pytest.fixture(scope="session")
