@@ -62,8 +62,9 @@ def get_available_fonts():
 
 
 # ================== Default Font Config ==================
-def get_default_font_config():
-    """Return default font configuration for landscape orientation."""
+def get_default_font_config(card_orientation='landscape'):
+    """Return default font configuration for landscape or portrait orientation."""
+    is_landscape = (str(card_orientation or 'landscape').strip().lower() != 'portrait')
     return {
         "font_bold": "arialbd.ttf",
         "font_regular": "arial.ttf",
@@ -71,12 +72,13 @@ def get_default_font_config():
         "label_font_color": [0, 0, 0],
         "value_font_color": [0, 0, 0],
         "colon_font_color": [0, 0, 0],
-        "label_font_size": 40,
-        "value_font_size": 36,
-        "label_x": 50,
-        "value_x": 280,
-        "start_y": 275,
-        "line_height": 50,
+        "label_font_size": 40 if is_landscape else 32,
+        "value_font_size": 36 if is_landscape else 28,
+        "colon_font_size": 40 if is_landscape else 32,
+        "label_x": 50 if is_landscape else 40,
+        "value_x": 280 if is_landscape else 200,
+        "start_y": 275 if is_landscape else 120,
+        "line_height": 50 if is_landscape else 45,
         "text_case": "normal",
         "show_label_colon": True,
         "align_label_colon": True,
@@ -88,9 +90,10 @@ def get_default_font_config():
         "value_font_color_bottom": [51, 51, 51],
         "enable_colon_gradient": False,
         "colon_font_color_bottom": [51, 51, 51],
+        "enable_text_hairline": False,
+        "text_hairline_color": [0, 0, 0],
+        "text_hairline_width": 1,
     }
-
-get_default_font_config = lru_cache(maxsize=1)(get_default_font_config)
 
 
 def get_font_settings_for_orientation(template_id, font_settings):

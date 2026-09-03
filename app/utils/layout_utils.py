@@ -18,6 +18,7 @@ Cross-module deps:
 
 import json
 import logging
+import os
 import re
 
 from app.utils.text_utils import _normalize_language
@@ -255,6 +256,13 @@ def parse_layout_config(layout_config):
                 except Exception:
                     sanitized_part.pop("font_size", None)
 
+            if "font_family" in part_obj:
+                font_family = os.path.basename(str(part_obj.get("font_family") or "").strip())
+                if font_family:
+                    sanitized_part["font_family"] = font_family[:160]
+                else:
+                    sanitized_part.pop("font_family", None)
+
             sanitized_field[part] = sanitized_part
 
         sanitized_fields[str(field_key)] = sanitized_field
@@ -402,6 +410,7 @@ def get_field_layout_item(
         "label_manual_y": False,
         "label_grow": _normalize_grow_mode(None, text_direction),
         "label_font_size": None,
+        "label_font_family": None,
         "label_char_spacing": 0,
         "label_line_height": 1.16,
         "label_auto_fit": False,
@@ -412,6 +421,7 @@ def get_field_layout_item(
         "value_manual_y": False,
         "value_grow": _normalize_grow_mode(None, text_direction),
         "value_font_size": None,
+        "value_font_family": None,
         "value_char_spacing": 0,
         "value_line_height": 1.16,
         "value_auto_fit": False,
@@ -422,6 +432,7 @@ def get_field_layout_item(
         "colon_manual_y": False,
         "colon_grow": "left" if text_direction == "rtl" else "right",
         "colon_font_size": None,
+        "colon_font_family": None,
         "colon_char_spacing": 0,
         "colon_line_height": 1.16,
         "colon_auto_fit": False,
@@ -453,12 +464,12 @@ def get_field_layout_item(
         part_obj = field_obj.get(part_name)
         if isinstance(part_obj, dict):
             for key in ("x", "y", "manual_y", "font_size", "color", "grow",
-                       "char_spacing", "line_height", "auto_fit", "max_width"):
+                       "font_family", "char_spacing", "line_height", "auto_fit", "max_width"):
                 if key in part_obj:
                     return True
         flat_keys = [
             f"{part_name}_x", f"{part_name}_y", f"{part_name}_font_size",
-            f"{part_name}_color", f"{part_name}_grow", f"{part_name}_char_spacing",
+            f"{part_name}_color", f"{part_name}_grow", f"{part_name}_font_family", f"{part_name}_char_spacing",
             f"{part_name}_line_height", f"{part_name}_auto_fit", f"{part_name}_max_width",
         ]
         for key in flat_keys:
@@ -475,6 +486,7 @@ def get_field_layout_item(
         flat_grow = f"{prefix}_grow"
         flat_font_size = f"{prefix}_font_size"
         flat_color = f"{prefix}_color"
+        flat_font_family = f"{prefix}_font_family"
         flat_char_spacing = f"{prefix}_char_spacing"
         flat_line_height = f"{prefix}_line_height"
         flat_auto_fit = f"{prefix}_auto_fit"
@@ -512,6 +524,10 @@ def get_field_layout_item(
             rgb = _hex_to_rgb_tuple(field_obj.get(flat_color))
             if rgb:
                 result[flat_color] = rgb
+        if flat_font_family in field_obj:
+            font_family = os.path.basename(str(field_obj.get(flat_font_family) or "").strip())
+            if font_family:
+                result[flat_font_family] = font_family
         if flat_char_spacing in field_obj:
             try:
                 result[flat_char_spacing] = int(field_obj.get(flat_char_spacing))
@@ -562,6 +578,10 @@ def get_field_layout_item(
             rgb = _hex_to_rgb_tuple(part_obj.get("color"))
             if rgb:
                 result[f"{prefix}_color"] = rgb
+        if "font_family" in part_obj:
+            font_family = os.path.basename(str(part_obj.get("font_family") or "").strip())
+            if font_family:
+                result[f"{prefix}_font_family"] = font_family
         if "char_spacing" in part_obj:
             try:
                 result[f"{prefix}_char_spacing"] = int(part_obj.get("char_spacing"))

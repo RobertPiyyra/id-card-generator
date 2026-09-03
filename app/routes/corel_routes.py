@@ -1,3 +1,4 @@
+from app.utils.helper_utils import _parse_rgb_color
 from app.legacy_app import admin_required
 import os
 import io
@@ -133,6 +134,18 @@ def _compiled_pdf_cache_path(template, students, *, mode, suffix="app_renderer")
         payload = {
             "template_id": getattr(template, "id", None),
             "template_updated_at": str(getattr(template, "updated_at", "") or ""),
+            "font_settings": getattr(template, "font_settings", {}) or {},
+            "back_font_settings": getattr(template, "back_font_settings", {}) or {},
+            "layout_config": getattr(template, "layout_config", None),
+            "back_layout_config": getattr(template, "back_layout_config", None),
+            "photo_settings": getattr(template, "photo_settings", {}) or {},
+            "back_photo_settings": getattr(template, "back_photo_settings", {}) or {},
+            "qr_settings": getattr(template, "qr_settings", {}) or {},
+            "back_qr_settings": getattr(template, "back_qr_settings", {}) or {},
+            "language": getattr(template, "language", "english"),
+            "back_language": getattr(template, "back_language", None),
+            "text_direction": getattr(template, "text_direction", "ltr"),
+            "back_text_direction": getattr(template, "back_text_direction", None),
             "mode": mode,
             "suffix": suffix,
             "double_sided": bool(getattr(template, "is_double_sided", False)),
@@ -2058,3 +2071,66 @@ def download_compiled_vector_pdf(template_id):
         import traceback
         traceback.print_exc()
         return f"Error generating PDF: {str(e)}", 500
+
+@corel_bp.route("/export/class-wise/<int:template_id>", methods=["GET", "POST"])
+@admin_required
+def export_class_wise_corel(template_id):
+    """
+    Endpoint to generate and download a ZIP file containing class-wise CorelDRAW-optimized PDF files.
+    """
+    from app.services.corel_export_service import generate_class_wise_corel_export
+    from models import Template, Student
+
+    template = Template.query.get_or_404(template_id)
+    mode = request.args.get("mode", "editable")
+    selected_class = request.args.get("class_name")
+
+    query = Student.query.filter_by(school_name=template.school_name, class_name=selected_class) if selected_class else Student.query.filter_by(school_name=template.school_name)
+    students = query.all()
+    if not students:
+        flash("No students found for export.", "warning")
+        return redirect(url_for("dashboard.dashboard"))
+
+    export_result = generate_class_wise_corel_export(
+        template=template,
+        students=students,
+        mode=mode,
+    )
+
+    zip_bytes = export_result.get("zip_bytes") or export_result.get("zip_buffer")
+    zip_buffer = io.BytesIO(zip_bytes)
+    return send_file(
+        zip_buffer,
+        as_attachment=True,
+        download_name=export_result["filename"],
+        mimetype="application/zip",
+    )
+
+
+@corel_bp.route("/template/upload", methods=["POST"])
+@admin_required
+def upload_corel_template():
+    """
+    Endpoint to upload a CorelDRAW vector file (.pdf, .eps, .cdr), validate placeholders, and convert it to an ID Card template.
+    """
+    from app.services.corel_template_service import convert_corel_template_to_id_config
+
+    if "template_file" not in request.files:
+        return jsonify({"success": False, "error": "No file uploaded."}), 400
+
+    file = request.files["template_file"]
+    if not file or file.filename == "":
+        return jsonify({"success": False, "error": "Empty filename."}), 400
+
+    file_bytes = file.read()
+    result = convert_corel_template_to_id_config(file_bytes, file.filename)
+
+    if not result["success"]:
+        return jsonify({"success": False, "errors": result["errors"]}), 400
+
+    return jsonify({
+        "success": True,
+        "message": "CorelDRAW template ingested successfully.",
+        "validation": result["validation"],
+        "layout_config": result["layout_config"],
+    })

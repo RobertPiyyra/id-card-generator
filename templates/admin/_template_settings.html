@@ -540,15 +540,36 @@
             <div class="form-row">
                 <div class="form-group">
                     <label><i class="fas fa-text-height"></i> Label Font Size</label>
-                    <input type="number" name="label_font_size" id="labelFontSize" min="8" max="100">
+                    <input type="number" name="label_font_size" id="labelFontSize" min="1" max="500">
                 </div>
                 <div class="form-group">
                     <label><i class="fas fa-text-height"></i> Value Font Size</label>
-                    <input type="number" name="value_font_size" id="valueFontSize" min="8" max="100">
+                    <input type="number" name="value_font_size" id="valueFontSize" min="1" max="500">
                 </div>
                 <div class="form-group">
                     <label><i class="fas fa-text-height"></i> Colon Font Size</label>
-                    <input type="number" name="colon_font_size" id="colonFontSize" min="8" max="100" value="40">
+                    <input type="number" name="colon_font_size" id="colonFontSize" min="1" max="500" value="40">
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <div class="checkbox-container">
+                        <input type="checkbox" id="enableTextHairline" name="enable_text_hairline" class="checkbox">
+                        <label for="enableTextHairline"><i class="fas fa-pen-nib"></i> Text Hairline / Outline</label>
+                    </div>
+                    <small style="color: #666; font-size: 0.8rem;">CorelDRAW-style outline for labels, values, and colons.</small>
+                </div>
+                <div class="form-group">
+                    <label><i class="fas fa-palette"></i> Hairline Color</label>
+                    <div class="color-input-group">
+                        <input type="color" name="text_hairline_color" id="textHairlineColor" class="color-picker" value="#000000">
+                        <span class="color-value" id="textHairlineColorValue">#000000</span>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label><i class="fas fa-border-style"></i> Hairline Width (px)</label>
+                    <input type="number" name="text_hairline_width" id="textHairlineWidth" min="1" max="10" value="1">
                 </div>
             </div>
 
@@ -613,7 +634,7 @@
                 </div>
                 <div class="form-group">
                     <label><i class="fas fa-arrows-alt-v"></i> Line Height</label>
-                    <input type="number" name="line_height" id="lineHeight" min="0" max="100">
+                    <input type="number" name="line_height" id="lineHeight" min="1" max="2000">
                 </div>
             </div>
 

@@ -1,3 +1,4 @@
+from app.utils.helper_utils import _parse_rgb_color
 from app.legacy_app import admin_required, super_admin_required, school_admin_required, student_required
 import os
 import time
@@ -1208,21 +1209,22 @@ def download_school_photos_zip(template_id):
 
         # Download photos in parallel (8 threads)
         from concurrent.futures import ThreadPoolExecutor
-        with ThreadPoolExecutor(max_workers=8) as pool:
-            futures = {pool.submit(_fetch_photo, s): s for s in students}
-            for future in futures:
-                result = future.result()
-                if result:
-                    member_name, photo_bytes = result
-                    # Deduplicate names
-                    base_name = member_name
-                    counter = 1
-                    while member_name in used_names:
-                        member_name = f"{base_name}_{counter}"
-                        counter += 1
-                    used_names.add(member_name)
-                    zip_file.writestr(member_name, photo_bytes)
-                    added_count += 1
+        with zipfile.ZipFile(output, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+            with ThreadPoolExecutor(max_workers=8) as pool:
+                futures = {pool.submit(_fetch_photo, s): s for s in students}
+                for future in futures:
+                    result = future.result()
+                    if result:
+                        member_name, photo_bytes = result
+                        base_name = member_name
+                        counter = 1
+                        while member_name in used_names:
+                            base_without_ext, ext = os.path.splitext(base_name)
+                            member_name = f"{base_without_ext}_{counter}{ext}"
+                            counter += 1
+                        used_names.add(member_name)
+                        zip_file.writestr(member_name, photo_bytes)
+                        added_count += 1
 
         if added_count == 0:
             flash('No student photos were available for this school.', 'warning')
@@ -3138,6 +3140,11 @@ def edit_student(student_id):
                 
                 # --- ADDRESS LOGIC (PIXEL-ACCURATE, DYNAMIC LINES) ---
                 if field_key == "ADDRESS":
+                    # Keep this import local: dashboard_routes delegates a
+                    # number of legacy helpers and importing the renderer at
+                    # module load time can create a circular dependency.
+                    from app.services.render_service import fit_wrapped_text_pil
+
                     if layout_item["label_visible"]:
                         draw_text_gradient(
                             draw,

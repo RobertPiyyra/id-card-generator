@@ -8,6 +8,7 @@ from utils import (
     load_template_smart,
     get_template_settings,
     get_template_language_direction,
+    get_available_fonts,
     parse_layout_config,
     derive_font_settings_from_layout_config,
     normalize_photo_shape,
@@ -237,6 +238,8 @@ def template_editor(template_id):
         editor_language=(language or "english"),
         editor_text_direction=(text_direction or "ltr"),
         editor_dynamic_fields=editor_dynamic_fields,
+        # The visual editor uses the same uploaded font inventory as template settings.
+        available_fonts=get_available_fonts(),
     )
 
 # =========================================================

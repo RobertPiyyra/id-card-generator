@@ -58,8 +58,11 @@ def _ensure_dirs(batch_id):
     os.makedirs(os.path.join(d, 'rendered'), exist_ok=True)
 
 
+import re
+from app.services.smart_serial_service import generate_smart_serial
+
 def _get_next_serial(batch):
-    """Get the next serial number for a batch. Class-wise if class_name is set."""
+    """Get the next serial number for a batch using smart pattern and checksum."""
     existing_numbers = set()
     
     if batch.class_name:
@@ -72,12 +75,13 @@ def _get_next_serial(batch):
         existing = db.session.query(SerialCard.serial_no).filter_by(batch_id=batch.id).all()
         
     for (serial_no,) in existing:
-        if serial_no and serial_no.startswith(batch.prefix):
-            try:
-                num = int(serial_no[len(batch.prefix):])
-                existing_numbers.add(num)
-            except ValueError:
-                pass
+        if serial_no:
+            digits = re.findall(r'\d+', serial_no)
+            if digits:
+                try:
+                    existing_numbers.add(int(digits[-1]))
+                except ValueError:
+                    pass
 
     if batch.class_name:
         # Also check Student table for existing serial numbers in this class
@@ -88,26 +92,40 @@ def _get_next_serial(batch):
         for (custom_data,) in students:
             if custom_data and 'serial_no' in custom_data:
                 serial_no = str(custom_data['serial_no'])
-                if serial_no.startswith(batch.prefix):
+                digits = re.findall(r'\d+', serial_no)
+                if digits:
                     try:
-                        num = int(serial_no[len(batch.prefix):])
-                        existing_numbers.add(num)
+                        existing_numbers.add(int(digits[-1]))
                     except ValueError:
                         pass
 
-    next_num = 1
+    next_num = getattr(batch, 'start_sequence', 1) or 1
     while next_num in existing_numbers:
         next_num += 1
-    return f"{batch.prefix}{next_num:03d}"
+
+    pattern = getattr(batch, 'serial_pattern', None) or '{PREFIX}{SEQ:3d}'
+    algo = getattr(batch, 'checksum_algorithm', 'none') or 'none'
+
+    return generate_smart_serial(
+        pattern=pattern,
+        sequence_num=next_num,
+        prefix=batch.prefix or 'SCH-',
+        class_name=batch.class_name,
+        checksum_algo=algo
+    )
 
 
-def create_batch(school_name, template_id, prefix='SCH-', class_name=None, created_by=None):
-    """Create a new SerialBatch."""
+def create_batch(school_name, template_id, prefix='SCH-', class_name=None, created_by=None,
+                 serial_pattern=None, checksum_algorithm='mod37', start_sequence=1):
+    """Create a new SerialBatch with smart serial configuration."""
     batch = SerialBatch(
         school_name=school_name,
         template_id=template_id,
         prefix=prefix,
         class_name=class_name,
+        serial_pattern=serial_pattern or '{PREFIX}{YY}-{SEQ:4}{CHECK}',
+        checksum_algorithm=checksum_algorithm or 'mod37',
+        start_sequence=start_sequence or 1,
         status='uploading',
         created_by=created_by,
     )

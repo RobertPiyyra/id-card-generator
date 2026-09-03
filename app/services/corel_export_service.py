@@ -1,3 +1,4 @@
+from app.utils.helper_utils import _parse_rgb_color
 """CorelDRAW export utility functions. Extracted from app/routes/corel_routes.py."""
 
 import io, json, logging, math, os, re, sys, unicodedata, base64, html, requests, hashlib, threading
@@ -685,8 +686,15 @@ def _safe_canvas_font_name(font_path: str | None, language: str, role: str) -> s
     lang = _normalize_language(language)
 
     candidate_paths: list[str] = []
-    if source_path and os.path.exists(source_path):
-        candidate_paths.append(source_path)
+    if source_path:
+        if os.path.isabs(source_path) and os.path.exists(source_path):
+            candidate_paths.append(source_path)
+        font_in_dir = os.path.join(FONTS_FOLDER, source_path)
+        if os.path.exists(font_in_dir) and font_in_dir not in candidate_paths:
+            candidate_paths.append(font_in_dir)
+        font_base_in_dir = os.path.join(FONTS_FOLDER, os.path.basename(source_path))
+        if os.path.exists(font_base_in_dir) and font_base_in_dir not in candidate_paths:
+            candidate_paths.append(font_base_in_dir)
 
     fallback_names = (
         _presentation_forms_font_fallbacks()
@@ -699,9 +707,9 @@ def _safe_canvas_font_name(font_path: str | None, language: str, role: str) -> s
             candidate_paths.append(fallback_path)
 
     sample_text = {
-        "urdu": "محمد علی",
-        "arabic": "محمد علي",
-        "hindi": "परीक्षण",
+        "urdu": "???? ???",
+        "arabic": "???? ???",
+        "hindi": "???????",
     }.get(lang, "Sample")
 
     for candidate_path in candidate_paths:
@@ -709,23 +717,32 @@ def _safe_canvas_font_name(font_path: str | None, language: str, role: str) -> s
             if lang in {"urdu", "arabic", "hindi"} and not _font_covers_text(candidate_path, sample_text):
                 continue
         except Exception:
-            continue
+            pass
 
         ext = os.path.splitext(candidate_path)[1].lower()
         if ext not in {".ttf", ".ttc", ".otf"}:
             continue
 
-        font_name = f"CorelRun_{abs(hash((candidate_path, role)))}"
+        raw_font_base = os.path.splitext(os.path.basename(candidate_path))[0]
+        clean_font_base = "".join(c if c.isalnum() or c in ("-", "_") else "_" for c in raw_font_base)
+        font_name = f"{clean_font_base}_Bold" if role == "bold" else f"{clean_font_base}"
+
         try:
             if font_name not in pdfmetrics.getRegisteredFontNames():
                 pdfmetrics.registerFont(TTFont(font_name, candidate_path))
             return font_name
-        except Exception:
-            logger.warning("Canvas font registration failed: %s", candidate_path)
+        except Exception as font_exc:
+            logger.warning("Canvas font registration failed for %s: %s", candidate_path, font_exc)
+            unique_font_name = f"CorelRun_{abs(hash((candidate_path, role)))}"
+            try:
+                if unique_font_name not in pdfmetrics.getRegisteredFontNames():
+                    pdfmetrics.registerFont(TTFont(unique_font_name, candidate_path))
+                return unique_font_name
+            except Exception as exc:
+                logger.warning("Unique font registration also failed for %s: %s", candidate_path, exc)
+                continue
 
     return builtin_fallback
-
-
 
 
 def _run_baseline_px(run: dict) -> float:
@@ -872,7 +889,7 @@ def _draw_text_runs_on_canvas(
             "bold" if run.get("part") in {"label", "colon"} else "regular",
         )
         font_size_pt = max(1.0, float(run.get("font_size") or 1) * float(scale))
-        color_rgb = tuple(int(max(0, min(255, value))) for value in (run.get("color") or (0, 0, 0)))
+        color_rgb = tuple(_parse_rgb_color(run.get("color"), default=[0, 0, 0]))
 
         try:
             c.setFillColor(Color(color_rgb[0] / 255.0, color_rgb[1] / 255.0, color_rgb[2] / 255.0))
@@ -1956,7 +1973,13 @@ def _draw_custom_editor_objects_pdf(c, layout_config_raw, card_x, card_bottom_y,
                 c.setFillAlpha(opacity)
             c.setFillColor(fill)
             c.setFont(reg_font_name, max(6.0, float(obj.get("font_size", 24)) * scale))
-            c.drawString(0, 0, text)
+            align = str(obj.get("text_align") or "left").strip().lower()
+            if align == "center":
+                c.drawCentredString(0, 0, text)
+            elif align == "right":
+                c.drawRightString(0, 0, text)
+            else:
+                c.drawString(0, 0, text)
             c.restoreState()
         elif kind == "rect":
             w = max(1.0, float(obj.get("width", 120)) * scale)
@@ -3136,6 +3159,14 @@ def _generate_direct_editable_pdf_template_export(
             native_reg_font_name = "helv"
             native_bold_font_name = "hebo"
 
+        def _layout_font_path(layout_item, prefix: str, fallback_path: str | None) -> str | None:
+            font_name = os.path.basename(str(layout_item.get(f"{prefix}_font_family") or "").strip())
+            if font_name:
+                candidate = os.path.join(FONTS_FOLDER, font_name)
+                if os.path.exists(candidate):
+                    return candidate
+            return fallback_path
+
         def _fitz_rgb(rgb):
             r, g, b = rgb
             return (
@@ -3317,12 +3348,7 @@ def _generate_direct_editable_pdf_template_export(
                     img = img.convert("RGBA")
                 target_size = (max(1, int(target_w_px)), max(1, int(target_h_px)))
                 if img.size != target_size:
-                    img = ImageOps.fit(
-                        img,
-                        target_size,
-                        method=Image.LANCZOS,
-                        centering=(0.5, 0.35),
-                    )
+                    img = img.resize(target_size, Image.Resampling.LANCZOS)
                 normalized_radii = [int(float(r or 0)) for r in (radii or [])]
                 img = round_photo(img, normalized_radii, shape=photo_shape, shape_inset=photo_shape_inset)
                 out = io.BytesIO()
@@ -3739,7 +3765,7 @@ def _generate_direct_editable_pdf_template_export(
                     )
                     qr_img = generate_qr_code(qr_payload, qr_settings, max(40, size_px)).convert("RGB")
                     qr_buf = io.BytesIO()
-                    qr_img.save(qr_buf, format="PNG")
+                    qr_img.save(qr_buf, format="PNG", compress_level=1)
                     page.insert_image(qr_rect, stream=qr_buf.getvalue(), overlay=True, keep_proportion=False)
 
                 if bool(qr_settings.get("enable_barcode", False)):
@@ -3778,7 +3804,7 @@ def _generate_direct_editable_pdf_template_export(
                         height=barcode_h_px,
                     ).convert("RGB")
                     barcode_buf = io.BytesIO()
-                    barcode_img.save(barcode_buf, format="PNG")
+                    barcode_img.save(barcode_buf, format="PNG", compress_level=1)
                     page.insert_image(barcode_rect, stream=barcode_buf.getvalue(), overlay=True, keep_proportion=False)
             except Exception:
                 pass
@@ -3861,6 +3887,12 @@ def _generate_direct_editable_pdf_template_export(
                 value_rgb = layout_item.get("value_color") or value_default_rgb
                 # Per-field colon color: respect layout_item.colon_color, fall back to global colon_default_rgb
                 colon_rgb = layout_item.get("colon_color") or colon_default_rgb
+                label_font_path_eff = _layout_font_path(layout_item, "label", bold_font_path or reg_font_path)
+                value_font_path_eff = _layout_font_path(layout_item, "value", reg_font_path or bold_font_path)
+                colon_font_path_eff = _layout_font_path(layout_item, "colon", label_font_path_eff)
+                label_font_overridden = bool(layout_item.get("label_font_family") and label_font_path_eff != (bold_font_path or reg_font_path))
+                value_font_overridden = bool(layout_item.get("value_font_family") and value_font_path_eff != (reg_font_path or bold_font_path))
+                colon_font_overridden = bool(layout_item.get("colon_font_family") and colon_font_path_eff != label_font_path_eff)
                 label_size_px_eff = max(1, int(layout_item.get("label_font_size") or font_settings.get("label_font_size", 40)))
                 value_size_px_eff = max(1, int(layout_item.get("value_font_size") or font_settings.get("value_font_size", 36)))
                 # Fix 2/10: per-field colon size; fall back to colon_font_size_px
@@ -3896,7 +3928,7 @@ def _generate_direct_editable_pdf_template_export(
                     )
                     baseline_y_pt = (label_y_eff * y_scale) + lbl_size_pt_eff
                     if label_text:
-                        if use_complex_pdf_text or (enable_label_gradient and mode != "editable"):
+                        if use_complex_pdf_text or label_font_overridden or (enable_label_gradient and mode != "editable"):
                             label_rect = _text_rect(
                                 card_x,
                                 card_w_pt,
@@ -3912,7 +3944,7 @@ def _generate_direct_editable_pdf_template_export(
                                 page,
                                 label_rect,
                                 label_text,
-                                font_file=bold_font_path or reg_font_path,
+                                font_file=label_font_path_eff,
                                 font_size_pt=lbl_size_pt_eff,
                                 color_rgb=label_rgb,
                                 direction=direction,
@@ -3944,7 +3976,7 @@ def _generate_direct_editable_pdf_template_export(
                             )
                     if colon_text:
                         colon_anchor_px, colon_grow = colon_anchor_for_value(value_x_eff, direction, gap_px=label_colon_gap)
-                        if use_complex_pdf_text or (enable_colon_gradient and mode != "editable"):
+                        if use_complex_pdf_text or colon_font_overridden or (enable_colon_gradient and mode != "editable"):
                             colon_rect = _text_rect(
                                 card_x,
                                 card_w_pt,
@@ -3960,7 +3992,7 @@ def _generate_direct_editable_pdf_template_export(
                                 page,
                                 colon_rect,
                                 colon_text,
-                                font_file=bold_font_path or reg_font_path,
+                                font_file=colon_font_path_eff,
                                 font_size_pt=colon_size_pt_eff,
                                 color_rgb=colon_rgb,
                                 direction=direction,
@@ -4028,11 +4060,11 @@ def _generate_direct_editable_pdf_template_export(
                         int(remaining_h_pt / max(min_font_size_pt * line_height_factor, text_scale)),
                     ),
                 )
-                if use_complex_pdf_text:
+                if use_complex_pdf_text or value_font_overridden:
                     value_measure_builder = lambda size_pt: (
                         lambda s, _size=size_pt: _measure_raster_text_width(
                             s,
-                            font_path_or_name=reg_font_path or bold_font_path or "",
+                            font_path_or_name=value_font_path_eff or "",
                             font_size_pt=_size,
                             language=lang,
                             scale=text_scale,
@@ -4061,7 +4093,7 @@ def _generate_direct_editable_pdf_template_export(
                     if not value_visible:
                         continue
                     baseline_y_pt = (value_y_eff * y_scale) + curr_font_size + (i * line_spacing)
-                    if use_complex_pdf_text or (enable_value_gradient and mode != "editable"):
+                    if use_complex_pdf_text or value_font_overridden or (enable_value_gradient and mode != "editable"):
                          line_rect = _text_rect(
                              card_x,
                              card_w_pt,
@@ -4077,7 +4109,7 @@ def _generate_direct_editable_pdf_template_export(
                              page,
                              line_rect,
                              line,
-                             font_file=reg_font_path or bold_font_path,
+                             font_file=value_font_path_eff,
                              font_size_pt=curr_font_size,
                              color_rgb=value_rgb,
                              direction=direction,
@@ -4323,3 +4355,179 @@ def _apply_hb_text_overlay(pdf_bytes: bytes, runs: list[dict], page_height_pt: f
 #     process_text_for_vector, _normalize_grow_mode,
 #     _x_for_direction, _x_for_direction_raster,
 # )
+
+
+import zipfile
+
+
+
+import io
+import zipfile
+import logging
+from collections import defaultdict
+import fitz
+
+logger = logging.getLogger(__name__)
+
+
+import io
+import zipfile
+import logging
+from collections import defaultdict
+import fitz
+
+logger = logging.getLogger(__name__)
+
+
+import io
+import zipfile
+import logging
+from collections import defaultdict
+import fitz
+
+logger = logging.getLogger(__name__)
+
+def render_full_corel_pdf_for_students(template, students: list, mode: str = "editable") -> bytes:
+    """
+    Renders full ID card sheets for a given list of students using the app renderer,
+    returning CorelDRAW-optimized PDF bytes.
+    """
+    from flask import has_app_context
+    if not has_app_context():
+        try:
+            from app import create_app
+            app = create_app()
+            with app.app_context():
+                return render_full_corel_pdf_for_students(template, students, mode=mode)
+        except Exception as ctx_exc:
+            logger.warning("Could not establish app context for Corel render: %s", ctx_exc)
+
+    if not students:
+        doc = fitz.open()
+        doc.new_page()
+        b = _corel_safe_pdf_bytes(doc)
+        doc.close()
+        return b
+
+    sheet_w_px = getattr(template, "sheet_width", None) or 2480
+    sheet_h_px = getattr(template, "sheet_height", None) or 3508
+
+    card_w_px = getattr(template, "card_width", None) or 1015
+    card_h_px = getattr(template, "card_height", None) or 661
+
+    cols = getattr(template, "grid_cols", None) or 2
+    rows = getattr(template, "grid_rows", None) or 5
+
+    scale = 72.0 / 300.0
+
+    sheet_w_pt = sheet_w_px * scale
+    sheet_h_pt = sheet_h_px * scale
+    card_w_pt = card_w_px * scale
+    card_h_pt = card_h_px * scale
+    gap_pt = 10 * scale
+
+    total_grid_w_pt = (cols * card_w_pt) + ((cols - 1) * gap_pt)
+    total_grid_h_pt = (rows * card_h_pt) + ((rows - 1) * gap_pt)
+
+    start_x_pt = (sheet_w_pt - total_grid_w_pt) / 2
+    bottom_margin = (sheet_h_pt - total_grid_h_pt) / 2
+    start_y_pt = bottom_margin + total_grid_h_pt
+
+    front_bytes = _build_compiled_sheet_via_app_renderer(
+        template=template,
+        students=students,
+        side="front",
+        mode=mode,
+        sheet_w_pt=sheet_w_pt,
+        sheet_h_pt=sheet_h_pt,
+        card_w_pt=card_w_pt,
+        card_h_pt=card_h_pt,
+        start_x_pt=start_x_pt,
+        start_y_pt=start_y_pt,
+        gap_pt=gap_pt,
+        cols=cols,
+        rows=rows,
+        scale=scale,
+        finalize_corel=False,
+    )
+
+    final_bytes = front_bytes
+    if getattr(template, "is_double_sided", False):
+        try:
+            back_bytes = _build_compiled_sheet_via_app_renderer(
+                template=template,
+                students=students,
+                side="back",
+                mode=mode,
+                sheet_w_pt=sheet_w_pt,
+                sheet_h_pt=sheet_h_pt,
+                card_w_pt=card_w_pt,
+                card_h_pt=card_h_pt,
+                start_x_pt=start_x_pt,
+                start_y_pt=start_y_pt,
+                gap_pt=gap_pt,
+                cols=cols,
+                rows=rows,
+                scale=scale,
+                finalize_corel=False,
+            )
+            final_bytes = _interleave_pdf_bytes(front_bytes, back_bytes, mode=mode, finalize_corel=False)
+        except Exception as exc:
+            logger.warning("Back side build failed during class-wise export: %s", exc)
+
+    return _make_corel_friendly(final_bytes, mode=mode)
+
+
+def generate_class_wise_corel_export(
+    template,
+    students,
+    mode="editable",
+    export_fn=None,
+    **kwargs,
+):
+    """
+    Groups students by class_name and generates separate CorelDRAW-optimized PDF files
+    for each class, returning a ZIP archive containing all per-class PDF files.
+    """
+    class_groups = defaultdict(list)
+    for s in students:
+        cname = getattr(s, "class_name", None) or "Unassigned"
+        cname = str(cname).strip()
+        if not cname:
+            cname = "Unassigned"
+        class_groups[cname].append(s)
+
+    zip_buffer = io.BytesIO()
+    class_summary = {}
+
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED, compresslevel=6) as zf:
+        for cname, class_students in sorted(class_groups.items()):
+            try:
+                if export_fn:
+                    pdf_bytes = export_fn(class_students)
+                else:
+                    pdf_bytes = render_full_corel_pdf_for_students(template, class_students, mode=mode)
+
+                safe_cname = "".join(c if c.isalnum() or c in ("-", "_", " ") else "_" for c in cname)
+                pdf_filename = f"Class_{safe_cname}_ID_Cards.pdf"
+                zf.writestr(pdf_filename, pdf_bytes)
+                class_summary[cname] = {
+                    "count": len(class_students),
+                    "filename": pdf_filename,
+                    "size_bytes": len(pdf_bytes),
+                }
+            except Exception as exc:
+                logger.error("Failed class-wise Corel export for class=%s: %s", cname, exc)
+
+    zip_buffer.seek(0)
+    school_name = getattr(template, "school_name", "Export") or "Export"
+    zip_filename = f"COREL_CLASSWISE_{school_name}.zip"
+
+    return {
+        "zip_bytes": zip_buffer.getvalue(),
+        "zip_buffer": zip_buffer.getvalue(),
+        "filename": zip_filename,
+        "summary": class_summary,
+        "total_students": len(students),
+        "total_classes": len(class_groups),
+    }

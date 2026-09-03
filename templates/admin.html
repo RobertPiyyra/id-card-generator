@@ -1466,6 +1466,9 @@
                                     <div class="action-buttons" style="margin: 15px 0; padding: 10px; background: #f8f9fa; border-radius: 8px;">
                                         <a href="{{ url_for('dashboard.download_compiled_school_pdf', template_id=template.id, mode='editable') }}" class="btn btn-primary btn-sm">
                                             <i class="fas fa-file-pdf"></i> Download Editable PDF
+                                            <a href="{{ url_for('corel.export_class_wise_corel', template_id=template.id) }}" class="btn btn-warning btn-sm" style="background: linear-gradient(135deg, #d97706, #b45309); color: white; margin-left: 4px;" title="Export separate CorelDRAW vector files for each class in a ZIP archive">
+                                                <i class="fas fa-file-archive"></i> Class-Wise Corel (.Zip)
+                                            </a>
                                         </a>
                                         <a href="{{ url_for('dashboard.download_compiled_school_pdf', template_id=template.id, mode='print') }}" class="btn btn-secondary btn-sm">
                                             <i class="fas fa-print"></i> Download Print PDF

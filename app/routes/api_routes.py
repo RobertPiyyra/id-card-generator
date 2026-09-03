@@ -901,3 +901,204 @@ def list_verification_audits():
             for r in rows
         ],
     })
+
+
+@api_bp.route("/admin/check-photo-duplicate", methods=["POST"])
+@admin_required
+def check_photo_duplicate():
+    """
+    Accepts an uploaded photo file and checks for potential duplicate
+    student photos within the current school scope.
+    """
+    from PIL import Image
+    from app.services.face_duplicate_service import find_duplicate_faces
+
+    school_name = session.get("school_name")
+    if not school_name:
+        return jsonify({"success": False, "message": "School context required"}), 400
+
+    exclude_student_id = request.form.get("exclude_student_id", type=int)
+    threshold = request.form.get("threshold", 0.85, type=float)
+
+    pil_img = None
+    if "photo" in request.files:
+        try:
+            pil_img = Image.open(request.files["photo"].stream)
+        except Exception as e:
+            return jsonify({"success": False, "message": f"Invalid image file: {e}"}), 400
+
+    if pil_img is None:
+        return jsonify({"success": False, "message": "No photo provided"}), 400
+
+    matches = find_duplicate_faces(
+        school_name=school_name,
+        pil_img=pil_img,
+        threshold=threshold,
+        exclude_student_id=exclude_student_id,
+        max_results=5
+    )
+
+    return jsonify({
+        "success": True,
+        "is_duplicate_found": len(matches) > 0,
+        "match_count": len(matches),
+        "matches": matches
+    })
+
+
+@api_bp.route("/api/validate-serial-number", methods=["POST", "GET"])
+def validate_serial_number_endpoint():
+    """
+    Public validation endpoint to verify the checksum integrity of a smart serial number.
+    Can be used by scanner apps, mobile kiosks, or manual entry.
+    """
+    from app.services.smart_serial_service import validate_smart_serial
+
+    if request.method == "POST":
+        payload = request.get_json(silent=True) or request.form.to_dict()
+        serial = payload.get("serial")
+        algo = payload.get("algorithm", "mod37")
+    else:
+        serial = request.args.get("serial")
+        algo = request.args.get("algorithm", "mod37")
+
+    if not serial:
+        return jsonify({"success": False, "message": "Serial number is required"}), 400
+
+    result = validate_smart_serial(serial, checksum_algo=algo)
+    return jsonify({
+        "success": True,
+        "result": result
+    })
+
+
+@api_bp.route("/admin/students/<int:student_id>/consent", methods=["POST"])
+@admin_required
+def update_student_consent_endpoint(student_id):
+    """Update student photo consent state and record immutable consent log."""
+    from app.services.retention_service import record_consent
+
+    school_name = session.get("school_name")
+    admin_role = session.get("admin_role") or session.get("role")
+
+    query = Student.query.filter_by(id=student_id)
+    if admin_role != "super_admin" and school_name:
+        query = query.filter_by(school_name=school_name)
+    student = query.first()
+    if not student:
+        return jsonify({"success": False, "message": "Student not found or access denied"}), 404
+
+    payload = request.get_json(silent=True) or request.form.to_dict()
+    action = payload.get("action", "granted")  # 'granted', 'revoked', 'renewed'
+    granted_by = payload.get("granted_by", "Admin")
+    policy = payload.get("policy", "academic_year")
+    expires_in_days = payload.get("expires_in_days")
+    if expires_in_days is not None:
+        try:
+            expires_in_days = int(expires_in_days)
+        except ValueError:
+            expires_in_days = None
+
+    doc_ref = payload.get("document_ref")
+
+    log_entry = record_consent(
+        student=student,
+        action=action,
+        granted_by=granted_by,
+        ip_address=request.remote_addr,
+        expires_in_days=expires_in_days,
+        policy=policy,
+        document_ref=doc_ref
+    )
+
+    if not log_entry:
+        return jsonify({"success": False, "message": "Failed to update consent"}), 500
+
+    return jsonify({
+        "success": True,
+        "student_id": student.id,
+        "photo_consent_status": student.photo_consent_status,
+        "consent_expires_at": student.consent_expires_at.isoformat() if student.consent_expires_at else None,
+        "log_id": log_entry.id
+    })
+
+
+@api_bp.route("/admin/retention/purge-expired", methods=["POST"])
+@admin_required
+def trigger_retention_purge():
+    """Trigger automated data retention and expired photo cleanup for current school."""
+    from app.services.retention_service import run_retention_cleanup
+
+    school_name = session.get("school_name")
+    payload = request.get_json(silent=True) or request.form.to_dict()
+    dry_run = bool(payload.get("dry_run", False))
+
+    result = run_retention_cleanup(school_name=school_name, dry_run=dry_run)
+    return jsonify(result)
+
+
+@api_bp.route("/admin/cards/sign/<int:student_id>", methods=["POST"])
+@admin_required
+def sign_student_card_endpoint(student_id):
+    """Digitally sign a student ID card and record cryptographic manifest."""
+    from app.services.signature_service import sign_student_card
+
+    school_name = session.get("school_name")
+    admin_role = session.get("admin_role") or session.get("role")
+
+    query = Student.query.filter_by(id=student_id)
+    if admin_role != "super_admin" and school_name:
+        query = query.filter_by(school_name=school_name)
+    student = query.first()
+    if not student:
+        return jsonify({"success": False, "message": "Student not found or access denied"}), 404
+
+    actor = session.get("user") or "Admin"
+    actor_role = session.get("role") or "school_admin"
+
+    res = sign_student_card(
+        student=student,
+        actor=actor,
+        actor_role=actor_role,
+        ip_address=request.remote_addr
+    )
+    if not res.get("success"):
+        return jsonify({"success": False, "message": res.get("error")}), 500
+
+    return jsonify({
+        "success": True,
+        "student_id": student.id,
+        "signature": res["signature"],
+        "fingerprint": res["fingerprint"],
+        "manifest": res["manifest"]
+    })
+
+
+@api_bp.route("/api/cards/verify-signature", methods=["POST"])
+def verify_card_signature_endpoint():
+    """
+    Public verification endpoint to mathematically verify a card's digital signature
+    and check if any student attributes were forged or altered.
+    """
+    from app.services.signature_service import verify_card_signature
+
+    payload = request.get_json(silent=True) or request.form.to_dict()
+    manifest = payload.get("manifest")
+    signature = payload.get("signature")
+    school_name = payload.get("school_name")
+
+    if not manifest or not signature:
+        return jsonify({"success": False, "message": "Manifest and signature are required"}), 400
+
+    verification = verify_card_signature(
+        manifest_data=manifest,
+        signature_b64=signature,
+        school_name=school_name
+    )
+
+    return jsonify({
+        "success": True,
+        "verification": verification
+    })
+
+

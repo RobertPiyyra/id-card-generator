@@ -1,3 +1,4 @@
+from app.utils.helper_utils import _parse_rgb_color
 import os
 import io
 import math
@@ -310,7 +311,7 @@ def _render_student_photo(template_img, student_like, photo_settings, scale=1.0)
     if not photo_settings.get('enable_photo', True):
         return
     photo_w, photo_h, photo_x, photo_y, radii = _photo_settings_dimensions(photo_settings, scale)
-    photo_img = _get_cached_photo(student_like, photo_settings, photo_w, photo_h)    
+    photo_img = _get_cached_photo(student_like, photo_settings, photo_w, photo_h)
     if not photo_img:
         return
     try:
@@ -381,30 +382,39 @@ def _build_card_field_list(student_like, template_obj, template_id, lang):
     return sorted(fields, key=lambda item: int(item.get('order') or 0))
 
 
-def draw_text_gradient(draw, position, text, font, top_color, bottom_color, enable_gradient, lang, target_image=None, **kwargs):
+def draw_text_gradient(draw, position, text, font, top_color, bottom_color, enable_gradient, lang,
+                       target_image=None, stroke_width=0, stroke_fill=None, **kwargs):
     """Draws text with a vertical gradient from top_color to bottom_color if enable_gradient is True."""
     if not text:
         return
+    stroke_width = max(0, int(stroke_width or 0))
+    stroke_fill = stroke_fill or top_color
     if not enable_gradient or not target_image:
-        draw.text(position, text, font=font, fill=top_color, **kwargs)
+        draw.text(position, text, font=font, fill=top_color,
+                  stroke_width=stroke_width, stroke_fill=stroke_fill, **kwargs)
         return
     try:
+        if stroke_width:
+            # Paint the CorelDRAW-style outline first, then overlay the fill
+            # gradient below so the hairline remains crisp around each glyph.
+            draw.text(position, text, font=font, fill=stroke_fill,
+                      stroke_width=stroke_width, stroke_fill=stroke_fill, **kwargs)
         bbox = draw.textbbox((0, 0), text, font=font, **kwargs)
         w = int(bbox[2] - bbox[0])
         h = int(bbox[3] - bbox[1])
         if w <= 0 or h <= 0:
             draw.text(position, text, font=font, fill=top_color, **kwargs)
             return
-        
+
         pad = 20
         # Draw text mask
         mask = Image.new("L", (w + pad * 2, h + pad * 2), 0)
         mask_draw = ImageDraw.Draw(mask)
         mask_draw.text((pad - bbox[0], pad - bbox[1]), text, font=font, fill=255, **kwargs)
-        
+
         # Build gradient
         gradient = Image.new("RGBA", (w + pad * 2, h + pad * 2))
-        
+
         def to_rgb(c):
             if isinstance(c, (list, tuple)):
                 return tuple(c[:3])
@@ -412,7 +422,7 @@ def draw_text_gradient(draw, position, text, font, top_color, bottom_color, enab
                 h_val = c.lstrip('#')
                 return tuple(int(h_val[i:i+2], 16) for i in (0, 2, 4))
             return (0, 0, 0)
-            
+
         rgb_top = to_rgb(top_color)
         rgb_bottom = to_rgb(bottom_color)
 
@@ -450,22 +460,30 @@ def draw_text_gradient(draw, position, text, font, top_color, bottom_color, enab
         draw.text(position, text, font=font, fill=top_color, **kwargs)
 
 
-def draw_text_with_spacing_pil(draw, position, text, font, fill, char_spacing=0, direction="ltr", target_image=None, enable_gradient=False, bottom_color=None, **kwargs):
+def draw_text_with_spacing_pil(draw, position, text, font, fill, char_spacing=0, direction="ltr",
+                               target_image=None, enable_gradient=False, bottom_color=None,
+                               stroke_width=0, stroke_fill=None, **kwargs):
     if not text:
         return
     if not char_spacing:
-        draw_text_gradient(draw, position, text, font, fill, bottom_color, enable_gradient, lang=kwargs.get("lang", "english"), target_image=target_image, **kwargs)
+        draw_text_gradient(draw, position, text, font, fill, bottom_color, enable_gradient,
+                           lang=kwargs.get("lang", "english"), target_image=target_image,
+                           stroke_width=stroke_width, stroke_fill=stroke_fill, **kwargs)
         return
-    
+
     is_rtl = (direction == "rtl" or any(ord(c) >= 0x0600 and ord(c) <= 0x06ff for c in text))
     if is_rtl:
         # Draw LTR/Arabic as single unit to preserve shaping
-        draw_text_gradient(draw, position, text, font, fill, bottom_color, enable_gradient, lang=kwargs.get("lang", "english"), target_image=target_image, **kwargs)
+        draw_text_gradient(draw, position, text, font, fill, bottom_color, enable_gradient,
+                           lang=kwargs.get("lang", "english"), target_image=target_image,
+                           stroke_width=stroke_width, stroke_fill=stroke_fill, **kwargs)
         return
 
     x, y = position
     for char in text:
-        draw_text_gradient(draw, (x, y), char, font, fill, bottom_color, enable_gradient, lang=kwargs.get("lang", "english"), target_image=target_image, **kwargs)
+        draw_text_gradient(draw, (x, y), char, font, fill, bottom_color, enable_gradient,
+                           lang=kwargs.get("lang", "english"), target_image=target_image,
+                           stroke_width=stroke_width, stroke_fill=stroke_fill, **kwargs)
         char_w = draw.textlength(char, font=font, **kwargs)
         x += char_w + char_spacing
 
@@ -477,7 +495,7 @@ def measure_text_width_with_spacing_local(text, font, char_spacing=0, draw=None,
         if draw is not None and hasattr(draw, "textlength"):
             return float(draw.textlength(text, font=font, **kwargs))
         return float(font.getlength(text))
-    
+
     total_w = 0.0
     for char in text:
         if draw is not None and hasattr(draw, "textlength"):
@@ -631,7 +649,7 @@ def wrap_text_by_width_pil(text: str, max_width_px: float, font, char_spacing, d
     paragraphs = [segment for segment in raw_text.replace("\r\n", "\n").replace("\r", "\n").split("\n") if segment.strip()]
     if not paragraphs:
         paragraphs = [_normalize_wrap_text_pil(raw_text)]
-    
+
     def measure_fn(s):
         s_display = process_text_for_drawing(s, lang)
         return measure_text_width_with_spacing_local(s_display, font, char_spacing, draw=draw, **get_draw_text_kwargs(s_display, lang))
@@ -697,13 +715,13 @@ def fit_wrapped_text_pil(
 
     def _fits(size_px: float) -> tuple[bool, list[str]]:
         temp_font = font_loader(int(size_px))
-        
+
         def measure_fn(s):
             s_display = process_text_for_drawing(s, lang)
             return measure_text_width_with_spacing_local(
                 s_display, temp_font, char_spacing, draw=draw, **get_draw_text_kwargs(s_display, lang)
             )
-            
+
         lines = _wrap_text_by_width_single_pil(text, max_width_px, measure_fn)
         fits_width = all(measure_fn(line) <= max_width_px for line in lines)
         fits_height = len(lines) <= max_lines
@@ -740,9 +758,9 @@ def fit_wrapped_text_pil(
         return measure_text_width_with_spacing_local(
             s_display, temp_font, char_spacing, draw=draw, **get_draw_text_kwargs(s_display, lang)
         )
-        
+
     best_lines = _wrap_text_by_width_single_pil(text, max_width_px, best_measure)
-    
+
     if len(best_lines) > max_lines:
         best_lines = best_lines[:max_lines]
         best_lines[-1] = _ellipsize_to_width_pil(best_lines[-1], max_width_px, best_measure)
@@ -756,7 +774,7 @@ def fit_wrapped_text_pil(
         return measure_text_width_with_spacing_local(
             s_display, temp_font, char_spacing, draw=draw, **get_draw_text_kwargs(s_display, lang)
         )
-        
+
     final_lines = _wrap_text_by_width_single_pil(text, max_width_px, final_measure)
     if len(final_lines) > max_lines:
         final_lines = final_lines[:max_lines]
@@ -776,18 +794,20 @@ def _render_student_fields(template_img, template_obj, student_like, font_settin
     font_bold_path = os.path.join(FONTS_FOLDER, font_settings['font_bold'])
     font_reg_path = os.path.join(FONTS_FOLDER, font_settings['font_regular'])
 
-    label_fill_default = tuple(font_settings.get('label_font_color', [0, 0, 0]))
-    value_fill_default = tuple(font_settings.get('value_font_color', [0, 0, 0]))
-    colon_fill_default = tuple(font_settings.get('colon_font_color', list(label_fill_default)))
-    
+    label_fill_default = tuple(_parse_rgb_color(font_settings.get('label_font_color'), default=[0, 0, 0]))
+    value_fill_default = tuple(_parse_rgb_color(font_settings.get('value_font_color'), default=[0, 0, 0]))
+    colon_fill_default = tuple(_parse_rgb_color(font_settings.get('colon_font_color'), default=label_fill_default))
+
     enable_label_gradient = bool(font_settings.get('enable_label_gradient', False))
-    label_fill_bottom = tuple(font_settings.get('label_font_color_bottom', [51, 51, 51]))
-    
+    label_fill_bottom = tuple(_parse_rgb_color(font_settings.get('label_font_color_bottom'), default=[51, 51, 51]))
+
     enable_value_gradient = bool(font_settings.get('enable_value_gradient', False))
-    value_fill_bottom = tuple(font_settings.get('value_font_color_bottom', [51, 51, 51]))
-    
+    value_fill_bottom = tuple(_parse_rgb_color(font_settings.get('value_font_color_bottom'), default=[51, 51, 51]))
+
     enable_colon_gradient = bool(font_settings.get('enable_colon_gradient', False))
-    colon_fill_bottom = tuple(font_settings.get('colon_font_color_bottom', [51, 51, 51]))
+    colon_fill_bottom = tuple(_parse_rgb_color(font_settings.get('colon_font_color_bottom'), default=[51, 51, 51]))
+    hairline_width = max(0, min(10, int(font_settings.get('text_hairline_width', 1) or 0))) if font_settings.get('enable_text_hairline', False) else 0
+    hairline_color = tuple(_parse_rgb_color(font_settings.get('text_hairline_color'), default=[0, 0, 0]))
 
     text_case = font_settings.get('text_case', 'normal')
     show_label_colon = bool(font_settings.get('show_label_colon', True))
@@ -807,6 +827,14 @@ def _render_student_fields(template_img, template_obj, student_like, font_settin
     current_y = get_initial_flow_y_for_side(template_obj, font_settings, side=side)
     line_height = font_settings['line_height']
     address_max_lines = int(font_settings.get("address_max_lines", 2))
+
+    def _layout_font_path(layout_item, prefix, fallback_path):
+        font_name = os.path.basename(str(layout_item.get(f"{prefix}_font_family") or "").strip())
+        if font_name:
+            candidate = os.path.join(FONTS_FOLDER, font_name)
+            if os.path.exists(candidate):
+                return candidate
+        return fallback_path
 
     for item in fields:
         label_source = item['label']
@@ -839,9 +867,12 @@ def _render_student_fields(template_img, template_obj, student_like, font_settin
         value_x_eff = layout_item['value_x']
         label_y_eff = layout_item['label_y']
         value_y_eff = layout_item['value_y']
-        label_fill = layout_item.get('label_color') or label_fill_default
-        value_fill = layout_item.get('value_color') or value_fill_default
-        colon_fill = layout_item.get('colon_color') or colon_fill_default
+        label_fill = tuple(_parse_rgb_color(layout_item.get('label_color'), default=label_fill_default))
+        value_fill = tuple(_parse_rgb_color(layout_item.get('value_color'), default=value_fill_default))
+        colon_fill = tuple(_parse_rgb_color(layout_item.get('colon_color'), default=colon_fill_default))
+        label_font_path = _layout_font_path(layout_item, "label", font_bold_path)
+        value_font_path = _layout_font_path(layout_item, "value", font_reg_path)
+        colon_font_path = _layout_font_path(layout_item, "colon", label_font_path)
         label_font_size_eff = max(1, int(layout_item.get('label_font_size') or font_settings['label_font_size']))
         value_font_size_eff = max(1, int(layout_item.get('value_font_size') or font_settings['value_font_size']))
         colon_font_size_eff = max(1, int(layout_item.get('colon_font_size') or label_font_size_eff))
@@ -865,19 +896,19 @@ def _render_student_fields(template_img, template_obj, student_like, font_settin
 
         label_char_spacing = layout_item.get("label_char_spacing", 0)
         label_line_height = layout_item.get("label_line_height") or line_height
-        
+
         # Apply Auto-Fit to Label if enabled
         if layout_item.get("label_auto_fit") and layout_item.get("label_max_width"):
             max_w_lbl = float(layout_item["label_max_width"])
             while label_font_size_eff > 6:
-                temp_lbl_font = load_font_dynamic(font_bold_path, label_text_final, 10**9, label_font_size_eff, language=lang)
+                temp_lbl_font = load_font_dynamic(label_font_path, label_text_final, 10**9, label_font_size_eff, language=lang)
                 w = measure_text_width_with_spacing_local(label_text_final, temp_lbl_font, label_char_spacing, draw=draw, **get_draw_text_kwargs(label_text_final, lang))
                 if w <= max_w_lbl:
                     break
                 label_font_size_eff -= 1
 
-        label_font = load_font_dynamic(font_bold_path, label_text_final, 10**9, label_font_size_eff, language=lang)
-        colon_font = load_font_dynamic(font_bold_path, colon_text_final or ':', 10**9, colon_font_size_eff, language=lang)
+        label_font = load_font_dynamic(label_font_path, label_text_final, 10**9, label_font_size_eff, language=lang)
+        colon_font = load_font_dynamic(colon_font_path, colon_text_final or ':', 10**9, colon_font_size_eff, language=lang)
         if layout_item['label_visible']:
             lbl_w = measure_text_width_with_spacing_local(label_text_final, label_font, label_char_spacing, draw=draw, **get_draw_text_kwargs(label_text_final, lang))
             label_draw_x = flip_x_for_text_direction_local(
@@ -893,6 +924,8 @@ def _render_student_fields(template_img, template_obj, student_like, font_settin
                 target_image=template_img,
                 enable_gradient=enable_label_gradient,
                 bottom_color=label_fill_bottom,
+                stroke_width=hairline_width,
+                stroke_fill=hairline_color,
                 **{"direction": direction, **get_draw_text_kwargs(label_text_final, lang)}
             )
             draw_aligned_colon_pil(
@@ -911,6 +944,8 @@ def _render_student_fields(template_img, template_obj, student_like, font_settin
                 target_image=template_img,
                 enable_gradient=enable_colon_gradient,
                 bottom_color=colon_fill_bottom,
+                stroke_width=hairline_width,
+                stroke_fill=hairline_color,
             )
 
         max_w = int(get_anchor_max_text_width(
@@ -936,7 +971,7 @@ def _render_student_fields(template_img, template_obj, student_like, font_settin
             # Pixel-accurate address wrap: use fit_wrapped_text_pil which measures
             # real pixel widths rather than estimating chars-per-line from font size.
             def _addr_font_loader(size):
-                return load_font_dynamic(font_reg_path, 'X', 10**9, size, language=lang)
+                return load_font_dynamic(value_font_path, 'X', 10**9, size, language=lang)
 
             curr_size, wrapped_addr = fit_wrapped_text_pil(
                 raw_val,
@@ -968,6 +1003,8 @@ def _render_student_fields(template_img, template_obj, student_like, font_settin
                         target_image=template_img,
                         enable_gradient=enable_value_gradient,
                         bottom_color=value_fill_bottom,
+                        stroke_width=hairline_width,
+                        stroke_fill=hairline_color,
                         **{"direction": direction, **get_draw_text_kwargs(line_display, lang)}
                     )
                 try:
@@ -985,13 +1022,13 @@ def _render_student_fields(template_img, template_obj, student_like, font_settin
         if layout_item.get("value_auto_fit") and layout_item.get("value_max_width"):
             max_w_val = float(layout_item["value_max_width"])
             while value_font_size_eff > 6:
-                temp_val_font = load_font_dynamic(font_reg_path, display_val, 10**9, value_font_size_eff, language=lang)
+                temp_val_font = load_font_dynamic(value_font_path, display_val, 10**9, value_font_size_eff, language=lang)
                 w = measure_text_width_with_spacing_local(display_val, temp_val_font, value_char_spacing, draw=draw, **get_draw_text_kwargs(display_val, lang))
                 if w <= max_w_val:
                     break
                 value_font_size_eff -= 1
 
-        value_font = load_font_dynamic(font_reg_path, display_val, 10**9, value_font_size_eff, language=lang)
+        value_font = load_font_dynamic(value_font_path, display_val, 10**9, value_font_size_eff, language=lang)
         if layout_item['value_visible']:
             val_w = measure_text_width_with_spacing_local(display_val, value_font, value_char_spacing, draw=draw, **get_draw_text_kwargs(display_val, lang))
             value_draw_x = flip_x_for_text_direction_local(
@@ -1007,6 +1044,8 @@ def _render_student_fields(template_img, template_obj, student_like, font_settin
                 target_image=template_img,
                 enable_gradient=enable_value_gradient,
                 bottom_color=value_fill_bottom,
+                stroke_width=hairline_width,
+                stroke_fill=hairline_color,
                 **{"direction": direction, **get_draw_text_kwargs(display_val, lang)}
             )
         if advances_flow:
@@ -1119,6 +1158,8 @@ def draw_aligned_colon_pil(
     target_image=None,
     enable_gradient=False,
     bottom_color=None,
+    stroke_width=0,
+    stroke_fill=None,
 ):
     """Draw a standalone aligned colon near the value anchor with optional gradient support."""
     if not colon_text:
@@ -1147,6 +1188,8 @@ def draw_aligned_colon_pil(
         enable_gradient=enable_gradient,
         lang=language,
         target_image=target_image,
+        stroke_width=stroke_width,
+        stroke_fill=stroke_fill,
         **get_draw_text_kwargs(colon_text, language)
     )
 
@@ -1251,10 +1294,10 @@ def build_student_card_text_runs(template_obj, student_like, side="front"):
 
     enable_label_gradient = bool(font_settings.get('enable_label_gradient', False))
     label_fill_bottom = tuple(font_settings.get('label_font_color_bottom', [51, 51, 51]))
-    
+
     enable_value_gradient = bool(font_settings.get('enable_value_gradient', False))
     value_fill_bottom = tuple(font_settings.get('value_font_color_bottom', [51, 51, 51]))
-    
+
     enable_colon_gradient = bool(font_settings.get('enable_colon_gradient', False))
     colon_fill_bottom = tuple(font_settings.get('colon_font_color_bottom', [51, 51, 51]))
 
@@ -1309,6 +1352,14 @@ def build_student_card_text_runs(template_obj, student_like, side="front"):
     runs = []
     address_max_lines = int(font_settings.get("address_max_lines", 2))
 
+    def _layout_font_path(layout_item, prefix, fallback_path):
+        font_name = os.path.basename(str(layout_item.get(f"{prefix}_font_family") or "").strip())
+        if font_name:
+            candidate = os.path.join(FONTS_FOLDER, font_name)
+            if os.path.exists(candidate):
+                return candidate
+        return fallback_path
+
     for item in all_fields:
         label_source = item['label']
         if item.get('translate_label'):
@@ -1341,6 +1392,9 @@ def build_student_card_text_runs(template_obj, student_like, side="front"):
         label_fill = layout_item.get("label_color") or label_fill_default
         value_fill = layout_item.get("value_color") or value_fill_default
         colon_fill = layout_item.get("colon_color") or colon_fill_default
+        label_font_path = _layout_font_path(layout_item, "label", font_bold_path)
+        value_font_path = _layout_font_path(layout_item, "value", font_reg_path)
+        colon_font_path = _layout_font_path(layout_item, "colon", label_font_path)
         label_font_size_eff = max(1, int(layout_item.get("label_font_size") or font_settings["label_font_size"]))
         value_font_size_eff = max(1, int(layout_item.get("value_font_size") or font_settings["value_font_size"]))
         colon_font_size_eff = max(1, int(layout_item.get("colon_font_size") or label_font_size_eff))
@@ -1362,8 +1416,8 @@ def build_student_card_text_runs(template_obj, student_like, side="front"):
         if advances_flow:
             current_y = max(int(current_y), int(label_y_eff), int(value_y_eff))
 
-        label_font = load_font_dynamic(font_bold_path, label_text_final or "X", 10**9, label_font_size_eff, language=lang)
-        colon_font = load_font_dynamic(font_bold_path, colon_text_final or ":", 10**9, colon_font_size_eff, language=lang)
+        label_font = load_font_dynamic(label_font_path, label_text_final or "X", 10**9, label_font_size_eff, language=lang)
+        colon_font = load_font_dynamic(colon_font_path, colon_text_final or ":", 10**9, colon_font_size_eff, language=lang)
         if layout_item["label_visible"] and label_text_final:
             label_draw_x = flip_x_for_text_direction(
                 label_x_eff, label_text_final, label_font, card_width, direction, draw=draw, grow_mode=layout_item["label_grow"]
@@ -1373,7 +1427,7 @@ def build_student_card_text_runs(template_obj, student_like, side="front"):
                 "text": label_text_final,
                 "x": int(label_draw_x),
                 "y": int(label_y_eff),
-                "font_path": font_bold_path,
+                "font_path": label_font_path,
                 "font_size": int(label_font_size_eff),
                 "color": tuple(label_fill),
                 "language": lang,
@@ -1395,7 +1449,7 @@ def build_student_card_text_runs(template_obj, student_like, side="front"):
                     "text": colon_text_final,
                     "x": int(colon_draw_x),
                     "y": int(colon_y_eff),
-                    "font_path": font_bold_path,
+                    "font_path": colon_font_path,
                     "font_size": int(colon_font_size_eff),
                     "color": tuple(colon_fill),
                     "language": lang,
@@ -1425,7 +1479,7 @@ def build_student_card_text_runs(template_obj, student_like, side="front"):
             min_size = 10
             wrapped_addr = []
             while curr_size >= min_size:
-                addr_font = load_font_dynamic(font_reg_path, "X", 10**9, curr_size, language=lang)
+                addr_font = load_font_dynamic(value_font_path, "X", 10**9, curr_size, language=lang)
                 avg_char_w = curr_size * 0.50
                 chars_limit = max(5, int(max_w / max(avg_char_w, 1))) if avg_char_w > 0 else 20
                 wrapped_addr = textwrap.wrap(raw_val, width=chars_limit, break_long_words=True)
@@ -1452,7 +1506,7 @@ def build_student_card_text_runs(template_obj, student_like, side="front"):
                         "text": line_display,
                         "x": int(value_draw_x),
                         "y": int(value_y_eff),
-                        "font_path": font_reg_path,
+                    "font_path": value_font_path,
                         "font_size": int(curr_size if curr_size >= min_size else min_size),
                         "color": tuple(value_fill),
                         "language": lang,
@@ -1473,7 +1527,7 @@ def build_student_card_text_runs(template_obj, student_like, side="front"):
 
         value_font, fitted_value_font_size = fit_dynamic_font_to_single_line(
             draw,
-            font_reg_path,
+            value_font_path,
             display_val,
             max_w,
             value_font_size_eff,
@@ -1488,7 +1542,7 @@ def build_student_card_text_runs(template_obj, student_like, side="front"):
                 "text": display_val,
                 "x": int(value_draw_x),
                 "y": int(value_y_eff),
-                "font_path": font_reg_path,
+                "font_path": value_font_path,
                 "font_size": int(fitted_value_font_size),
                 "color": tuple(value_fill),
                 "language": lang,

@@ -234,8 +234,11 @@
       display: flex;
       gap: 6px;
       align-items: center;
-      flex-wrap: wrap;
-      justify-content: center;
+      flex-wrap: nowrap;               /* never wraps to 2 rows on desktop */
+      overflow-x: auto;
+      overflow-y: hidden;
+      scrollbar-width: none;
+      justify-content: flex-start;
       background: rgba(255, 255, 255, 0.95);
       backdrop-filter: blur(16px);
       -webkit-backdrop-filter: blur(16px);
@@ -243,6 +246,7 @@
       padding: 8px 16px;
       z-index: 20;
     }
+    .toolbar::-webkit-scrollbar { display: none; }
     .tool-group { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
     .tool-sep {
       width: 1px;
@@ -325,7 +329,7 @@
        RIGHT PANEL (SIDEBAR)
        ═══════════════════════════════════════════ */
     .right {
-      width: 380px;
+      width: clamp(300px, 28vw, 390px);
       flex-shrink: 0;
       border-left: 1px solid var(--border-light);
       background: var(--bg-panel-solid);
@@ -501,89 +505,132 @@
     /* ═══════════════════════════════════════════
        TABLET LAYOUT (768px - 1100px)
        ═══════════════════════════════════════════ */
+    /* ═══════════════════════════════════════════
+       TABLET — 768px to 1100px
+       ═══════════════════════════════════════════ */
     @media (max-width: 1100px) {
-      .right { width: 330px; }
+      .right { width: min(340px, 36vw); }
       .top-title small { display: none; }
+      /* narrower rowx label column for compact panel */
+      .rowx { grid-template-columns: 72px 1fr 1fr; gap: 6px; }
     }
 
     /* ═══════════════════════════════════════════
        MOBILE LAYOUT (<= 767px) - bottom drawer
        ═══════════════════════════════════════════ */
+    /* ═══════════════════════════════════════════
+       MOBILE PORTRAIT — ≤ 767px (bottom drawer)
+       ═══════════════════════════════════════════ */
     @media (max-width: 767px) {
-      .top { height: 52px; padding: 0 16px; }
-      .top-title strong { font-size: 14px; }
+      /* Top bar */
+      .top { height: 48px; padding: 0 12px; }
+      .top-title strong { font-size: 13px; }
       .top-title small { display: none !important; }
-      .top-actions .btn { font-size: 11px; padding: 4px 10px; }
+      /* Hide the FRONT/BACK badge text to save space */
+      .top-title .badge { font-size: 9px; padding: 2px 5px; }
+      .top-actions .btn { font-size: 11px; padding: 3px 8px; }
 
-      .main { flex-direction: column; height: calc(100vh - 52px); }
+      /* Vertical stack: canvas on top, panel drawer on bottom */
+      .main { flex-direction: column; height: calc(100dvh - 48px); }
       .left { flex: 1 1 0; min-height: 0; }
 
+      /* Toolbar: horizontal scroll, no wrap */
       .toolbar {
         border-radius: 0;
-        flex-wrap: nowrap;
-        overflow-x: auto;
-        overflow-y: hidden;
-        justify-content: flex-start;
-        padding: 6px 12px;
+        padding: 5px 10px;
         gap: 4px;
-        scrollbar-width: none;
+        justify-content: flex-start;
       }
-      .toolbar::-webkit-scrollbar { display: none; }
       .tool-group { flex-wrap: nowrap; }
       .tool-sep { display: none; }
-      .toolbar .btn-soft { font-size: 11px; padding: 3px 8px; height: 26px; }
+      .toolbar .btn-soft { font-size: 11px; padding: 3px 7px; height: 26px; }
       .z { min-width: 36px; font-size: 11px; }
 
-      .canvas-scroll { padding: 12px; }
-      .canvas-wrap { padding: 8px; }
+      .canvas-scroll { padding: 10px; }
+      .canvas-wrap { padding: 6px; }
 
-      /* bottom drawer */
+      /* Bottom drawer panel */
       .right {
         width: 100%;
-        height: 42vh;
-        max-height: 42vh;
+        height: 44vh;
+        max-height: 44vh;
+        min-height: 120px;
         flex-shrink: 0;
         border-left: none;
         border-top: 1px solid var(--border-medium);
-        box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.4);
+        box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.35);
       }
 
-      /* Drag handle indicator */
+      /* Drag handle */
       .side-head {
-        padding: 8px 16px 10px;
+        padding: 6px 14px 8px;
         cursor: ns-resize;
         user-select: none;
         touch-action: none;
-        background: rgba(0,0,0,0.1);
+        background: rgba(0,0,0,0.06);
       }
       .side-head::before {
         content: '';
         display: block;
-        width: 38px; height: 4px;
+        width: 36px; height: 4px;
         background: #b8cfe4;
         border-radius: 2px;
-        margin: 0 auto 6px;
+        margin: 0 auto 5px;
       }
-      .side-head h5 { font-size: 13px; }
+      .side-head h5 { font-size: 12px; margin-bottom: 0; }
       .side-head small { display: none; }
 
-      /* tabs tighter on mobile */
-      .panel-tab { padding: 7px 8px 6px; font-size: 10.5px; min-width: 60px; }
+      /* Tabs: shrink to fit 6 items at any mobile width */
+      .panel-tabs { padding: 3px; gap: 1px; }
+      .panel-tab { padding: 6px 2px 5px; font-size: 10px; min-width: 0; letter-spacing: -0.02em; }
+      /* Hide icon text on very small screens, keep icon */
+      .panel-tab i { display: inline; }
 
-      /* foot compact */
-      .foot { padding: 8px 12px; }
+      /* Compact form rows in panel */
+      .rowx { grid-template-columns: 62px 1fr 1fr; gap: 5px; margin-bottom: 8px; }
+      .cardx { padding: 10px 10px; margin-bottom: 10px; }
+      .side-body { padding: 10px 10px; }
+
+      /* Footer */
+      .foot { padding: 6px 10px; }
       .workspace-note { display: none; }
-      .status { margin-top: 4px; padding: 5px 8px; font-size: 11px; }
+      .status { margin-top: 3px; padding: 4px 8px; font-size: 11px; min-height: 28px; }
+    }
+
+    /* ═══════════════════════════════════════════
+       MOBILE LANDSCAPE — height ≤ 500px
+       Prevents drawer from collapsing canvas to nothing
+       ═══════════════════════════════════════════ */
+    @media (max-width: 900px) and (max-height: 500px) {
+      .main { flex-direction: row; height: calc(100dvh - 48px); }
+      .right {
+        width: 280px;
+        height: auto;
+        max-height: none;
+        border-left: 1px solid var(--border-medium);
+        border-top: none;
+        box-shadow: var(--shadow-md);
+      }
+      .side-head { display: none; } /* reclaim vertical space in landscape */
     }
 
     /* ═══════════════════════════════════════════
        VERY SMALL PHONES  ≤ 400px
     ═══════════════════════════════════════════ */
+    /* ═══════════════════════════════════════════
+       VERY SMALL PHONES — ≤ 400px
+       ═══════════════════════════════════════════ */
     @media (max-width: 400px) {
-      .top-actions .btn { font-size: 10px; padding: 3px 7px; }
-      .mini-actions .btn { font-size: 10px; padding: 3px 6px; }
-      .cardx { padding: 8px 9px; }
-      .rowx { grid-template-columns: 54px 1fr 1fr; gap: 5px; }
+      .top { padding: 0 8px; }
+      .top-title strong { font-size: 12px; }
+      .top-actions .btn { font-size: 10px; padding: 2px 6px; }
+      .top-actions .btn i { margin-right: 0 !important; } /* icon only */
+      .mini-actions .btn { font-size: 10px; padding: 3px 5px; }
+      .cardx { padding: 8px; }
+      .rowx { grid-template-columns: 50px 1fr 1fr; gap: 4px; }
+      /* Collapse panel tabs: icon only on ≤400px */
+      .panel-tab { font-size: 0; padding: 7px 4px; } /* hides text, keeps icon */
+      .panel-tab i { font-size: 12px; display: inline !important; }
     }
 
     /* ═══════════════════════════════════════════
@@ -643,7 +690,9 @@
       <strong><i class="fa-solid fa-wand-magic-sparkles me-2 text-indigo"></i>Visual Editor: {{ template.school_name }} <span class="badge bg-secondary font-monospace" style="font-size: 11px; vertical-align: middle;">{{ editor_side|upper }} SIDE</span></strong>
       <small>Canvas workspace &mdash; drag and drop elements, customize layouts, manage shapes &amp; layers</small>
     </div>
-    <div class="top-actions">
+      <button class="btn btn-outline-light btn-sm" id="themeToggleBtn" onclick="toggleTheme()" title="Toggle Dark/Light Mode">
+        <i class="fa-solid fa-moon" id="themeToggleIcon"></i>
+      </button>
       <a href="{{ url_for('editor.template_editor', template_id=template.id, side='front') }}"
          class="btn btn-sm {{ 'btn-primary' if editor_side == 'front' else 'btn-outline-light' }}"><i class="fa-solid fa-image me-1"></i> Front</a>
       {% if template.is_double_sided %}
@@ -883,6 +932,10 @@
                 <label>Height</label><input id="selectedFieldLineHeight" class="form-control form-control-sm" type="number" min="0.5" max="5" step="0.05" disabled>
                 <label>Spacing</label><input id="selectedFieldCharSpacing" class="form-control form-control-sm" type="number" min="-500" max="1000" disabled>
               </div>
+              <div class="rowx" style="margin-top:8px">
+                <label>Font List</label>
+                <select id="selectedFieldFontFamily" class="form-select form-select-sm" disabled style="grid-column: 2 / span 2"></select>
+              </div>
               <button class="btn btn-primary btn-sm w-100 mt-2" id="applySelectedFieldStyleBtn" onclick="applySelectedFieldTypography()" disabled>Apply To Selected Field(s)</button>
             </div>
             <div id="fieldList"></div>
@@ -959,6 +1012,15 @@
                   <option value="Playfair Display">Playfair Display</option>
                   <option value="Poppins">Poppins</option>
                   <option value="Lora">Lora</option>
+                </select>
+              </div>
+              <div class="rowx" id="selTextAlignRow" style="display:none; margin-top:8px">
+                <label>Align</label>
+                <select id="selTextAlign" class="form-select form-select-sm" style="grid-column: 2 / span 2">
+                  <option value="left">Left</option>
+                  <option value="center">Center</option>
+                  <option value="right">Right</option>
+                  <option value="justify">Justify</option>
                 </select>
               </div>
               <div class="rowx" id="selSpacingRow" style="display:none; margin-top:8px">
@@ -1057,14 +1119,32 @@
     const TEMPLATE_ID = {{ template_id }};
     const EDITOR_SIDE = "{{ editor_side }}";
     const CARD_ORIENTATION = "{{ template.card_orientation or 'landscape' }}";
-          // Auto dark mode based on device preference
-          (function() {
-              const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-              if (prefersDark) {
-                  document.body.classList.add('dark');
-                  document.body.setAttribute('data-bs-theme', 'dark');
-              }
-          })();
+    // Dark mode initialization and toggle
+    function initTheme() {
+      const savedTheme = localStorage.getItem('theme');
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      const isDark = savedTheme === 'dark' || (!savedTheme && prefersDark);
+      applyTheme(isDark);
+    }
+    function applyTheme(isDark) {
+      if (isDark) {
+        document.body.classList.add('dark');
+        document.body.setAttribute('data-bs-theme', 'dark');
+      } else {
+        document.body.classList.remove('dark');
+        document.body.removeAttribute('data-bs-theme');
+      }
+      const icon = document.getElementById('themeToggleIcon');
+      if (icon) {
+        icon.className = isDark ? 'fa-solid fa-sun' : 'fa-solid fa-moon';
+      }
+    }
+    function toggleTheme() {
+      const isDark = !document.body.classList.contains('dark');
+      applyTheme(isDark);
+      try { localStorage.setItem('theme', isDark ? 'dark' : 'light'); } catch(e) {}
+    }
+    initTheme();
     const CARD_W = {{ template.card_width or 1015 }};
     const CARD_H = {{ template.card_height or 661 }};
     const SHEET_W = {{ template.sheet_width or 2480 }};
@@ -1079,6 +1159,7 @@
     const initLanguage = "{{ (editor_language or 'english')|lower }}";
     const initDir = "{{ (editor_text_direction or 'ltr')|lower }}";
     const dynamicFieldDefs = {{ (editor_dynamic_fields or []) | tojson }};
+    const availableFontFiles = {{ (available_fonts or []) | tojson }};
 
     const canvas = new fabric.Canvas("editorCanvas", {
       preserveObjectStacking: true,
@@ -1109,6 +1190,8 @@
       language: initLanguage || "english",
       direction: initDir === "rtl" ? "rtl" : "ltr",
       font: {
+        font_bold: initFont.font_bold || "arialbd.ttf",
+        font_regular: initFont.font_regular || "arial.ttf",
         label_x: parseInt(initFont.label_x ?? 50, 10),
         value_x: parseInt(initFont.value_x ?? 280, 10),
         label_font_size: parseInt(initFont.label_font_size ?? 22, 10),
@@ -1546,6 +1629,7 @@
             x: parseInt(l.x ?? legacyLabelX, 10),
             y: labelY,
             font_size: parseInt(l.font_size ?? state.font.label_font_size, 10),
+            font_family: l.font_family || "",
             visible: labelVisible,
             color: _normalizeHex(l.color, DEFAULT_LABEL_FILL),
             grow: normalizeGrow(l.grow, state.direction),
@@ -1558,6 +1642,7 @@
             x: parseInt(v.x ?? legacyValueX, 10),
             y: valueY,
             font_size: parseInt(v.font_size ?? state.font.value_font_size, 10),
+            font_family: v.font_family || "",
             visible: valueVisible,
             color: _normalizeHex(v.color, DEFAULT_VALUE_FILL),
             grow: normalizeGrow(v.grow, state.direction),
@@ -1570,6 +1655,7 @@
             x: parseInt(c.x ?? legacyColonX, 10),
             y: parseInt(hasManualPartY(c) ? c.y : legacyColonY, 10),
             font_size: parseInt(c.font_size ?? l.font_size ?? state.font.label_font_size, 10),
+            font_family: c.font_family || l.font_family || "",
             visible: (("visible" in c) ? (c.visible !== false) : (hasExplicitFieldLayout(k, "colon") ? true : defaultVisibilityFor(k, "colon"))) && labelVisible && !!state.font.show_label_colon && !!state.font.align_label_colon,
             color: _normalizeHex(c.color, _fontColorToHex(state.font.colon_font_color, DEFAULT_LABEL_FILL)),
             grow: (typeof c.grow === "string" && GROW_MODES.includes(c.grow.trim().toLowerCase()))
@@ -1589,12 +1675,13 @@
       if (map[key]) return map[key];
       const fallbackY = state.font.start_y + idx * state.font.line_height;
       return {
-        label: { x: state.font.label_x, y: fallbackY, font_size: state.font.label_font_size, visible: defaultVisibilityFor(key, "label"), color: DEFAULT_LABEL_FILL, grow: normalizeGrow(null, state.direction) },
-        value: { x: state.font.value_x, y: fallbackY, font_size: state.font.value_font_size, visible: defaultVisibilityFor(key, "value"), color: DEFAULT_VALUE_FILL, grow: normalizeGrow(null, state.direction) },
+        label: { x: state.font.label_x, y: fallbackY, font_size: state.font.label_font_size, font_family: "", visible: defaultVisibilityFor(key, "label"), color: DEFAULT_LABEL_FILL, grow: normalizeGrow(null, state.direction) },
+        value: { x: state.font.value_x, y: fallbackY, font_size: state.font.value_font_size, font_family: "", visible: defaultVisibilityFor(key, "value"), color: DEFAULT_VALUE_FILL, grow: normalizeGrow(null, state.direction) },
         colon: {
           x: state.direction === "rtl" ? (state.font.value_x + Math.max(0, parseInt(state.font.label_colon_gap || 8, 10) || 0)) : (state.font.value_x - Math.max(0, parseInt(state.font.label_colon_gap || 8, 10) || 0)),
           y: fallbackY,
           font_size: state.font.label_font_size,
+          font_family: "",
           visible: defaultVisibilityFor(key, "colon") && !!state.font.show_label_colon && !!state.font.align_label_colon,
           color: _fontColorToHex(state.font.colon_font_color, DEFAULT_LABEL_FILL),
           grow: state.direction === "rtl" ? "left" : "right"
@@ -1637,6 +1724,7 @@
         delete trimmed.y;
         delete trimmed.manual_y;
         delete trimmed.font_size;
+        delete trimmed.font_family;
         delete trimmed.grow;
         if (Object.keys(trimmed).length) fieldState[part] = trimmed;
         else delete fieldState[part];
@@ -1714,6 +1802,10 @@
       if (fontSize !== Math.max(8, Math.round(defaults.font_size || 0))) partState.font_size = fontSize;
       else delete partState.font_size;
 
+      const fontFamily = String(obj.fieldFontFamily || "").trim();
+      if (fontFamily && fontFamily !== String(defaults.font_family || "")) partState.font_family = fontFamily;
+      else delete partState.font_family;
+
       pruneFieldPartLayout(key, obj.part);
       syncFieldColon(key);
     }
@@ -1736,6 +1828,11 @@
       if (options.lineHeight !== undefined && options.lineHeight !== "") {
         next.lineHeight = Math.max(0.5, parseFloat(options.lineHeight) || 1.16);
       }
+      if (options.fontFamily !== undefined) {
+        const fontFamily = String(options.fontFamily || "").trim();
+        next.fieldFontFamily = fontFamily;
+        next.fontFamily = canvasFontFamilyForField(fontFamily, obj.part);
+      }
       if (!Object.keys(next).length) return false;
 
       obj.set(next);
@@ -1746,6 +1843,10 @@
       if ("charSpacing" in next) partState.char_spacing = next.charSpacing;
       if ("lineHeight" in next) partState.line_height = next.lineHeight;
       if ("fontSize" in next) partState.font_size = next.fontSize;
+      if ("fieldFontFamily" in next) {
+        if (next.fieldFontFamily) partState.font_family = next.fieldFontFamily;
+        else delete partState.font_family;
+      }
       pruneFieldPartLayout(obj.fieldKey, obj.part);
       syncFieldColon(obj.fieldKey);
       return true;
@@ -1768,8 +1869,9 @@
       const sizeInput = document.getElementById("selectedFieldFontSize");
       const heightInput = document.getElementById("selectedFieldLineHeight");
       const spacingInput = document.getElementById("selectedFieldCharSpacing");
+      const familyInput = document.getElementById("selectedFieldFontFamily");
       const applyBtn = document.getElementById("applySelectedFieldStyleBtn");
-      if (!summary || !sizeInput || !heightInput || !spacingInput || !applyBtn) return;
+      if (!summary || !sizeInput || !heightInput || !spacingInput || !familyInput || !applyBtn) return;
 
       const disabled = fields.length === 0;
       summary.value = disabled
@@ -1778,10 +1880,12 @@
       sizeInput.disabled = disabled;
       heightInput.disabled = disabled;
       spacingInput.disabled = disabled;
+      familyInput.disabled = disabled;
       applyBtn.disabled = disabled;
       sizeInput.value = disabled ? "" : commonSelectedValue(fields, (obj) => Math.round(obj.fontSize || 0));
       heightInput.value = disabled ? "" : commonSelectedValue(fields, (obj) => parseFloat(obj.lineHeight || 1.16));
       spacingInput.value = disabled ? "" : commonSelectedValue(fields, (obj) => Math.round(obj.charSpacing || 0));
+      populateSelectedFieldFontSelect(familyInput, disabled ? "" : commonSelectedValue(fields, (obj) => obj.fieldFontFamily || ""));
     }
 
     function applySelectedFieldTypography() {
@@ -1790,19 +1894,27 @@
         status("Select one or more field parts first.", true);
         return;
       }
+      const selectedFontFamily = document.getElementById("selectedFieldFontFamily").value;
       const options = {
         fontSize: document.getElementById("selectedFieldFontSize").value,
         lineHeight: document.getElementById("selectedFieldLineHeight").value,
         charSpacing: document.getElementById("selectedFieldCharSpacing").value
       };
-      let changed = 0;
-      fields.forEach((obj) => {
-        if (applyFieldTypographyToObject(obj, options)) changed += 1;
-      });
-      refreshFieldFlow();
-      updateSelectedFieldPanel();
-      recordHistory("selected-field-typography");
-      status(`Updated ${changed} selected field part(s).`);
+      if (selectedFontFamily !== "__KEEP__") {
+        options.fontFamily = selectedFontFamily;
+      }
+      const apply = () => {
+        let changed = 0;
+        fields.forEach((obj) => {
+          if (applyFieldTypographyToObject(obj, options)) changed += 1;
+        });
+        refreshFieldFlow();
+        updateSelectedFieldPanel();
+        recordHistory("selected-field-typography");
+        status(`Updated ${changed} selected field part(s).`);
+      };
+      if (options.fontFamily) ensureLocalFontOnCanvas(options.fontFamily, apply);
+      else apply();
     }
 
     function selectFieldParts(mode) {
@@ -1995,6 +2107,14 @@
             <span style="font-size:11px;color:var(--text-secondary);font-weight:500;width:45px;text-align:right;">V.Size</span>
             <input type="number" id="vfs_${k}" value="${cfg.value.font_size}" min="8" max="200" class="form-control form-control-sm py-1" style="width:65px;">
           </div>
+          <div class="field-font-row d-flex gap-2 align-items-center mb-2">
+            <span style="font-size:11px;color:var(--text-secondary);font-weight:500;width:45px;">L.Font</span>
+            <select id="lff_${k}" class="form-select form-select-sm py-1" style="min-width:0;flex:1;">${fieldFontOptionsHtml(cfg.label.font_family, `Global ${state.font.font_bold || "Bold"}`)}</select>
+          </div>
+          <div class="field-font-row d-flex gap-2 align-items-center mb-2">
+            <span style="font-size:11px;color:var(--text-secondary);font-weight:500;width:45px;">V.Font</span>
+            <select id="vff_${k}" class="form-select form-select-sm py-1" style="min-width:0;flex:1;">${fieldFontOptionsHtml(cfg.value.font_family, `Global ${state.font.font_regular || "Regular"}`)}</select>
+          </div>
           <div class="field-autofit-row d-flex gap-2 align-items-center mb-2">
             <div class="form-check"><input class="form-check-input" type="checkbox" id="af_${k}" ${cfg.value.auto_fit ? "checked":""}><label class="form-check-label" for="af_${k}">Auto-Fit Val</label></div>
             <span style="font-size:11px;color:var(--text-secondary);font-weight:500;margin-left:auto;">Max W</span>
@@ -2043,6 +2163,8 @@
         row.querySelector(`#vx_${k}`).addEventListener("change", (e)=>setFieldX(k,"value",e.target.value));
         row.querySelector(`#lfs_${k}`).addEventListener("change", (e)=>setFieldFontSize(k,"label",e.target.value));
         row.querySelector(`#vfs_${k}`).addEventListener("change", (e)=>setFieldFontSize(k,"value",e.target.value));
+        row.querySelector(`#lff_${k}`).addEventListener("change", (e)=>setFieldFontFamily(k,"label",e.target.value));
+        row.querySelector(`#vff_${k}`).addEventListener("change", (e)=>setFieldFontFamily(k,"value",e.target.value));
         row.querySelector(`#af_${k}`).addEventListener("change", (e)=>setFieldAutoFit(k, e.target.checked));
         row.querySelector(`#afw_${k}`).addEventListener("change", (e)=>setFieldAutoFitWidth(k, e.target.value));
         row.querySelector(`#ls_${k}`).addEventListener("change", (e)=>setFieldCharSpacing(k, "label", e.target.value));
@@ -2093,6 +2215,24 @@
       else ensureFieldPartState(key, part).line_height = lh;
       refreshFieldFlow(key, part);
       recordHistory("field-line-height");
+    }
+
+    function setFieldFontFamily(key, part, fontFile) {
+      const fontFamily = String(fontFile || "").trim();
+      const obj = fieldObjs[key] && fieldObjs[key][part];
+      const apply = () => {
+        if (obj) applyFieldTypographyToObject(obj, { fontFamily });
+        else {
+          const partState = ensureFieldPartState(key, part);
+          if (fontFamily) partState.font_family = fontFamily;
+          else delete partState.font_family;
+          pruneFieldPartLayout(key, part);
+        }
+        refreshFieldFlow(key, part);
+        recordHistory("field-font-family");
+        status(`${key} ${part} font updated`);
+      };
+      ensureLocalFontOnCanvas(fontFamily || fieldFontFallback(part), apply);
     }
 
     function setVisibility(key, part, vis) {
@@ -2251,6 +2391,101 @@
       });
     }
 
+    function escapeHtmlText(value) {
+      return String(value ?? "").replace(/[&<>"']/g, (ch) => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;"
+      }[ch]));
+    }
+
+    function fieldFontFallback(part) {
+      return part === "value" ? (state.font.font_regular || "arial.ttf") : (state.font.font_bold || "arialbd.ttf");
+    }
+
+    function fieldFontOptionsHtml(selected, fallbackLabel = "Global Default") {
+      const selectedValue = String(selected || "");
+      const globalSelected = selectedValue === "";
+      const rows = [`<option value="" ${globalSelected ? "selected" : ""}>${escapeHtmlText(fallbackLabel)}</option>`];
+      availableFontFiles.forEach((fontFile) => {
+        const value = String(fontFile || "");
+        if (!value) return;
+        rows.push(`<option value="${escapeHtmlText(value)}" ${value === selectedValue ? "selected" : ""}>${escapeHtmlText(value)}</option>`);
+      });
+      return rows.join("");
+    }
+
+    function selectedFieldFontOptionsHtml(selected) {
+      const selectedValue = String(selected || "");
+      const rows = [
+        `<option value="__KEEP__" ${selectedValue === "" ? "selected" : ""}>Keep current fonts</option>`,
+        `<option value="">Use global default font</option>`
+      ];
+      availableFontFiles.forEach((fontFile) => {
+        const value = String(fontFile || "");
+        if (!value) return;
+        rows.push(`<option value="${escapeHtmlText(value)}" ${value === selectedValue ? "selected" : ""}>${escapeHtmlText(value)}</option>`);
+      });
+      return rows.join("");
+    }
+
+    function populateFieldFontSelect(selectEl, selected, fallbackLabel) {
+      if (!selectEl) return;
+      selectEl.innerHTML = fieldFontOptionsHtml(selected, fallbackLabel);
+    }
+
+    function populateSelectedFieldFontSelect(selectEl, selected) {
+      if (!selectEl) return;
+      selectEl.innerHTML = selectedFieldFontOptionsHtml(selected);
+    }
+
+    // Keep uploaded font files separate from browser/system font names.  A
+    // document.fonts.check() call can report a fallback font as available,
+    // which made a selected field look unchanged in the editor.
+    const localFontLoadPromises = new Map();
+
+    function localCanvasFontFamily(fontFile) {
+      const file = String(fontFile || "").trim();
+      if (!file) return "Arial";
+      return `uploaded_font_${file.replace(/[^a-z0-9]+/gi, "_")}`;
+    }
+
+    function ensureLocalFontOnCanvas(fontFile, onComplete) {
+      const file = String(fontFile || "").trim();
+      if (!file || !document.fonts || typeof FontFace === "undefined") {
+        if (onComplete) onComplete(localCanvasFontFamily(file));
+        return;
+      }
+
+      let loadPromise = localFontLoadPromises.get(file);
+      if (!loadPromise) {
+        const family = localCanvasFontFamily(file);
+        const url = `/static/fonts/${encodeURIComponent(file)}`;
+        loadPromise = new FontFace(family, `url("${url}")`).load()
+          .then((loaded) => {
+            document.fonts.add(loaded);
+            return family;
+          })
+          .catch((error) => {
+            localFontLoadPromises.delete(file);
+            console.warn(`Unable to load uploaded font: ${file}`, error);
+            return "Arial";
+          });
+        localFontLoadPromises.set(file, loadPromise);
+      }
+
+      loadPromise.then((family) => {
+        if (onComplete) onComplete(family);
+      });
+    }
+
+    function canvasFontFamilyForField(fontFile, part) {
+      const file = String(fontFile || fieldFontFallback(part) || "").trim();
+      return file ? localCanvasFontFamily(file) : "Arial";
+    }
+
     function createCustomObject(def, onReady) {
       const type = String(def.type || "").toLowerCase();
       if (type === "image") {
@@ -2362,8 +2597,10 @@
         next.rx = Math.round(obj.rx || 40);
         next.ry = Math.round(obj.ry || 40);
       } else if (obj.customType === "line") {
-        next.x2 = Math.round((obj.left || 0) + (obj.x2 || 120));
-        next.y2 = Math.round((obj.top || 0) + (obj.y2 || 0));
+        // Bug fix: x2/y2 on fabric.Line are relative to the object origin.
+        // Do NOT add obj.left/obj.top — that was double-counting the position.
+        next.x2 = Math.round(obj.x2 || 120);
+        next.y2 = Math.round(obj.y2 || 0);
       }
       state.layout.objects[index] = next;
       customObjs[obj.objectId] = obj;
@@ -2489,28 +2726,31 @@
     }
 
     function flattenGroupsAndSerialize() {
-      const groups = canvas.getObjects().filter(o => o && o.type === "group");
-      const groupData = [];
-      groups.forEach((g) => {
-        const children = g.getObjects();
-        const ids = children.map(c => c.objectId);
-        g.toActiveSelection();
-        canvas.discardActiveObject();
-        groupData.push(ids);
-      });
+      // Bug fix: previously ungrouped objects were re-grouped but never added back
+      // to the canvas, causing groups to vanish after saving. Fix: persist state
+      // from all canvas objects directly without destructuring and re-constructing groups.
       canvas.getObjects().forEach((obj) => {
-        if (obj && obj.dataType === "custom") {
+        if (!obj) return;
+        if (obj.type === "group") {
+          // Persist all children of a group in their absolute canvas positions
+          obj.getObjects().forEach((child) => {
+            if (child && child.dataType === "custom") {
+              // Temporarily transform child coords to canvas-absolute before persisting
+              const absLeft = obj.left + child.left + (obj.width / 2);
+              const absTop = obj.top + child.top + (obj.height / 2);
+              const savedLeft = child.left;
+              const savedTop = child.top;
+              child.left = absLeft;
+              child.top = absTop;
+              persistCustomObject(child);
+              child.left = savedLeft;
+              child.top = savedTop;
+            }
+          });
+        } else if (obj.dataType === "custom") {
           persistCustomObject(obj);
         }
       });
-      groupData.forEach((ids) => {
-        const objsToGroup = ids.map(id => customObjs[id]).filter(Boolean);
-        if (objsToGroup.length) {
-          const sel = new fabric.ActiveSelection(objsToGroup, { canvas });
-          sel.toGroup();
-        }
-      });
-      canvas.discardActiveObject();
       canvas.requestRenderAll();
     }
 
@@ -2759,11 +2999,13 @@
 
         if (obj.customType === "text") {
           const fontName = document.getElementById("selFontFamily").value;
+          const textAlignVal = document.getElementById("selTextAlign") ? document.getElementById("selTextAlign").value : "left";
           loadFontOnCanvas(fontName, () => {
             obj.set({
               width: Math.max(40, w || obj.width || 40),
               fontSize: Math.max(8, fontSize || obj.fontSize || 8),
-              fontFamily: fontName
+              fontFamily: fontName,
+              textAlign: textAlignVal
             });
             persistObjectState(obj);
             canvas.requestRenderAll();
@@ -2814,17 +3056,29 @@
 
     function drawCustomObjects() {
       clearCustomObjects();
-      state.layout.objects.forEach((def) => {
-        createCustomObject(def, (obj) => {
-          if (!obj) return;
-          customObjs[def.id] = obj;
-          canvas.add(obj);
+      // Track async image loads so we only do one final render after all complete
+      let pending = 0;
+      const onDone = () => {
+        pending -= 1;
+        if (pending <= 0) {
           renderLayersList();
           canvas.requestRenderAll();
+        }
+      };
+      state.layout.objects.forEach((def) => {
+        pending += 1;
+        createCustomObject(def, (obj) => {
+          if (!obj) { onDone(); return; }
+          customObjs[def.id] = obj;
+          canvas.add(obj);
+          onDone();
         });
       });
-      renderLayersList();
-      canvas.requestRenderAll();
+      // If no objects queued at all, still refresh once
+      if (pending === 0) {
+        renderLayersList();
+        canvas.requestRenderAll();
+      }
     }
 
     function addCustomObject(type) {
@@ -3088,6 +3342,7 @@
           left: 0,
           top: cfg.label.y,
           fontSize: cfg.label.font_size,
+          fontFamily: canvasFontFamilyForField(cfg.label.font_family, "label"),
           charSpacing: cfg.label.char_spacing || 0,
           lineHeight: cfg.label.line_height || 1.16,
           fontWeight: "700",
@@ -3097,6 +3352,7 @@
           borderScaleFactor: 2,
           lockRotation: true,
           fill: cfg.label.color,
+          fieldFontFamily: cfg.label.font_family || "",
           fieldKey: k,
           part: "label",
           dataType: "field",
@@ -3107,6 +3363,7 @@
           left: 0,
           top: cfg.value.y,
           fontSize: cfg.value.font_size,
+          fontFamily: canvasFontFamilyForField(cfg.value.font_family, "value"),
           charSpacing: cfg.value.char_spacing || 0,
           lineHeight: cfg.value.line_height || 1.16,
           padding: 8,
@@ -3115,6 +3372,7 @@
           borderScaleFactor: 2,
           lockRotation: true,
           fill: cfg.value.color,
+          fieldFontFamily: cfg.value.font_family || "",
           fieldKey: k,
           part: "value",
           dataType: "field",
@@ -3130,9 +3388,10 @@
         let colonObj = null;
         if (alignColon) {
           colonObj = new fabric.Text(":", {
-            left: 0,
+            left: leftFromAnchor(cfg.colon.x, 0, state.direction, cfg.colon.grow),
             top: cfg.colon.y,
             fontSize: cfg.colon.font_size,
+            fontFamily: canvasFontFamilyForField(cfg.colon.font_family || cfg.label.font_family, "colon"),
             fontWeight: "700",
             padding: 8,
             cornerSize: 12,
@@ -3140,6 +3399,7 @@
             borderScaleFactor: 2,
             lockRotation: true,
             fill: cfg.colon.color || colonColor,
+            fieldFontFamily: cfg.colon.font_family || cfg.label.font_family || "",
             fieldKey: k,
             part: "colon",
             dataType: "field",
@@ -3283,7 +3543,10 @@
       const autoFitInput = document.getElementById("selAutoFit");
       const autoFitWidthInput = document.getElementById("selAutoFitWidth");
 
+      const textAlignRow = document.getElementById("selTextAlignRow");
+
       if (fontFamilyRow) fontFamilyRow.style.display = "none";
+      if (textAlignRow) textAlignRow.style.display = "none";
       if (spacingRow) spacingRow.style.display = "none";
       if (autoFitRow) autoFitRow.style.display = "none";
 
@@ -3358,6 +3621,14 @@
         nameInput.value = "";
         lockInput.disabled = true;
         lockInput.checked = false;
+        if (fontFamilyRow) {
+          fontFamilyRow.style.display = "grid";
+          populateFieldFontSelect(
+            document.getElementById("selFontFamily"),
+            selected.fieldFontFamily || "",
+            `Global ${fieldFontFallback(part)}`
+          );
+        }
         
         syncSidebarInputsFor(key);
         [cornerRadiusRow, flipRow, shadowSection].forEach(el => el.style.display = "none");
@@ -3390,6 +3661,11 @@
           if (fontFamilyRow) {
             fontFamilyRow.style.display = "grid";
             document.getElementById("selFontFamily").value = selected.fontFamily || "Arial";
+          }
+          const selTextAlignRow = document.getElementById("selTextAlignRow");
+          if (selTextAlignRow) {
+            selTextAlignRow.style.display = "grid";
+            document.getElementById("selTextAlign").value = selected.textAlign || "left";
           }
           if (spacingRow) {
             spacingRow.style.display = "grid";
@@ -3539,6 +3815,8 @@
           parts.label.set({
             top: cfg.label.y,
             fontSize: cfg.label.font_size,
+            fontFamily: canvasFontFamilyForField(cfg.label.font_family, "label"),
+            fieldFontFamily: cfg.label.font_family || "",
             charSpacing: cfg.label.char_spacing || 0,
             lineHeight: cfg.label.line_height || 1.16,
             fill: labelColor,
@@ -3558,6 +3836,8 @@
           parts.value.set({
             top: cfg.value.y,
             fontSize: cfg.value.font_size,
+            fontFamily: canvasFontFamilyForField(cfg.value.font_family, "value"),
+            fieldFontFamily: cfg.value.font_family || "",
             charSpacing: cfg.value.char_spacing || 0,
             lineHeight: cfg.value.line_height || 1.16,
             fill: valueColor,
@@ -3577,6 +3857,8 @@
           parts.colon.set({
             top: cfg.colon.y,
             fontSize: cfg.colon.font_size,
+            fontFamily: canvasFontFamilyForField(cfg.colon.font_family || cfg.label.font_family, "colon"),
+            fieldFontFamily: cfg.colon.font_family || cfg.label.font_family || "",
             charSpacing: cfg.colon.char_spacing || 0,
             lineHeight: cfg.colon.line_height || 1.16,
             fill: colonColor,
@@ -4329,9 +4611,12 @@
     function init() {
       canvas.setWidth(CARD_W); canvas.setHeight(CARD_H);
       fabric.Image.fromURL(BG_IMAGE_URL, (img) => {
-        if (!img) { status("Template image load failed.", true); return; }
-        img.scaleToWidth(CARD_W); img.scaleToHeight(CARD_H);
-        canvas.setBackgroundImage(img, canvas.renderAll.bind(canvas));
+        if (img) {
+          img.scaleToWidth(CARD_W); img.scaleToHeight(CARD_H);
+          canvas.setBackgroundImage(img, canvas.renderAll.bind(canvas));
+        } else {
+          status("Template image load failed. Drawing elements without background.", true);
+        }
 
         bleedRect = new fabric.Rect({ left:8, top:8, width:CARD_W-16, height:CARD_H-16, fill:"rgba(0,0,0,0)", stroke:"rgba(245,60,90,0.8)", strokeDashArray:[8,6], selectable:false, evented:false });
         safeRect = new fabric.Rect({ left:24, top:24, width:CARD_W-48, height:CARD_H-48, fill:"rgba(0,0,0,0)", stroke:"rgba(0,145,110,0.8)", strokeDashArray:[6,6], selectable:false, evented:false });
@@ -4420,14 +4705,10 @@
 
         canvas.on("object:moving", (e) => {
           const o = e.target; if (!o) return;
-          
+
+          // Bug fix: do NOT force-unlock locked objects while moving.
+          // Only persist state; locking flags are user-controlled via the lock UI.
           if (o.dataType === "custom") {
-            o.set({
-              lockMovementX: false,
-              lockMovementY: false,
-              lockScalingX: false,
-              lockScalingY: false
-            });
             persistCustomObject(o);
           }
 
@@ -4669,14 +4950,50 @@
       });
       document.getElementById("selFontFamily").addEventListener("change", (e) => {
         const o = canvas.getActiveObject();
-        if (!o || o.dataType !== "custom" || o.customType !== "text") return;
         const fontName = e.target.value;
+        if (!o) return;
+        if (o.dataType === "field") {
+          setFieldFontFamily(o.fieldKey, o.part, fontName);
+          return;
+        }
+        if (o.dataType !== "custom" || o.customType !== "text") return;
         loadFontOnCanvas(fontName, () => {
           o.set("fontFamily", fontName);
           persistCustomObject(o);
           canvas.requestRenderAll();
         });
       });
+      const selectedFieldFontFamilyEl = document.getElementById("selectedFieldFontFamily");
+      if (selectedFieldFontFamilyEl) {
+        selectedFieldFontFamilyEl.addEventListener("change", (e) => {
+          const fontName = e.target.value;
+          if (fontName === "__KEEP__") return;
+          const fields = selectedFieldObjects();
+          if (!fields.length) return;
+          const apply = () => {
+            fields.forEach((obj) => {
+              applyFieldTypographyToObject(obj, { fontFamily: fontName });
+            });
+            refreshFieldFlow();
+            updateSelectedFieldPanel();
+            recordHistory("selected-field-font-family");
+            status(`Updated font for ${fields.length} selected field part(s).`);
+          };
+          if (fontName) ensureLocalFontOnCanvas(fontName, apply);
+          else apply();
+        });
+      }
+      const selTextAlignEl = document.getElementById("selTextAlign");
+      if (selTextAlignEl) {
+        selTextAlignEl.addEventListener("change", (e) => {
+          const o = canvas.getActiveObject();
+          if (!o || o.dataType !== "custom" || o.customType !== "text") return;
+          o.set("textAlign", e.target.value);
+          persistCustomObject(o);
+          canvas.requestRenderAll();
+          recordHistory("text-align");
+        });
+      }
       document.getElementById("selCharSpacing").addEventListener("input", (e) => {
         const o = canvas.getActiveObject();
         if (!o || o.dataType !== "custom" || o.customType !== "text") return;

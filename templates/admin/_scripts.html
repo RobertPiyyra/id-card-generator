@@ -218,6 +218,12 @@
                 document.getElementById('colonFontColorBottom').value = colonGradColor;
                 document.getElementById('colonFontColorBottomValue').textContent = colonGradColor;
 
+                document.getElementById('enableTextHairline').checked = !!fontSettings.enable_text_hairline;
+                const hairlineColor = fontSettings.text_hairline_color ? rgbToHex(fontSettings.text_hairline_color) : '#000000';
+                document.getElementById('textHairlineColor').value = hairlineColor;
+                document.getElementById('textHairlineColorValue').textContent = hairlineColor;
+                document.getElementById('textHairlineWidth').value = fontSettings.text_hairline_width ?? 1;
+
                 toggleGradientFields();
 
                 document.getElementById('labelFontSize').value = fontSettings.label_font_size ?? 40;
@@ -452,6 +458,9 @@
                     value_font_color_bottom: hexToRgbArray(getStringValue('valueFontColorBottom', '#333333')),
                     enable_colon_gradient: document.getElementById('enableColonGradient') ? document.getElementById('enableColonGradient').checked : false,
                     colon_font_color_bottom: hexToRgbArray(getStringValue('colonFontColorBottom', '#333333')),
+                    enable_text_hairline: getBoolValue('enableTextHairline'),
+                    text_hairline_color: hexToRgbArray(getStringValue('textHairlineColor', '#000000')),
+                    text_hairline_width: getIntValue('textHairlineWidth', 1),
                     label_font_size: getIntValue('labelFontSize', 40),
                     value_font_size: getIntValue('valueFontSize', 36),
                     colon_font_size: getIntValue('colonFontSize', 40),
@@ -1571,6 +1580,32 @@
         setupColorPickerWithPresets('colonFontColor', 'colonFontColorValue', updateAdminPreview);
         setupColorPickerWithPresets('colonFontColorBottom', 'colonFontColorBottomValue', updateAdminPreview);
         setupColorPickerWithPresets('photoFrameColor', 'photoFrameColorValue', updateAdminPreview);
+        setupColorPickerWithPresets('textHairlineColor', 'textHairlineColorValue', updateAdminPreview);
+
+        // Keep the card preview in sync with every numeric typography and
+        // positioning setting. Previously these inputs were only sent after a
+        // separate preview action, which made size/position changes appear to
+        // have no effect.
+        let adminPreviewTimer = null;
+        function scheduleAdminPreview() {
+            clearTimeout(adminPreviewTimer);
+            adminPreviewTimer = setTimeout(updateAdminPreview, 220);
+        }
+
+        [
+            'labelFontSize', 'valueFontSize', 'colonFontSize',
+            'labelX', 'valueX', 'startY', 'lineHeight', 'labelColonGap',
+            'textCase', 'showLabelColon', 'alignLabelColon',
+            'enableTextHairline', 'textHairlineWidth'
+        ].forEach((id) => {
+            const control = document.getElementById(id);
+            if (!control) return;
+            control.addEventListener('input', scheduleAdminPreview);
+            control.addEventListener('change', scheduleAdminPreview);
+        });
+        document.querySelectorAll('input[name="address_max_lines"]').forEach((control) => {
+            control.addEventListener('change', scheduleAdminPreview);
+        });
 
         // Initialize QR code color pickers
         setupColorPickerWithPresets('qrFillColor', 'qrFillColorValue', updateQRPreview);
@@ -1697,6 +1732,9 @@
                 value_font_color_bottom: hexToRgbArray(document.getElementById('valueFontColorBottom') ? document.getElementById('valueFontColorBottom').value : '#333333'),
                 enable_colon_gradient: document.getElementById('enableColonGradient') ? document.getElementById('enableColonGradient').checked : false,
                 colon_font_color_bottom: hexToRgbArray(document.getElementById('colonFontColorBottom') ? document.getElementById('colonFontColorBottom').value : '#333333'),
+                enable_text_hairline: document.getElementById('enableTextHairline') ? document.getElementById('enableTextHairline').checked : false,
+                text_hairline_color: hexToRgbArray(document.getElementById('textHairlineColor') ? document.getElementById('textHairlineColor').value : '#000000'),
+                text_hairline_width: previewInt('textHairlineWidth', 1),
                 label_font_size: previewInt('labelFontSize', 40),
                 value_font_size: previewInt('valueFontSize', 36),
                 colon_font_size: previewInt('colonFontSize', 40),

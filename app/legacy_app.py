@@ -1985,6 +1985,7 @@ from app.services.face_service import (  # noqa: E402
     _crop_with_padding,
     _center_crop_box,
     _detect_face_crop_box,
+    process_face_crop_pil,
 )
 
 
@@ -3390,6 +3391,15 @@ def admin_preview_card():
             text_for_pick = sample_text if sample_text else " "
             return load_font_dynamic(requested_path, text_for_pick, 10**9, size, language=lang)
 
+        def layout_font_name(layout_item, part, fallback_name):
+            """Use a saved per-field premium font when it exists locally."""
+            font_name = os.path.basename(
+                str((layout_item or {}).get(f"{part}_font_family") or "").strip()
+            )
+            if font_name and os.path.isfile(os.path.join(FONTS_FOLDER, font_name)):
+                return font_name
+            return fallback_name
+
         try:
             L_COLOR = tuple(font_settings.get("label_font_color", [0,0,0]))
             V_COLOR = tuple(font_settings.get("value_font_color", [0,0,0]))
@@ -3406,6 +3416,8 @@ def admin_preview_card():
 
         enable_colon_gradient = bool(font_settings.get("enable_colon_gradient", False))
         colon_fill_bottom = tuple(font_settings.get("colon_font_color_bottom", [51, 51, 51]))
+        hairline_width = max(0, min(10, int(font_settings.get("text_hairline_width", 1) or 0))) if font_settings.get("enable_text_hairline", False) else 0
+        hairline_color = tuple(font_settings.get("text_hairline_color", [0, 0, 0]))
         
         # --- LANGUAGE LOGIC ---
         lang, direction = get_template_language_direction(template_id, side=side)
@@ -3479,7 +3491,8 @@ def admin_preview_card():
                         'val': sample_val,
                         'order': field.display_order
                     })
-            except Exception: pass
+            except Exception:
+                logger.exception("Unable to load dynamic form fields for admin preview")
 
         all_fields.sort(key=lambda x: int(x.get('order') or 0))
         
@@ -3529,7 +3542,10 @@ def admin_preview_card():
             colon_y_eff = layout_item.get("colon_y", label_y_eff)
             colon_x_eff = layout_item.get("colon_x")
             colon_grow_eff = layout_item.get("colon_grow")
-            l_font = load_safe_font(font_settings.get("font_bold", "arialbd.ttf"), label_font_size_eff, lang)
+            label_font_name = layout_font_name(layout_item, "label", font_settings.get("font_bold", "arialbd.ttf"))
+            value_font_name = layout_font_name(layout_item, "value", font_settings.get("font_regular", "arial.ttf"))
+            colon_font_name = layout_font_name(layout_item, "colon", label_font_name)
+            l_font = load_safe_font(label_font_name, label_font_size_eff, lang)
 
             label_text_final, colon_text_final = split_label_and_colon(
                 display_label,
@@ -3553,14 +3569,14 @@ def admin_preview_card():
             if layout_item.get("label_auto_fit") and layout_item.get("label_max_width"):
                 max_w_lbl = float(layout_item["label_max_width"])
                 while label_font_size_eff > 6:
-                    temp_lbl_font = load_safe_font(font_settings.get("font_bold", "arialbd.ttf"), label_font_size_eff, lang, label_text_final)
+                    temp_lbl_font = load_safe_font(label_font_name, label_font_size_eff, lang, label_text_final)
                     w = measure_text_width_with_spacing_local(label_text_final, temp_lbl_font, label_char_spacing, draw=draw, **get_draw_text_kwargs(label_text_final, lang))
                     if w <= max_w_lbl:
                         break
                     label_font_size_eff -= 1
 
-            l_font = load_safe_font(font_settings.get("font_bold", "arialbd.ttf"), label_font_size_eff, lang, label_text_final)
-            colon_font = load_safe_font(font_settings.get("font_bold", "arialbd.ttf"), colon_font_size_eff, lang, colon_text_final or ":")
+            l_font = load_safe_font(label_font_name, label_font_size_eff, lang, label_text_final)
+            colon_font = load_safe_font(colon_font_name, colon_font_size_eff, lang, colon_text_final or ":")
 
             if layout_item["label_visible"]:
                 lbl_w = measure_text_width_with_spacing_local(label_text_final, l_font, label_char_spacing, draw=draw, **get_draw_text_kwargs(label_text_final, lang))
@@ -3581,6 +3597,8 @@ def admin_preview_card():
                     target_image=template_img,
                     enable_gradient=enable_label_gradient,
                     bottom_color=label_fill_bottom,
+                    stroke_width=hairline_width,
+                    stroke_fill=hairline_color,
                     **{"direction": direction, **get_draw_text_kwargs(label_text_final, lang)}
                 )
                 draw_aligned_colon_pil(
@@ -3599,6 +3617,8 @@ def admin_preview_card():
                     target_image=template_img,
                     enable_gradient=enable_colon_gradient,
                     bottom_color=colon_fill_bottom,
+                    stroke_width=hairline_width,
+                    stroke_fill=hairline_color,
                 )
 
             max_w = int(get_anchor_max_text_width(
@@ -3626,7 +3646,7 @@ def admin_preview_card():
                 
                 # Get font loader
                 def font_loader(size_px):
-                    return load_safe_font(font_settings.get("font_regular", "arial.ttf"), size_px, lang, raw_val)
+                    return load_safe_font(value_font_name, size_px, lang, raw_val)
                 
                 best_size, wrapped_lines = fit_wrapped_text_pil(
                     raw_val,
@@ -3641,7 +3661,7 @@ def admin_preview_card():
                 )
                 
                 addr_font = load_safe_font(
-                    font_settings.get("font_regular", "arial.ttf"),
+                    value_font_name,
                     best_size,
                     lang,
                     raw_val,
@@ -3674,6 +3694,8 @@ def admin_preview_card():
                             target_image=template_img,
                             enable_gradient=enable_value_gradient,
                             bottom_color=value_fill_bottom,
+                            stroke_width=hairline_width,
+                            stroke_fill=hairline_color,
                             **{"direction": direction, **get_draw_text_kwargs(line_display, lang)}
                         )
                     value_y_eff += spacing
@@ -3685,14 +3707,14 @@ def admin_preview_card():
                 if layout_item.get("value_auto_fit") and layout_item.get("value_max_width"):
                     max_w_val = float(layout_item["value_max_width"])
                     while value_font_size_eff > 6:
-                        temp_val_font = load_safe_font(font_settings.get("font_regular", "arial.ttf"), value_font_size_eff, lang, display_val)
+                        temp_val_font = load_safe_font(value_font_name, value_font_size_eff, lang, display_val)
                         w = measure_text_width_with_spacing_local(display_val, temp_val_font, value_char_spacing, draw=draw, **get_draw_text_kwargs(display_val, lang))
                         if w <= max_w_val:
                             break
                         value_font_size_eff -= 1
 
                 v_font = load_safe_font(
-                    font_settings.get("font_regular", "arial.ttf"),
+                    value_font_name,
                     value_font_size_eff,
                     lang,
                     display_val,
@@ -3716,6 +3738,8 @@ def admin_preview_card():
                         target_image=template_img,
                         enable_gradient=enable_value_gradient,
                         bottom_color=value_fill_bottom,
+                        stroke_width=hairline_width,
+                        stroke_fill=hairline_color,
                         **{"direction": direction, **get_draw_text_kwargs(display_val, lang)}
                     )
                 if advances_flow:

@@ -131,6 +131,15 @@ class Student(db.Model):
     verification_revoked = Column(Boolean, default=False)
     photo_quality_score = Column(Float, default=0.0)
     photo_quality_status = Column(String(20), default='unknown')
+    photo_consent_status = Column(String(20), default='granted')  # 'granted', 'revoked', 'pending', 'expired'
+    photo_consent_granted_at = Column(DateTime, nullable=True)
+    consent_expires_at = Column(DateTime, nullable=True)
+    data_retention_policy = Column(String(50), default='academic_year')
+    is_anonymized = Column(Boolean, default=False)
+    card_signature = Column(String(255), nullable=True)
+    card_manifest_json = Column(MutableDict.as_mutable(JSON), default=dict)
+    signed_at = Column(DateTime, nullable=True)
+    public_key_fingerprint = Column(String(64), nullable=True)
 
 
 # ================== Activity Log Model ==================
@@ -237,6 +246,9 @@ class SerialBatch(db.Model):
     school_name = db.Column(db.String(255), nullable=False, index=True)
     template_id = db.Column(db.Integer, db.ForeignKey('templates.id'), nullable=False)
     prefix = db.Column(db.String(50), default='SCH-')
+    serial_pattern = db.Column(db.String(100), default='{PREFIX}{YY}-{SEQ:4}{CHECK}')
+    checksum_algorithm = db.Column(db.String(30), default='mod37')  # 'mod37', 'luhn', 'none'
+    start_sequence = db.Column(db.Integer, default=1)
     class_name = db.Column(db.String(100), nullable=True)
     status = db.Column(db.String(30), default='uploading')  # uploading, ready, filling, rendering, done, error
     created_by = db.Column(db.String(255))
@@ -708,5 +720,47 @@ class NfcEncoding(db.Model):
     encoded_at = db.Column(db.DateTime)
     verified_at = db.Column(db.DateTime)
     error_message = db.Column(db.Text)
-    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), index=True)
     student = relationship('Student', backref=db.backref('nfc_encodings', lazy='dynamic'))
+
+
+# ================== Face Embedding & Duplicate Detection ==================
+class FaceEmbedding(db.Model):
+    __tablename__ = 'face_embeddings'
+    id = db.Column(db.Integer, primary_key=True)
+    student_id = db.Column(db.Integer, db.ForeignKey('students.id', ondelete='CASCADE'), nullable=True, index=True)
+    serial_card_id = db.Column(db.Integer, db.ForeignKey('serial_cards.id', ondelete='CASCADE'), nullable=True, index=True)
+    school_name = db.Column(db.String(255), nullable=False, index=True)
+    embedding_vector = db.Column(JSON, default=list)
+    face_phash = db.Column(db.String(64), nullable=True, index=True)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+
+    student = relationship('Student', backref=db.backref('face_embedding', uselist=False, cascade='all, delete-orphan'))
+    serial_card = relationship('SerialCard', backref=db.backref('face_embedding', uselist=False, cascade='all, delete-orphan'))
+
+
+# ================== Consent & Retention Log Model ==================
+class ConsentLog(db.Model):
+    __tablename__ = 'consent_logs'
+    id = db.Column(db.Integer, primary_key=True)
+    student_id = db.Column(db.Integer, db.ForeignKey('students.id', ondelete='CASCADE'), nullable=False, index=True)
+    school_name = db.Column(db.String(255), nullable=False, index=True)
+    action = db.Column(db.String(50), nullable=False)  # 'granted', 'revoked', 'renewed', 'expired', 'purged'
+    granted_by = db.Column(db.String(100), default='Admin')
+    ip_address = db.Column(db.String(64), nullable=True)
+    document_ref = db.Column(db.String(255), nullable=True)
+    details = db.Column(db.Text, nullable=True)
+    timestamp = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+
+    student = relationship('Student', backref=db.backref('consent_logs', lazy='dynamic', cascade='all, delete-orphan'))
+
+
+# ================== School Cryptographic Key Model ==================
+class SchoolKey(db.Model):
+    __tablename__ = 'school_keys'
+    id = db.Column(db.Integer, primary_key=True)
+    school_name = db.Column(db.String(255), nullable=False, unique=True, index=True)
+    public_key_pem = db.Column(db.Text, nullable=False)
+    private_key_pem = db.Column(db.Text, nullable=False)
+    key_type = db.Column(db.String(30), default='ed25519')
+    fingerprint = db.Column(db.String(64), nullable=False)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), index=True)

@@ -142,9 +142,11 @@ def get_template_path(template_id, side="front"):
         return None
 
 
-def _parse_rgb_color(color_val):
+def _parse_rgb_color(color_val, default=None):
+    if default is None:
+        default = [0, 0, 0]
     if not color_val:
-        return [0, 0, 0]
+        return list(default)
     if isinstance(color_val, str):
         val = color_val.strip()
         if val.startswith("#"):
@@ -163,18 +165,26 @@ def _parse_rgb_color(color_val):
                         int(hex_color[2] * 2, 16),
                     ]
             except Exception:
-                return [0, 0, 0]
-        else:
+                return list(default)
+        elif "," in val:
             try:
-                return [int(x.strip()) for x in val.split(",")]
+                parts = [int(x.strip()) for x in val.split(",")]
+                if len(parts) >= 3:
+                    return [max(0, min(255, parts[0])), max(0, min(255, parts[1])), max(0, min(255, parts[2]))]
             except Exception:
-                return [0, 0, 0]
+                return list(default)
+        return list(default)
     if isinstance(color_val, (list, tuple)):
-        try:
-            return [int(x) for x in color_val[:3]]
-        except Exception:
-            return [0, 0, 0]
-    return [0, 0, 0]
+        if not color_val:
+            return list(default)
+        if isinstance(color_val[0], str) and color_val[0].strip().startswith("#"):
+            return _parse_rgb_color(color_val[0], default=default)
+        if len(color_val) >= 3:
+            try:
+                return [max(0, min(255, int(x))) for x in (color_val[0], color_val[1], color_val[2])]
+            except Exception:
+                return list(default)
+    return list(default)
 
 
 def get_template_settings(template_id, side="front"):
