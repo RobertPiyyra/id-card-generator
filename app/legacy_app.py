@@ -155,7 +155,9 @@ def _cleanup_lost_bulk_jobs():
     except Exception as e:
         pass
 
-_cleanup_lost_bulk_jobs()
+# Skip disk cleanup during tests to avoid import-time side effects.
+if os.getenv("FLASK_ENV", "").strip().lower() not in ("testing", "test"):
+    _cleanup_lost_bulk_jobs()
 
 from logging.handlers import RotatingFileHandler
 import warnings
@@ -5044,15 +5046,17 @@ def cleanup_old_files(days=30):
 
 # run_cleanup moved to dashboard_routes.py
 # delete_all_students_by_template moved to dashboard_routes.py
-with app.app_context():
-    init_db()
-    migrate_database()
-    migrate_template_font_colors()
-    verify_fonts_available() # Add this line
-    migrate_photo_settings()
-    repair_student_photo_url_recursion()
-    from app.observability import verify_startup_dependencies
-    verify_startup_dependencies(app)
+# Skip runtime DB migrations during tests; the test harness calls db.create_all() per-test.
+if not app.config.get("TESTING"):
+    with app.app_context():
+        init_db()
+        migrate_database()
+        migrate_template_font_colors()
+        verify_fonts_available() # Add this line
+        migrate_photo_settings()
+        repair_student_photo_url_recursion()
+        from app.observability import verify_startup_dependencies
+        verify_startup_dependencies(app)
 
 
 if __name__ == "__main__":

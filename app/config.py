@@ -80,11 +80,23 @@ class ProductionConfig(Config):
         "pool_size": int(os.environ.get("DB_POOL_SIZE", "20")),
         "max_overflow": int(os.environ.get("DB_MAX_OVERFLOW", "10")),
     }
-
+class TestingConfig(Config):
+    TESTING = True
+    SQLALCHEMY_DATABASE_URI = "sqlite:///:memory:"
+    SQLALCHEMY_ENGINE_OPTIONS = {
+        "pool_pre_ping": True,
+        "poolclass": StaticPool,
+        "connect_args": {"check_same_thread": False}
+    }
+    WTF_CSRF_ENABLED = False
+    SESSION_COOKIE_SECURE = False
+    SECRET_KEY = "test-secret-key-for-testing-only"
 
 
 def get_config():
     env_name = (os.getenv("FLASK_ENV") or os.getenv("APP_ENV") or "").strip().lower()
+    if env_name in {"testing", "test"}:
+        return TestingConfig
     if env_name in {"development", "dev", "local"}:
         return DevelopmentConfig
 

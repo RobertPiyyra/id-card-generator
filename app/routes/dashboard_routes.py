@@ -1401,6 +1401,21 @@ def index():
         school_name = (session.get("admin_school") or "").strip()
     locked_template = _find_template_dict_by_school(templates, school_name)
     
+    # Get distinct classes for the active school
+    classes = []
+    if school_name:
+        try:
+            classes_query = db.session.query(Student.class_name).distinct().filter(Student.school_name == school_name)
+            classes = [c[0] for c in classes_query.all() if c[0]]
+        except Exception as e:
+            logger.error(f"Error querying distinct classes for index page: {e}")
+    else:
+        try:
+            classes_query = db.session.query(Student.class_name).distinct()
+            classes = [c[0] for c in classes_query.all() if c[0]]
+        except Exception as e:
+            logger.error(f"Error querying all distinct classes for index page: {e}")
+    
     is_admin = session.get("admin") == True
     is_super_admin = _is_admin_session() and session.get("admin_role") != "school_admin"
     is_school_admin = _is_admin_session() and session.get("admin_role") == "school_admin"
@@ -1726,7 +1741,7 @@ def index():
                 
                 # Limit is set to 3 cards
                 if count >= 3:
-                    return render_template("index.html", 
+                    return render_template("index.html", classes=classes, 
                                            error="You have reached your limit (3 cards).", 
                                            templates=templates, 
                                            form_data=request.form, 
@@ -1775,7 +1790,7 @@ def index():
             # Only super admin can bypass expired generation deadlines.
             if is_passed and session.get("admin_role") != "super_admin":
                 error_msg = f"⛔ The deadline passed on {deadline_date}. Card generation is closed."
-                return render_template("index.html", 
+                return render_template("index.html", classes=classes, 
                                        error=error_msg, 
                                        templates=templates, 
                                        form_data=request.form, 
@@ -1809,7 +1824,7 @@ def index():
             if not is_editing:
                 is_dup, dup_msg = check_duplicate_student(form_data)
                 if is_dup:
-                    return render_template("index.html", error=dup_msg, templates=templates, 
+                    return render_template("index.html", classes=classes, error=dup_msg, templates=templates, 
                                            form_data=form_data, selected_template_id=template_id,
                                            deadline_info=deadline_info), 400 # Added deadline_info
 
@@ -1965,7 +1980,7 @@ def index():
                 template_img = load_template_smart(template_path).resize((card_width, card_height))
             except Exception as e:
                 logger.error(f"Error loading template {template_id} from {template_path}: {e}")
-                return render_template("index.html", error=f"Failed to load template: {str(e)}", 
+                return render_template("index.html", classes=classes, error=f"Failed to load template: {str(e)}", 
                                        templates=templates, form_data=request.form,
                                        selected_template_id=template_id, deadline_info=deadline_info), 500
             
@@ -2496,7 +2511,7 @@ def index():
                     pdf_url = pdf_result if isinstance(pdf_result, str) else pdf_result.get('url')
                 except Exception as e:
                     logger.error(f"Cloudinary upload failed: {e}")
-                    return render_template("index.html", error=f"Failed to save image: {str(e)}",
+                    return render_template("index.html", classes=classes, error=f"Failed to save image: {str(e)}",
                                            templates=templates, form_data=request.form,
                                            selected_template_id=template_id, deadline_info=deadline_info), 500
 
@@ -2612,11 +2627,11 @@ NOOR GRAPHICS AND PRINTERS
             error = f"Error: {str(e)}"
             logger.exception("Error in index POST")
             safe_template_id = template_id if template_id else selected_template_id
-            return render_template("index.html", error=error, templates=templates, 
+            return render_template("index.html", classes=classes, error=error, templates=templates, 
                                    form_data=request.form, selected_template_id=safe_template_id,
                                    deadline_info=deadline_info), 500 # Added deadline_info
 
-    return render_template("index.html", generated_url=generated_url, back_generated_url=back_generated_url, download_url=download_url,
+    return render_template("index.html", classes=classes, generated_url=generated_url, back_generated_url=back_generated_url, download_url=download_url,
                            form_data=form_data, success=success, error=error, templates=templates, 
                            show_fetch=show_fetch, unique_edit_id=unique_edit_id, 
                            selected_template_id=selected_template_id, deadline_info=deadline_info,

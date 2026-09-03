@@ -97,20 +97,73 @@ Designed for:
 ```bash
 id-card-generator/
 │
-├── app.py
-├── models.py
-├── utils.py
-├── editor_routes.py
-├── corel_routes.py
+├── run.py                   # Application entry point (dev: python run.py)
+├── models.py                # SQLAlchemy data models (~30 tables)
+├── utils.py                 # Template/image/font utility functions
+├── cloudinary_config.py     # Cloudinary upload helper
+├── notifications.py         # Email + SMS notification logic
+├── manage.py                # CLI management commands
+├── gunicorn.conf.py         # Gunicorn config for production
+├── conftest.py              # Shared pytest fixtures
 │
-├── templates/
-├── static/
-│   ├── fonts/
-│   ├── uploads/
-│   └── generated/
+├── app/                     # Main application package
+│   ├── __init__.py          # App factory (create_app)
+│   ├── config.py            # Config classes (Dev/Prod/Testing)
+│   ├── legacy_app.py        # Core Flask app, DB init, migrations
+│   ├── extensions.py        # Flask extensions (csrf, limiter, scheduler)
+│   ├── middleware.py         # Production middleware
+│   ├── auth_decorators.py   # Auth decorator definitions
+│   ├── error_handlers.py    # Error handler registrations
+│   ├── helpers.py            # Template/cache-bust helpers
+│   ├── decorators.py        # Legacy decorator re-exports
+│   ├── logging_config.py    # Structured JSON logging
+│   ├── observability.py     # Prometheus metrics, health checks
+│   ├── performance.py       # Caching, lazy loading, connection pooling
+│   ├── celery_config.py     # Celery task queue setup
+│   │
+│   ├── routes/              # HTTP route blueprints
+│   │   ├── dashboard_routes.py   # Main admin/student card pages
+│   │   ├── auth_routes.py        # Login, logout, password reset
+│   │   ├── api_routes.py         # Internal API endpoints
+│   │   ├── corel_routes.py       # CorelDRAW PDF export
+│   │   ├── editor_routes.py      # Visual template editor
+│   │   ├── verify_routes.py      # Card verification
+│   │   ├── ai_routes.py          # AI Design Studio API
+│   │   ├── serial_batch_routes.py # Photo-first batch generation
+│   │   ├── enterprise_routes.py  # Enterprise admin features
+│   │   ├── rest_api.py           # RESTful API endpoints
+│   │   ├── analytics_routes.py   # Analytics dashboard
+│   │   └── faq_routes.py         # FAQ pages
+│   │
+│   ├── services/            # Business logic layer
+│   │   ├── render_service.py     # Card image rendering (PIL)
+│   │   ├── photo_service.py      # Photo processing, face crop
+│   │   ├── ai_layout.py          # AI layout analysis
+│   │   ├── serial_batch_service.py # Serial batch CRUD
+│   │   ├── redis_service.py      # Redis cache/client
+│   │   ├── template_upload_service.py
+│   │   ├── student_service.py
+│   │   ├── layout_service.py
+│   │   ├── translation_service.py
+│   │   └── ...                   # 30+ service modules
+│   │
+│   ├── utils/               # Internal utilities
+│   │   ├── image_utils.py
+│   │   ├── text_utils.py
+│   │   ├── layout_utils.py
+│   │   ├── font_utils.py
+│   │   └── helper_utils.py
+│   │
+│   └── api/                 # GraphQL API
+│       └── graphql.py
 │
-├── requirements.txt
-├── runtime.txt
+├── templates/               # Jinja2 HTML templates
+├── static/                  # Fonts, images, uploads, generated cards
+├── migrations/              # Alembic DB migrations
+├── instance/                # SQLite databases (local dev)
+│
+├── requirements.txt         # Python dependencies
+├── requirements-dev.txt     # Dev/test dependencies
 └── README.md
 ```
 
@@ -154,7 +207,7 @@ pip install -r requirements.txt
 ## 5️⃣ Run Application
 
 ```bash
-python app.py
+python run.py
 ```
 
 Open browser:
@@ -176,7 +229,7 @@ pip install -r requirements.txt
 ## Start Command
 
 ```bash
-gunicorn app:app --bind 0.0.0.0:$PORT
+gunicorn -c gunicorn.conf.py "app:create_app()" --bind 0.0.0.0:$PORT
 ```
 
 ---

@@ -1731,9 +1731,26 @@
                             </select>
                             <select id="pb_class_name" class="form-control" style="min-width:180px;" onchange="PhotoBatch.onClassSelectChange()">
                                 <option value="">Select Class (Optional)</option>
-                                {% for c in classes %}
-                                <option value="{{ c }}">{{ c }}</option>
-                                {% endfor %}
+                                {% if classes %}
+                                <optgroup label="Active Classes in Database">
+                                    {% for c in classes %}
+                                    <option value="{{ c }}">{{ c }}</option>
+                                    {% endfor %}
+                                </optgroup>
+                                {% endif %}
+                                <optgroup label="School">
+                                    {% set school_classes = ['Nursery', 'L.K.G', 'U.K.G', '1st', '2nd', '3rd', '4th', '5th', 
+                                                           '6th', '7th', '8th', '9th', '10th', '11th', '12th'] %}
+                                    {% for sc in school_classes %}
+                                    <option value="{{ sc }}">{{ sc }}</option>
+                                    {% endfor %}
+                                </optgroup>
+                                <optgroup label="Madrasa">
+                                    {% set madrasa_classes = ['Ibtidai', 'Nazra', 'Hifz', '1st Year Arabic', '2nd Year Arabic', '3rd Year Arabic', '4th Year Arabic', 'Final Year Arabic'] %}
+                                    {% for mc in madrasa_classes %}
+                                    <option value="{{ mc }}">{{ mc }}</option>
+                                    {% endfor %}
+                                </optgroup>
                                 <option value="__custom__">-- Type Custom Class --</option>
                             </select>
                             <input type="text" id="pb_class_name_custom" placeholder="Class Name" class="form-control" style="width:120px; display:none;">

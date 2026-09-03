@@ -17,7 +17,6 @@ Flask-WTF==1.2.1
 Flask-Limiter==4.1.1
 Flask-Compress==1.14
 Flask-Talisman==1.1.0
-Flask-Talisman==1.1.0
 itsdangerous==2.2.0
 email-validator==2.1.1
 gunicorn==21.2.0

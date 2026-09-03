@@ -1173,6 +1173,16 @@
                     </label>
                     <select id="class_name" name="class_name" class="form-control" required>
                         <option value="" id="classSelectPlaceholder" data-i18n="select_class">Select Class Level</option>
+                        {% if classes %}
+                        <optgroup label="Active Classes in Database">
+                            {% for c in classes %}
+                            <option value="{{ c }}"
+                                {% if form_data and form_data.get('class_name') == c %}selected{% endif %}>
+                                {{ c }}
+                            </option>
+                            {% endfor %}
+                        </optgroup>
+                        {% endif %}
                         <optgroup label="School">
                             {% set school_classes = ['Nursery', 'L.K.G', 'U.K.G', '1st', '2nd', '3rd', '4th', '5th', 
                                                    '6th', '7th', '8th', '9th', '10th', '11th', '12th'] %}

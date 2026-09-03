@@ -105,3 +105,10 @@ htmlcov/
 # =========================
 .pytest_cache/
 
+# =========================
+# Dev scratch & caches
+# =========================
+scratch/
+.mypy_cache/
+.ruff_cache/
+
