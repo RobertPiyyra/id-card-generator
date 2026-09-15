@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="csrf-token" content="{{ csrf_token() }}">
+  <title>Choose ID Card Template</title>
+  <style>
+    :root { --primary:#1769ff; --text:#172033; --muted:#6b7280; --bg:#f5f7fb; --card:#fff; }
+    * { box-sizing:border-box; }
+    body { margin:0; font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; color:var(--text); background:var(--bg); }
+    .wrap { max-width:1180px; margin:auto; padding:48px 22px 64px; }
+    .header { text-align:center; margin-bottom:34px; }
+    .eyebrow { color:var(--primary); font-weight:800; letter-spacing:.08em; text-transform:uppercase; font-size:.78rem; }
+    h1 { margin:8px 0 10px; font-size:clamp(2rem,4vw,3rem); }
+    .subtitle { color:var(--muted); max-width:700px; margin:auto; }
+    .notice { margin:0 auto 26px; max-width:900px; padding:13px 16px; border-radius:12px; background:#eaf1ff; color:#194a9a; }
+    .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:22px; }
+    .template { background:var(--card); border:2px solid transparent; border-radius:20px; overflow:hidden; box-shadow:0 12px 32px rgba(23,32,51,.08); transition:.2s; }
+    .template:hover { transform:translateY(-4px); box-shadow:0 18px 38px rgba(23,32,51,.13); }
+    .preview { aspect-ratio:1.54; background:#eef2f7; display:flex; align-items:center; justify-content:center; overflow:hidden; }
+    .preview img { width:100%; height:100%; object-fit:cover; }
+    .placeholder { color:#9aa3b2; font-size:2.6rem; }
+    .body { padding:18px; }
+    .name { font-weight:800; font-size:1.08rem; overflow-wrap:anywhere; }
+    .school { color:var(--muted); margin-top:4px; min-height:40px; }
+    .meta { display:flex; gap:7px; flex-wrap:wrap; margin:12px 0 16px; }
+    .tag { background:#f0f3f8; color:#475569; border-radius:999px; padding:5px 9px; font-size:.75rem; font-weight:700; }
+    .select { display:block; width:100%; padding:12px 15px; border-radius:11px; background:var(--primary); color:#fff; text-align:center; text-decoration:none; font-weight:800; }
+    .empty { text-align:center; background:#fff; padding:50px 25px; border-radius:18px; color:var(--muted); }
+    @media (prefers-color-scheme:dark) { body{background:#0f172a;color:#eef2ff}.template,.empty{background:#172033}.school{color:#a9b3c5}.tag{background:#263249;color:#d5dbea}.preview{background:#202b40} }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <header class="header">
+    <div class="eyebrow">ID Card Generator</div>
+    <h1>Choose Your ID Card Template</h1>
+    <p class="subtitle">These templates are published and controlled by the administrator. Select a design to continue to secure login.</p>
+  </header>
+
+  {% if selected_id %}
+    <div class="notice">Template {{ selected_id }} was selected. Choose it below to continue.</div>
+  {% endif %}
+
+  {% if templates %}
+    <section class="grid" aria-label="Published ID card templates">
+      {% for template in templates %}
+      <article class="template">
+        <div class="preview">
+          {% if template.image_url %}
+            <img src="{{ template.image_url }}" alt="{{ template.name }}">
+          {% else %}
+            <div class="placeholder">▣</div>
+          {% endif %}
+        </div>
+        <div class="body">
+          <div class="name">{{ template.name }}</div>
+          <div class="school">{{ template.school_name }}</div>
+          <div class="meta">
+            <span class="tag">{{ template.orientation|title }}</span>
+            {% if template.double_sided %}<span class="tag">Front + Back</span>{% endif %}
+            <span class="tag">Admin Published</span>
+          </div>
+          <a class="select" href="{{ url_for('template_flow.template_login', template_id=template.id) }}">Select Template →</a>
+        </div>
+      </article>
+      {% endfor %}
+    </section>
+  {% else %}
+    <div class="empty">
+      <h2>No published templates yet</h2>
+      <p>An administrator must publish a template before it can be selected.</p>
+      <a href="{{ url_for('auth.student_login') }}">Use existing login</a>
+    </div>
+  {% endif %}
+</div>
+</body>
+</html>
