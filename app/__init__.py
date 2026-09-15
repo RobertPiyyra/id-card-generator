@@ -26,6 +26,7 @@ def create_app(config_object=None):
         from app.routes.serial_batch_routes import serial_batch_bp
         from app.routes.analytics_routes import analytics_bp
         from app.routes.faq_routes import faq_bp
+        from app.routes.template_flow_routes import template_flow_bp
         _app.register_blueprint(serial_batch_bp, url_prefix='/admin/serial_batches')
         _app.register_blueprint(analytics_bp)
         _app.register_blueprint(faq_bp)
@@ -40,6 +41,7 @@ def create_app(config_object=None):
         _app.register_blueprint(enterprise_bp, url_prefix='/enterprise')
         _app.register_blueprint(ai_bp)
         _app.register_blueprint(auth_bp)
+        _app.register_blueprint(template_flow_bp)
 
     if config_object:
         _app.config.from_object(config_object)
